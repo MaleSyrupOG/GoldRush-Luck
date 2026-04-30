@@ -24,12 +24,17 @@ RUN apt-get update \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /build
+# Build the venv at the FINAL runtime path /app/.venv from the start so
+# script shebangs in the venv (alembic, dotenv, …) reference the correct
+# python interpreter location after we copy them to the runtime stage.
+WORKDIR /app
 COPY pyproject.toml uv.lock .python-version ./
 COPY goldrush_core ./goldrush_core
 COPY goldrush_luck ./goldrush_luck
 COPY goldrush_deposit_withdraw ./goldrush_deposit_withdraw
 COPY goldrush_poker ./goldrush_poker
+# Alembic migrations are run from inside the bot container during deploy.
+COPY ops/alembic ./ops/alembic
 
 # Resolve and install only runtime dependencies (no dev group).
 RUN uv sync --frozen --no-dev
@@ -54,10 +59,12 @@ RUN groupadd --system --gid 1002 dwbot \
 
 WORKDIR /app
 
-# Copy the venv and the application code from the builder.
-COPY --from=builder --chown=dwbot:dwbot /build/.venv /app/.venv
-COPY --from=builder --chown=dwbot:dwbot /build/goldrush_core /app/goldrush_core
-COPY --from=builder --chown=dwbot:dwbot /build/goldrush_deposit_withdraw /app/goldrush_deposit_withdraw
+# Copy the venv and the application code from the builder. The builder
+# already used /app as its workdir so script shebangs are correct.
+COPY --from=builder --chown=dwbot:dwbot /app/.venv /app/.venv
+COPY --from=builder --chown=dwbot:dwbot /app/goldrush_core /app/goldrush_core
+COPY --from=builder --chown=dwbot:dwbot /app/goldrush_deposit_withdraw /app/goldrush_deposit_withdraw
+COPY --from=builder --chown=dwbot:dwbot /app/ops/alembic /app/ops/alembic
 
 USER dwbot
 
