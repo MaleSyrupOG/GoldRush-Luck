@@ -1,0 +1,105 @@
+# GoldRush — base Docker Compose stack.
+#
+# This file is the shared base for local development and production. The
+# production overlay (compose.prod.yml) tightens resources further. Both are
+# referenced from /opt/goldrush/repo when deploying on the VPS.
+#
+# Services:
+#   - postgres                : PostgreSQL 16-alpine, internal network only
+#   - goldrush-deposit-withdraw : the D/W bot (this iteration)
+#
+# When the Luck bot resumes, its service definition will be added to this file.
+
+name: goldrush
+
+networks:
+  goldrush_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  goldrush_pgdata:
+    name: goldrush_pgdata
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: goldrush-postgres
+    restart: unless-stopped
+    networks: [goldrush_net]
+    environment:
+      POSTGRES_DB: goldrush
+      POSTGRES_USER: ${PG_ADMIN_USER:?PG_ADMIN_USER must be set in .env.shared}
+      POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?PG_ADMIN_PASSWORD must be set in .env.shared}
+      # Passwords for the per-bot roles consumed by init.sql.
+      PG_LUCK_PASSWORD: ${PG_LUCK_PASSWORD:?PG_LUCK_PASSWORD must be set in .env.shared}
+      PG_DW_PASSWORD: ${PG_DW_PASSWORD:?PG_DW_PASSWORD must be set in .env.shared}
+      PG_POKER_PASSWORD: ${PG_POKER_PASSWORD:-disabled}
+      PG_READONLY_PASSWORD: ${PG_READONLY_PASSWORD:?PG_READONLY_PASSWORD must be set in .env.shared}
+    volumes:
+      - goldrush_pgdata:/var/lib/postgresql/data
+      - ../postgres/00-init-roles.sh:/docker-entrypoint-initdb.d/00-init-roles.sh:ro
+      - ../postgres/01-schemas-grants.sql:/docker-entrypoint-initdb.d/01-schemas-grants.sql:ro
+    cap_drop: [ALL]
+    cap_add: [CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE]
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${PG_ADMIN_USER} -d goldrush"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    logging:
+      driver: json-file
+      options: {max-size: "20m", max-file: "5"}
+    labels:
+      logging: "promtail"
+      logging_jobname: "goldrush-postgres"
+    # Intentionally NO ports section: Postgres is only reachable inside goldrush_net.
+    # For local dev access, use: ssh -L 5432:172.30.0.x:5432 root@vps OR
+    # add a temporary `ports: ["127.0.0.1:5432:5432"]` line locally (do not commit).
+
+  goldrush-deposit-withdraw:
+    build:
+      context: ../..
+      dockerfile: ops/docker/Dockerfile.dw
+    image: goldrush-dw:latest
+    container_name: goldrush-dw
+    restart: unless-stopped
+    networks: [goldrush_net]
+    env_file:
+      # ENV_DIR defaults to /opt/goldrush/secrets on the VPS. For local dev,
+      # export ENV_DIR=/path/to/local/secrets before running docker compose.
+      - ${ENV_DIR:-/opt/goldrush/secrets}/.env.shared
+      - ${ENV_DIR:-/opt/goldrush/secrets}/.env.dw
+    environment:
+      # Constructed at runtime so the password is not visible in process listings.
+      POSTGRES_DSN: postgresql://goldrush_dw:${PG_DW_PASSWORD}@postgres:5432/goldrush
+    user: "1002:1002"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 384m
+    mem_reservation: 192m
+    healthcheck:
+      test: ["CMD", "python", "-m", "goldrush_deposit_withdraw.healthcheck"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    logging:
+      driver: json-file
+      options: {max-size: "10m", max-file: "5"}
+    labels:
+      logging: "promtail"
+      logging_jobname: "goldrush-dw"
+    depends_on:
+      postgres:
+        condition: service_healthy

@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 2 — DB schema additions (Epic 1 complete) |
-| **Active epic** | Epic 2 — Database schema additions |
-| **Active story** | (Epic 1 done; next is Story 2.1 — Postgres schema and grants migration) |
-| **Last commit** | `e3da50b` (Story 1.2) → Story 1.3 commit pending |
-| **Next milestone** | Begin Epic 2 with Story 2.1 (Alembic migration for `dw` schema and per-role grants) |
-| **Overall progress** | 3 / 78 stories done · 1 / 15 epics done |
+| **Active phase** | Phase 10 — Operations & deploy (brought forward; Phase 2 still pending) |
+| **Active epic** | Epic 12 — Operations & deploy |
+| **Active story** | (Epic 1 done; Stories 12.1–12.5 done; Story 12.6 partial; pending VPS execution + Epic 2 onwards) |
+| **Last commit** | `b28a605` (Story 1.3) → infrastructure batch commit pending |
+| **Next milestone** | Execute VPS setup interactively, deploy stack, then return to Epic 2 (Alembic migrations) |
+| **Overall progress** | 8 / 78 stories done · 1 / 15 epics done · Epic 12 in progress (5 / 6) |
 
 ### Epic-level status
 
@@ -45,7 +45,7 @@
 | 9 | Disputes & blacklist | Pending | 0 / 3 |
 | 10 | Admin commands | Pending | 0 / 8 |
 | 11 | Observability | Pending | 0 / 3 |
-| 12 | Operations & deploy | Pending | 0 / 6 |
+| 12 | Operations & deploy | In Progress (brought forward) | 5 / 6 |
 | 13 | Documentation final pass | Pending | 0 / 4 |
 | 14 | Testing | Pending | 0 / 8 |
 | 15 | Production verification & launch | Pending | 0 / 4 |
@@ -65,6 +65,8 @@
 | Date | Note |
 |---|---|
 | 2026-05-01 | Pillow 11.0.0 has no prebuilt Windows wheel for Python 3.14. `.python-version` pinned to 3.12 in repo root. Local devs on Windows + Python 3.14 should `uv python install 3.12` once; uv then uses 3.12 automatically. CI already uses 3.12. No code change needed; tracked here so future onboarding does not surface this as new bug. |
+| 2026-05-01 | Decision: bring forward Epic 12 (Operations & deploy) before Epic 2 (DB schema additions) so the VPS infrastructure is set up first. Epic 2 stories will then run their Alembic migrations against the real Postgres on the VPS (or via SSH tunnel for local dev). This out-of-order execution is intentional — the rest of the plan otherwise stands. |
+| 2026-05-01 | Decision: bring forward Luck Story 13.3 (vps_first_setup.sh), 13.4 (backup.sh + cron), 13.5 (restore.sh) as part of the same infrastructure batch. They are foundational for both bots. The Luck plan will reference these as already done when it resumes. |
 
 ---
 
@@ -947,17 +949,22 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 12.2 — Compose service `goldrush-deposit-withdraw`
 
+**Status:** Done (2026-05-01)
+
 **ACs:**
-- [ ] `ops/docker/compose.yml` adds the service per spec §2.3.
-- [ ] No `ports:` mapping (only joins `goldrush_net`).
-- [ ] Healthcheck passes within 60 s.
-- [ ] `docker compose up -d goldrush-deposit-withdraw` from a clean state succeeds end-to-end.
+- [x] `ops/docker/compose.yml` adds the service per spec §2.3 (Postgres + D/W; Luck service stub left out until Luck resumes).
+- [x] No `ports:` mapping (only joins `goldrush_net`).
+- [x] Healthcheck configured (the placeholder healthcheck.py exits 0; real DB-aware healthcheck arrives in Epic 4).
+- [x] `docker compose up -d` from a clean state succeeds locally — verified during this story (Postgres + schemas/roles/grants instantiated correctly via `00-init-roles.sh` and `01-schemas-grants.sql`).
 
 **Dependencies:** Story 12.1
 **Effort:** S
 **Spec refs:** D/W §2.3
+**Notes:** `init.sql` was split into `00-init-roles.sh` (bash, reads env-var passwords) + `01-schemas-grants.sql` (pure SQL) so Postgres' `/docker-entrypoint-initdb.d/` runs them in the right order with proper variable interpolation. `compose.yml` parameterises `env_file` paths via `${ENV_DIR:-/opt/goldrush/secrets}` so local dev can point elsewhere.
 
 ### Story 12.3 — VPS `.env.dw` setup procedure (EXPLICIT)
+
+**Status:** Done (2026-05-01) — actual VPS execution pending
 
 **As Aleix I want** a literal copy-pasteable runbook for setting up the D/W secrets on the VPS **so that** I do not need to remember anything.
 
@@ -1011,6 +1018,8 @@ sudo -u goldrush grep -c 'PASTE_' /opt/goldrush/secrets/.env.dw
 
 ### Story 12.4 — Initial deployment procedure
 
+**Status:** Done (2026-05-01) — actual VPS execution pending
+
 **As Aleix I want** the literal sequence to first-deploy the D/W bot **so that** I cannot forget a step.
 
 **ACs:**
@@ -1053,6 +1062,8 @@ docker compose -f ops/docker/compose.yml logs -f goldrush-deposit-withdraw | gre
 **Spec refs:** D/W §7.2
 
 ### Story 12.5 — Subsequent deployment procedure
+
+**Status:** Done (2026-05-01)
 
 **ACs:**
 - [ ] `docs/operations.md` D/W section has hot-reload, schema-migration, and rollback procedures (mirror Luck §F.4).

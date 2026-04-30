@@ -123,6 +123,7 @@ logs/
 *.log
 *.log.*
 local/
+.local-dev/
 scratch/
 tmp/
 *.tmp

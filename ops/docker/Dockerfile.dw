@@ -1,0 +1,70 @@
+# syntax=docker/dockerfile:1.7
+# Hardened multi-stage Dockerfile for the GoldRush Deposit/Withdraw bot.
+# - Stage 1: builder. Installs uv, syncs the locked dependency set into a venv.
+# - Stage 2: runtime. Minimal slim base, non-root user UID 1002, tini as PID 1,
+#   no build tooling, read-only filesystem friendly.
+#
+# Required Python version is pinned via .python-version (3.12). The base image
+# matches that pin so wheels resolve cleanly on glibc-based Linux.
+
+# ---------- Stage 1: builder ----------
+FROM python:3.12-slim-bookworm AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy
+
+# Install uv from the official static binary (no system Python tooling needed)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl ca-certificates \
+    && curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh \
+    && apt-get purge -y curl \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+COPY pyproject.toml uv.lock .python-version ./
+COPY goldrush_core ./goldrush_core
+COPY goldrush_luck ./goldrush_luck
+COPY goldrush_deposit_withdraw ./goldrush_deposit_withdraw
+COPY goldrush_poker ./goldrush_poker
+
+# Resolve and install only runtime dependencies (no dev group).
+RUN uv sync --frozen --no-dev
+
+# ---------- Stage 2: runtime ----------
+FROM python:3.12-slim-bookworm AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PYTHONHASHSEED=random \
+    PATH="/app/.venv/bin:${PATH}"
+
+# Minimal runtime deps: tini for proper PID 1 + ca-certificates for TLS to Discord/Postgres.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends tini ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Non-root user with FIXED UID 1002 (Luck uses 1001).
+RUN groupadd --system --gid 1002 dwbot \
+    && useradd --system --uid 1002 --gid dwbot --shell /usr/sbin/nologin --home /app dwbot
+
+WORKDIR /app
+
+# Copy the venv and the application code from the builder.
+COPY --from=builder --chown=dwbot:dwbot /build/.venv /app/.venv
+COPY --from=builder --chown=dwbot:dwbot /build/goldrush_core /app/goldrush_core
+COPY --from=builder --chown=dwbot:dwbot /build/goldrush_deposit_withdraw /app/goldrush_deposit_withdraw
+
+USER dwbot
+
+# Default healthcheck: exits 0 if the package is importable and the placeholder
+# healthcheck script returns 0. Real DB-aware healthcheck arrives in Epic 4.
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD python -m goldrush_deposit_withdraw.healthcheck || exit 1
+
+ENTRYPOINT ["/usr/bin/tini", "--"]
+CMD ["python", "-m", "goldrush_deposit_withdraw"]

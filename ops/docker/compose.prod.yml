@@ -1,0 +1,21 @@
+# GoldRush — production-only overlay for compose.yml.
+#
+# Apply with: docker compose -f ops/docker/compose.yml -f ops/docker/compose.prod.yml up -d
+#
+# This file:
+# - Pins images by digest once we publish to a registry (TBD).
+# - Restricts deploy resources tighter than the dev defaults.
+# - Forbids accidental rebuilds in production: pull_policy=never.
+
+services:
+  goldrush-deposit-withdraw:
+    image: goldrush-dw:latest
+    pull_policy: never
+    deploy:
+      resources:
+        limits:
+          cpus: "0.75"
+          memory: 384m
+        reservations:
+          cpus: "0.10"
+          memory: 128m
