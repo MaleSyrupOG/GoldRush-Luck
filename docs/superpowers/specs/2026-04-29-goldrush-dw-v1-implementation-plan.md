@@ -23,19 +23,19 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 10 — Operations & deploy (Epic 12 effectively complete) |
-| **Active epic** | (Epic 12 complete pending Story 12.6 backup drill; next is Epic 2 — DB schema migrations) |
-| **Active story** | (next: Story 2.1 — Alembic migration for `dw` schema and grants, against the live VPS Postgres) |
-| **Last commit** | `5682cea` (GPG fix) — VPS deployment EXECUTED 2026-05-01 |
-| **Next milestone** | Begin Epic 2 — Alembic migration that creates `core`, `fairness`, `luck`, `dw` tables on the live VPS Postgres |
-| **Overall progress** | 8 / 78 stories done · 1 / 15 epics done · Epic 12 effectively complete (5 / 6, Story 12.6 backup drill pending data) · **VPS infrastructure live on 91.98.234.106** |
+| **Active phase** | Phase 1 — Foundation (Epic 2 complete, applied to live VPS) |
+| **Active epic** | (Epics 1, 2, 12 effectively complete; next is Epic 3 — core services & models, or Epic 14 testing) |
+| **Active story** | (next: either Epic 3 Story 3.1 — Balance manager Python facade, or Epic 14 Story 14.1 — treasury invariant property test) |
+| **Last commit** | `31f826d` (Epic 2 migrations) — APPLIED TO VPS 2026-05-01 |
+| **Next milestone** | Either Python balance facade (Epic 3) or property tests against the migrations (Epic 14) |
+| **Overall progress** | 20 / 78 stories done · 3 / 15 epics done · **VPS Postgres has all schemas, tables, SECURITY DEFINER fns** · placeholder D/W bot still running healthy |
 
 ### Epic-level status
 
 | Epic | Title | Status | Stories Done |
 |---|---|---|---|
 | 1 | Foundation extensions | Done | 3 / 3 |
-| 2 | Database schema additions | Pending | 0 / 12 |
+| 2 | Database schema additions | Done | 12 / 12 |
 | 3 | Core services & models | Pending | 0 / 4 |
 | 4 | Bot skeleton | Pending | 0 / 5 |
 | 5 | Deposit flow | Pending | 0 / 5 |
@@ -68,6 +68,8 @@
 | 2026-05-01 | Decision: bring forward Epic 12 (Operations & deploy) before Epic 2 (DB schema additions) so the VPS infrastructure is set up first. Epic 2 stories will then run their Alembic migrations against the real Postgres on the VPS (or via SSH tunnel for local dev). This out-of-order execution is intentional — the rest of the plan otherwise stands. |
 | 2026-05-01 | Decision: bring forward Luck Story 13.3 (vps_first_setup.sh), 13.4 (backup.sh + cron), 13.5 (restore.sh) as part of the same infrastructure batch. They are foundational for both bots. The Luck plan will reference these as already done when it resumes. |
 | 2026-05-01 | VPS infrastructure deployed and verified live on 91.98.234.106. Postgres healthy with all 5 schemas and 4 active roles (poker disabled). Placeholder D/W container running healthy. GPG backup key fingerprint `59CC31BED2A9557C8E6842723C40E9BEA65AF9B8` recorded by Aleix off-VPS. Cron entry for backup not yet installed (deferred until first real data exists, then Story 12.6 backup drill validates the cycle). |
+| 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
+| 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 
 ---
 
