@@ -23,18 +23,18 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 0 — Repo bootstrap (pre-Epic 1) |
-| **Active epic** | (none yet — repo skeleton in progress) |
-| **Active story** | (none yet) |
-| **Last commit** | (none yet — repo not pushed) |
-| **Next milestone** | First clean commit + push to remote |
-| **Overall progress** | 0 / 78 stories done · 0 / 15 epics done |
+| **Active phase** | Phase 1 — Foundation extensions |
+| **Active epic** | Epic 1 — Foundation extensions for D/W |
+| **Active story** | (Story 1.1 done; next is Story 1.2) |
+| **Last commit** | `85de88a` (initial monorepo skeleton) → followed by Story 1.1 completion commit |
+| **Next milestone** | Complete Story 1.2 (uv-based Makefile targets verified) |
+| **Overall progress** | 1 / 78 stories done · 0 / 15 epics done |
 
 ### Epic-level status
 
 | Epic | Title | Status | Stories Done |
 |---|---|---|---|
-| 1 | Foundation extensions | Pending | 0 / 3 |
+| 1 | Foundation extensions | In Progress | 1 / 3 |
 | 2 | Database schema additions | Pending | 0 / 12 |
 | 3 | Core services & models | Pending | 0 / 4 |
 | 4 | Bot skeleton | Pending | 0 / 5 |
@@ -113,15 +113,17 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 1.1 — Extend the monorepo skeleton with the `goldrush_deposit_withdraw` package
 
+**Status:** Done (2026-05-01)
+
 **As Aleix I want** the D/W package shaped from day one **so that** every later PR adds code, not directories.
 
 **ACs:**
-- [ ] `goldrush_deposit_withdraw/{tickets,cashiers,commands,views,setup}/__init__.py` exist.
-- [ ] `goldrush_deposit_withdraw/__main__.py`, `client.py`, `healthcheck.py` placeholders exist.
-- [ ] `python -c "import goldrush_deposit_withdraw"` succeeds.
-- [ ] `tests/{unit,integration,property,e2e}/dw/` directories exist with `__init__.py` and a smoke test that imports the package.
-- [ ] `.gitignore` updated to exclude `dwBotKeys.txt`, `luckBotKeys.txt`, `*Keys.txt`, `*keys.txt`, `*.token`, `secrets/`, `.env`, `.env.*` (anywhere in the tree).
-- [ ] `.gitignore` audited: `git check-ignore -v dwBotKeys.txt` reports it ignored.
+- [x] `goldrush_deposit_withdraw/{tickets,cashiers,commands,views,setup}/__init__.py` exist.
+- [x] `goldrush_deposit_withdraw/__main__.py`, `client.py`, `healthcheck.py` placeholders exist.
+- [x] `python -c "import goldrush_deposit_withdraw"` succeeds.
+- [x] `tests/{unit,integration,property,e2e}/dw/` directories exist with `__init__.py` and a smoke test that imports the package.
+- [x] `.gitignore` updated to exclude `dwBotKeys.txt`, `luckBotKeys.txt`, `*Keys.txt`, `*keys.txt`, `*.token`, `secrets/`, `.env`, `.env.*` (anywhere in the tree).
+- [x] `.gitignore` audited: `git check-ignore -v dwBotKeys.txt` reports it ignored.
 
 **Dependencies:** Luck Epic 1 (monorepo skeleton in place)
 **Effort:** S
