@@ -2,6 +2,7 @@
 # Run `make help` to see available targets.
 
 .PHONY: help setup lint format type audit test test-unit test-integration test-property test-e2e \
+        test-luck-unit test-luck-integration test-dw-unit test-dw-integration test-cross-bot \
         run-dev-luck run-dev-dw migrate-up migrate-down clean
 
 help:
@@ -17,6 +18,11 @@ help:
 	@echo "  test-integration   integration tests (needs Postgres)"
 	@echo "  test-property      hypothesis property tests"
 	@echo "  test-e2e           end-to-end tests (Discord sandbox)"
+	@echo "  test-luck-unit     unit tests scoped to goldrush_luck"
+	@echo "  test-luck-integration  integration tests scoped to goldrush_luck"
+	@echo "  test-dw-unit       unit tests scoped to goldrush_deposit_withdraw"
+	@echo "  test-dw-integration    integration tests scoped to goldrush_deposit_withdraw"
+	@echo "  test-cross-bot     cross-bot integration tests"
 	@echo "  run-dev-luck       run the Luck bot in dev mode"
 	@echo "  run-dev-dw         run the D/W bot in dev mode"
 	@echo "  migrate-up         alembic upgrade head"
@@ -53,6 +59,21 @@ test-property:
 
 test-e2e:
 	uv run pytest tests/e2e -v -m e2e
+
+test-luck-unit:
+	uv run pytest tests/unit/luck tests/unit/core -v
+
+test-luck-integration:
+	uv run pytest tests/integration/luck tests/integration/core -v
+
+test-dw-unit:
+	uv run pytest tests/unit/dw tests/unit/core -v
+
+test-dw-integration:
+	uv run pytest tests/integration/dw tests/integration/core -v
+
+test-cross-bot:
+	uv run pytest tests/integration/cross_bot -v
 
 run-dev-luck:
 	uv run python -m goldrush_luck

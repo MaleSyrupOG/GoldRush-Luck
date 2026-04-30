@@ -25,16 +25,16 @@
 |---|---|
 | **Active phase** | Phase 1 — Foundation extensions |
 | **Active epic** | Epic 1 — Foundation extensions for D/W |
-| **Active story** | (Story 1.1 done; next is Story 1.2) |
-| **Last commit** | `85de88a` (initial monorepo skeleton) → followed by Story 1.1 completion commit |
-| **Next milestone** | Complete Story 1.2 (uv-based Makefile targets verified) |
-| **Overall progress** | 1 / 78 stories done · 0 / 15 epics done |
+| **Active story** | (Stories 1.1 and 1.2 done; next is Story 1.3) |
+| **Last commit** | `dae5a03` (relational doc hub) → Story 1.2 commit pending |
+| **Next milestone** | Complete Story 1.3 (CI extensions for D/W coverage gates) |
+| **Overall progress** | 2 / 78 stories done · 0 / 15 epics done |
 
 ### Epic-level status
 
 | Epic | Title | Status | Stories Done |
 |---|---|---|---|
-| 1 | Foundation extensions | In Progress | 1 / 3 |
+| 1 | Foundation extensions | In Progress | 2 / 3 |
 | 2 | Database schema additions | Pending | 0 / 12 |
 | 3 | Core services & models | Pending | 0 / 4 |
 | 4 | Bot skeleton | Pending | 0 / 5 |
@@ -64,7 +64,7 @@
 
 | Date | Note |
 |---|---|
-| _none yet_ | |
+| 2026-05-01 | Pillow 11.0.0 has no prebuilt Windows wheel for Python 3.14. `.python-version` pinned to 3.12 in repo root. Local devs on Windows + Python 3.14 should `uv python install 3.12` once; uv then uses 3.12 automatically. CI already uses 3.12. No code change needed; tracked here so future onboarding does not surface this as new bug. |
 
 ---
 
@@ -206,16 +206,19 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 1.2 — D/W-specific dependencies (none new at runtime)
 
+**Status:** Done (2026-05-01)
+
 **As Aleix I want** D/W to share the runtime dependencies of Luck **so that** we keep one lockfile and one image base.
 
 **ACs:**
-- [ ] No new entries needed in `pyproject.toml` runtime deps for D/W (all usage is covered by `discord.py`, `asyncpg`, `SQLAlchemy`, `pydantic`, `structlog`, `Pillow`, `prometheus-client`).
-- [ ] `Makefile` adds targets `run-dev-dw`, `test-dw-unit`, `test-dw-integration`.
-- [ ] `uv.lock` unchanged.
+- [x] No new entries needed in `pyproject.toml` runtime deps for D/W (all usage is covered by `discord.py`, `asyncpg`, `SQLAlchemy`, `pydantic`, `structlog`, `Pillow`, `prometheus-client`).
+- [x] `Makefile` adds targets `run-dev-dw`, `test-dw-unit`, `test-dw-integration` (plus symmetric `test-luck-unit`, `test-luck-integration`, `test-cross-bot`).
+- [x] `uv.lock` exists and reflects only the dependencies in `pyproject.toml` (initial generation; no dep changes during this story). 70 packages resolved.
 
 **Dependencies:** Story 1.1
 **Effort:** S
 **Spec refs:** D/W §1.1
+**Notes:** Initial `uv.lock` generated; `.python-version` pinned to 3.12 to side-step Python 3.14 / Pillow 11.0.0 wheel gap on Windows (see Blockers).
 
 ### Story 1.3 — CI pipeline extensions
 
