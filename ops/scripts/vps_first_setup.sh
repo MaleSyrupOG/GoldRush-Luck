@@ -143,7 +143,14 @@ if gpg --list-secret-keys --batch 2>/dev/null | grep -q "${GPG_RECIPIENT_NAME}";
     FINGERPRINT="$(gpg --list-keys --with-colons "${GPG_RECIPIENT_NAME}" | awk -F: '/^fpr/ {print $10; exit}')"
 else
     echo "[6/8] generating GPG backup key (this can take 30–60 s)"
-    gpg --batch --quiet --quick-generate-key \
+    # --pinentry-mode loopback + empty passphrase = unattended generation,
+    # no TTY needed. The key has NO passphrase intentionally because the
+    # backup script must use it from cron without operator interaction.
+    # Confidentiality is provided by the key being only readable by root.
+    gpg --batch --quiet \
+        --pinentry-mode loopback \
+        --passphrase '' \
+        --quick-generate-key \
         "${GPG_RECIPIENT_NAME} <backup@goldrush.local>" \
         rsa4096 sign,encrypt 10y
     FINGERPRINT="$(gpg --list-keys --with-colons "${GPG_RECIPIENT_NAME}" | awk -F: '/^fpr/ {print $10; exit}')"
