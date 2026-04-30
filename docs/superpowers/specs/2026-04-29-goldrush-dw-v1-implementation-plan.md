@@ -137,6 +137,12 @@ ADRs documenting D/W-specific architectural decisions. Each is immutable except 
 
 [`https://github.com/MaleSyrupOG/GoldRush-Luck`](https://github.com/MaleSyrupOG/GoldRush-Luck) — the monorepo. Despite the name still containing "Luck" (legacy), it hosts all three bots and the shared `goldrush_core`.
 
+### Session logs
+
+| Path | Coverage |
+|---|---|
+| [`../../sessions/2026-04-29_to_2026-05-01-session-log.md`](../../sessions/2026-04-29_to_2026-05-01-session-log.md) | Narrative of the brainstorm, spec, infrastructure bring-up, and Epic 2 migrations. Read this to retake context fast. |
+
 ### Sister-bot documentation
 
 Cross-bot integration tests, schema co-evolution, and shared `goldrush_core` modules mean the Luck bot's docs are useful context.
@@ -248,6 +254,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 2.1 — Migration: `dw` schema and grants
 
+**Status:** Done (2026-05-01) — applied to VPS Postgres in commit `31f826d` / `e3c91da`. Schema-level grants live in `ops/postgres/01-schemas-grants.sql` (init.sh). Per-table grants on `core.users`/`core.balances`/`core.audit_log` for `goldrush_dw` are added by migrations 0001 and 0002.
+
 **As Aleix I want** the `dw` schema with correct grants in place **so that** every later migration adds tables without DDL ceremony.
 
 **ACs:**
@@ -263,6 +271,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 **Spec refs:** D/W §3.1
 
 ### Story 2.2 — Migration: `dw.deposit_tickets` and `dw.withdraw_tickets`
+
+**Status:** Done (2026-05-01) — migration `0003_dw_tickets`. Both tables present on VPS with all CHECK constraints, indexes, and the shared terminal-state trigger.
 
 **As Aleix I want** the two ticket tables with their indexes and terminal-state immutability triggers **so that** the lifecycle state machine is enforced at the DB level.
 
@@ -280,6 +290,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 2.3 — Migration: cashier tables
 
+**Status:** Done (2026-05-01) — migration `0004_dw_cashier_tables`. Four tables present on VPS.
+
 **As Aleix I want** the four cashier tables in place **so that** cashier registration, status, sessions, and stats can be implemented.
 
 **ACs:**
@@ -294,6 +306,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 2.4 — Migration: disputes, dynamic embeds, global config
 
+**Status:** Done (2026-05-01) — migration `0005_dw_disputes_embeds_config`. global_config seeded with the 12 v1 default rows.
+
 **As Aleix I want** the supporting tables in place **so that** disputes, editable embeds, and runtime config are persistable.
 
 **ACs:**
@@ -307,6 +321,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 2.5 — Treasury system row
 
+**Status:** Done (2026-05-01) — seeded by migration `0001_core_users_balances`. Row at `core.balances[discord_id=0]` confirmed on VPS.
+
 **As Aleix I want** the treasury row to exist after migration **so that** every fee credit has a target.
 
 **ACs:**
@@ -318,6 +334,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 **Spec refs:** D/W §3.1, §4.6
 
 ### Story 2.6 — SECURITY DEFINER deposit fns
+
+**Status:** Done (2026-05-01) — migration `0006_dw_deposit_fns`. Three functions on VPS, EXECUTE granted to `goldrush_dw` only. Smoke-tested locally with full deposit cycle.
 
 **As Aleix I want** `dw.create_deposit_ticket`, `dw.confirm_deposit`, `dw.cancel_deposit` **so that** every deposit-side gold movement is encoded in DB code, not application code.
 
@@ -334,6 +352,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 **Spec refs:** D/W §3.3
 
 ### Story 2.7 — SECURITY DEFINER withdraw fns
+
+**Status:** Done (2026-05-01) — migration `0007_dw_withdraw_fns`. Three functions on VPS. Smoke-tested locally: 30,000 G withdraw with 2 % fee landed 600 G in treasury and persisted `amount_delivered=29,400` on the ticket.
 
 **As Aleix I want** `dw.create_withdraw_ticket`, `dw.confirm_withdraw`, `dw.cancel_withdraw` **so that** withdraw side enforces lock/finalise/refund correctly.
 
@@ -352,6 +372,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 2.8 — SECURITY DEFINER lifecycle fns
 
+**Status:** Done (2026-05-01) — migration `0008_dw_lifecycle_fns`. claim_ticket validates region match against `dw.cashier_characters`; release_ticket guarded by claimer identity.
+
 **As Aleix I want** `dw.claim_ticket`, `dw.release_ticket` **so that** assignment is atomic.
 
 **ACs:**
@@ -366,6 +388,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 **Spec refs:** D/W §3.3, §5.1
 
 ### Story 2.9 — SECURITY DEFINER cashier-management fns
+
+**Status:** Done (2026-05-01) — migration `0009_dw_cashier_fns`. add/remove char, set status, all on VPS.
 
 **As Aleix I want** `dw.add_cashier_character`, `dw.remove_cashier_character`, `dw.set_cashier_status` **so that** cashier mgmt is mediated by validated functions.
 
@@ -383,6 +407,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 2.10 — SECURITY DEFINER dispute fns
 
+**Status:** Done (2026-05-01) — migration `0010_dw_dispute_fns`. open_dispute (UNIQUE per ticket) + resolve_dispute supporting all four resolution actions.
+
 **ACs:**
 - [ ] `dw.open_dispute(ticket_type, ticket_uid, opener_id, opener_role, reason)` per spec.
 - [ ] `dw.resolve_dispute(dispute_id, action, amount?, resolved_by)` supports actions: `refund`, `force-confirm`, `partial-refund:<amount>`, `no-action`. Refund actions internally call the relevant `cancel_*` or `treasury_withdraw_to_user` fn.
@@ -394,6 +420,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 **Spec refs:** D/W §3.3, §4.5
 
 ### Story 2.11 — SECURITY DEFINER treasury fns
+
+**Status:** Done (2026-05-01) — migration `0011_dw_treasury_fns`. treasury_sweep + treasury_withdraw_to_user, both audit-logged with the appropriate row counts (1 for sweep, 2 for transfer).
 
 **As Aleix I want** `dw.treasury_sweep` and `dw.treasury_withdraw_to_user` **so that** every treasury movement is auditable and atomic.
 
@@ -408,6 +436,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 **Spec refs:** D/W §3.3, §4.6
 
 ### Story 2.12 — Migration: ban-user fns and `core.users.banned` integration
+
+**Status:** Done (2026-05-01) — migration `0012_dw_ban_fns`. Idempotent user-row creation so admins can pre-emptively ban an unregistered Discord ID.
 
 **ACs:**
 - [ ] `dw.ban_user(user_id, reason, admin_id)` flips `core.users.banned=true, banned_reason, banned_at=NOW`; writes audit row.
