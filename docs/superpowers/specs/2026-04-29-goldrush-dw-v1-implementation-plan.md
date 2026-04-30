@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 10 — Operations & deploy (brought forward; Phase 2 still pending) |
-| **Active epic** | Epic 12 — Operations & deploy |
-| **Active story** | (Epic 1 done; Stories 12.1–12.5 done; Story 12.6 partial; pending VPS execution + Epic 2 onwards) |
-| **Last commit** | `b28a605` (Story 1.3) → infrastructure batch commit pending |
-| **Next milestone** | Execute VPS setup interactively, deploy stack, then return to Epic 2 (Alembic migrations) |
-| **Overall progress** | 8 / 78 stories done · 1 / 15 epics done · Epic 12 in progress (5 / 6) |
+| **Active phase** | Phase 10 — Operations & deploy (Epic 12 effectively complete) |
+| **Active epic** | (Epic 12 complete pending Story 12.6 backup drill; next is Epic 2 — DB schema migrations) |
+| **Active story** | (next: Story 2.1 — Alembic migration for `dw` schema and grants, against the live VPS Postgres) |
+| **Last commit** | `5682cea` (GPG fix) — VPS deployment EXECUTED 2026-05-01 |
+| **Next milestone** | Begin Epic 2 — Alembic migration that creates `core`, `fairness`, `luck`, `dw` tables on the live VPS Postgres |
+| **Overall progress** | 8 / 78 stories done · 1 / 15 epics done · Epic 12 effectively complete (5 / 6, Story 12.6 backup drill pending data) · **VPS infrastructure live on 91.98.234.106** |
 
 ### Epic-level status
 
@@ -67,6 +67,7 @@
 | 2026-05-01 | Pillow 11.0.0 has no prebuilt Windows wheel for Python 3.14. `.python-version` pinned to 3.12 in repo root. Local devs on Windows + Python 3.14 should `uv python install 3.12` once; uv then uses 3.12 automatically. CI already uses 3.12. No code change needed; tracked here so future onboarding does not surface this as new bug. |
 | 2026-05-01 | Decision: bring forward Epic 12 (Operations & deploy) before Epic 2 (DB schema additions) so the VPS infrastructure is set up first. Epic 2 stories will then run their Alembic migrations against the real Postgres on the VPS (or via SSH tunnel for local dev). This out-of-order execution is intentional — the rest of the plan otherwise stands. |
 | 2026-05-01 | Decision: bring forward Luck Story 13.3 (vps_first_setup.sh), 13.4 (backup.sh + cron), 13.5 (restore.sh) as part of the same infrastructure batch. They are foundational for both bots. The Luck plan will reference these as already done when it resumes. |
+| 2026-05-01 | VPS infrastructure deployed and verified live on 91.98.234.106. Postgres healthy with all 5 schemas and 4 active roles (poker disabled). Placeholder D/W container running healthy. GPG backup key fingerprint `59CC31BED2A9557C8E6842723C40E9BEA65AF9B8` recorded by Aleix off-VPS. Cron entry for backup not yet installed (deferred until first real data exists, then Story 12.6 backup drill validates the cycle). |
 
 ---
 
