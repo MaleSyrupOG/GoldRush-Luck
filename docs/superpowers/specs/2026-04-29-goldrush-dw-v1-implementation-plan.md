@@ -68,6 +68,81 @@
 
 ---
 
+## 🔗 Related D/W documentation (this is the relational hub)
+
+> Whenever a new doc related to the D/W bot is created or substantially edited, **add a link here** so this plan stays the single point of entry for any D/W work session.
+
+### Source-of-truth design
+
+| Path | Role |
+|---|---|
+| [`2026-04-29-goldrush-dw-v1-design.md`](./2026-04-29-goldrush-dw-v1-design.md) | The locked v1 design spec — the WHAT this plan implements |
+
+### Architecture decision records (ADRs)
+
+ADRs documenting D/W-specific architectural decisions. Each is immutable except for status updates.
+
+| Path | Decision |
+|---|---|
+| [`../../adr/0001-monorepo-layout.md`](../../adr/0001-monorepo-layout.md) | Why all bots live in one repo (general, applies to D/W too) |
+| `../../adr/0011-dw-as-economic-frontier.md` | _to be written in Story 13.2_ |
+| `../../adr/0012-stateless-deposit-modal.md` | _to be written in Story 13.2_ |
+| `../../adr/0013-private-threads-for-tickets.md` | _to be written in Story 13.2_ |
+| `../../adr/0014-cashier-online-status-model.md` | _to be written in Story 13.2_ |
+| `../../adr/0015-treasury-as-system-account.md` | _to be written in Story 13.2_ |
+| `../../adr/0016-2fa-modals-for-money-ops.md` | _to be written in Story 13.2_ |
+| `../../adr/0017-admin-setup-channel-creation.md` | _to be written in Story 13.2_ |
+
+### Ticket and operational guides (`docs/tickets/`)
+
+| Path | Purpose | Author of (story) |
+|---|---|---|
+| `../../tickets/deposit-flow.md` | User-facing guide: how a deposit works | Story 13.1 |
+| `../../tickets/withdraw-flow.md` | User-facing guide: how a withdraw works | Story 13.1 |
+| `../../tickets/cashier-onboarding.md` | Guide for new cashiers | Story 13.1 |
+| `../../tickets/ticket-lifecycle.md` | Technical: state machine reference | Story 13.1 |
+| `../../tickets/treasury-management.md` | Admin: how to sweep revenue | Story 13.1 |
+| `../../tickets/disputes.md` | Admin: dispute workflow + examples | Story 13.1 |
+| `../../tickets/compliance.md` | Legal / retention guide | Story 13.1 |
+
+### Cross-cutting docs (sections specific to D/W)
+
+| Path | D/W-specific section |
+|---|---|
+| [`../../security.md`](../../security.md) | D/W as economic frontier, anti-fraud table, treasury safeguards (Story 13.3) |
+| [`../../runbook.md`](../../runbook.md) | D/W incident playbooks (Story 13.3) |
+| [`../../observability.md`](../../observability.md) | D/W metrics, alerts, dashboards (Story 13.3) |
+| [`../../operations.md`](../../operations.md) | D/W VPS setup, deploy procedure (Stories 12.3, 12.4, 12.5) |
+| [`../../backup-restore.md`](../../backup-restore.md) | D/W backup verification (Story 12.6) |
+| [`../../changelog.md`](../../changelog.md) | `dw-v1.0.0` release notes (Story 13.4) |
+
+### Operational credentials (where, NOT what)
+
+> Tokens and passwords are NEVER committed. This table only documents WHERE each credential is stored operationally.
+
+| Credential | Local-dev location | Production location |
+|---|---|---|
+| D/W Discord bot token | `dwBotKeys.txt` on Aleix's local Desktop (gitignored, never committed) | `/opt/goldrush/secrets/.env.dw` on the VPS, mode 600, owned by `goldrush:goldrush` |
+| Postgres `goldrush_dw` password | `.env` if running locally | `/opt/goldrush/secrets/.env.shared` on the VPS |
+| `BUTTON_SIGNING_KEY` | `.env` | `.env.shared` |
+| `AUDIT_HASH_CHAIN_KEY` | `.env` | `.env.shared` |
+| GPG public key for backup encryption | n/a | `/opt/goldrush/secrets/backup-gpg-private.asc` on VPS; fingerprint also in Aleix's password manager |
+
+### Public-facing repository
+
+[`https://github.com/MaleSyrupOG/GoldRush-Luck`](https://github.com/MaleSyrupOG/GoldRush-Luck) — the monorepo. Despite the name still containing "Luck" (legacy), it hosts all three bots and the shared `goldrush_core`.
+
+### Sister-bot documentation
+
+Cross-bot integration tests, schema co-evolution, and shared `goldrush_core` modules mean the Luck bot's docs are useful context.
+
+| Path | Relation to D/W |
+|---|---|
+| [`./2026-04-29-goldrush-luck-v1-design.md`](./2026-04-29-goldrush-luck-v1-design.md) | Sister bot — shares DB tables `core.users`, `core.balances`, `core.audit_log` |
+| [`./2026-04-29-goldrush-luck-v1-implementation-plan.md`](./2026-04-29-goldrush-luck-v1-implementation-plan.md) | Sister plan — Luck Epics 1-4 are prerequisites for D/W work |
+
+---
+
 ## 0. How to read this document
 
 The spec is _what_ the D/W bot does. This plan is _how_ and _in what order_ we build it. The plan is decomposed into **15 epics** containing concrete **stories** with explicit **acceptance criteria** (ACs).
