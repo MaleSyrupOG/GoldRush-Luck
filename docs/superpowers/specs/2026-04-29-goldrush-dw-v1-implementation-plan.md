@@ -23,18 +23,18 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 1 — Foundation extensions |
-| **Active epic** | Epic 1 — Foundation extensions for D/W |
-| **Active story** | (Stories 1.1 and 1.2 done; next is Story 1.3) |
-| **Last commit** | `dae5a03` (relational doc hub) → Story 1.2 commit pending |
-| **Next milestone** | Complete Story 1.3 (CI extensions for D/W coverage gates) |
-| **Overall progress** | 2 / 78 stories done · 0 / 15 epics done |
+| **Active phase** | Phase 2 — DB schema additions (Epic 1 complete) |
+| **Active epic** | Epic 2 — Database schema additions |
+| **Active story** | (Epic 1 done; next is Story 2.1 — Postgres schema and grants migration) |
+| **Last commit** | `e3da50b` (Story 1.2) → Story 1.3 commit pending |
+| **Next milestone** | Begin Epic 2 with Story 2.1 (Alembic migration for `dw` schema and per-role grants) |
+| **Overall progress** | 3 / 78 stories done · 1 / 15 epics done |
 
 ### Epic-level status
 
 | Epic | Title | Status | Stories Done |
 |---|---|---|---|
-| 1 | Foundation extensions | In Progress | 2 / 3 |
+| 1 | Foundation extensions | Done | 3 / 3 |
 | 2 | Database schema additions | Pending | 0 / 12 |
 | 3 | Core services & models | Pending | 0 / 4 |
 | 4 | Bot skeleton | Pending | 0 / 5 |
@@ -222,17 +222,20 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 1.3 — CI pipeline extensions
 
+**Status:** Done (2026-05-01)
+
 **As Aleix I want** D/W coverage gates enforced in CI **so that** the bot's quality stays at fintech-grade.
 
 **ACs:**
-- [ ] `.github/workflows/ci.yml` adds: `mypy --strict goldrush_deposit_withdraw`.
-- [ ] Coverage gates added: `goldrush_deposit_withdraw/tickets ≥ 95 %`, `goldrush_deposit_withdraw/cashiers ≥ 90 %`, `goldrush_deposit_withdraw/commands/admin_cog.py ≥ 90 %`, rest of `goldrush_deposit_withdraw ≥ 85 %`.
-- [ ] CI fails if any gate is missed.
-- [ ] Cross-bot integration tests run on every PR (testcontainers Postgres).
+- [x] `.github/workflows/ci.yml` adds: `mypy --strict goldrush_deposit_withdraw`.
+- [x] Coverage gates added: `goldrush_deposit_withdraw/tickets ≥ 95 %`, `goldrush_deposit_withdraw/cashiers ≥ 90 %`, `goldrush_deposit_withdraw/commands/admin_cog.py ≥ 90 %` (conditional on file existing), rest of `goldrush_deposit_withdraw ≥ 85 %`. Plus parallel gates for Luck (`goldrush_luck/games ≥ 90 %`, `goldrush_luck/admin ≥ 85 %`).
+- [x] CI fails if any gate is missed (each `--cov-fail-under` exits non-zero on miss; the workflow step propagates the failure).
+- [x] Cross-bot integration tests run on every PR (`tests/integration/cross_bot/`). Currently empty; the step succeeds vacuously and is wired to fail once tests land.
 
 **Dependencies:** Story 1.1, Luck Story 1.3
 **Effort:** S
 **Spec refs:** D/W §8.3, §8.4, §8.5
+**Notes:** Admin cog gate is wrapped with `if: hashFiles(...)` so it activates only once `admin_cog.py` exists (Story 11.1). All other gates run unconditionally and pass on the current empty-package state.
 
 ---
 

@@ -60,13 +60,33 @@ jobs:
       - name: Property tests
         run: uv run pytest tests/property -v
 
-      - name: Coverage gates — critical modules
+      - name: Coverage gates — critical core modules (≥ 95 %)
         run: |
           uv run pytest --cov=goldrush_core/balance --cov-fail-under=95 tests/
           uv run pytest --cov=goldrush_core/fairness --cov-fail-under=95 tests/
           uv run pytest --cov=goldrush_core/audit --cov-fail-under=95 tests/
-          uv run pytest --cov=goldrush_deposit_withdraw/tickets --cov-fail-under=95 tests/
 
-      - name: Coverage gate — global
+      - name: Coverage gate — D/W tickets (≥ 95 %)
+        run: uv run pytest --cov=goldrush_deposit_withdraw/tickets --cov-fail-under=95 tests/
+
+      - name: Coverage gate — D/W cashiers (≥ 90 %)
+        run: uv run pytest --cov=goldrush_deposit_withdraw/cashiers --cov-fail-under=90 tests/
+
+      - name: Coverage gate — D/W admin cog (≥ 90 %, conditional on file existing)
+        if: hashFiles('goldrush_deposit_withdraw/commands/admin_cog.py') != ''
+        run: uv run pytest --cov=goldrush_deposit_withdraw/commands/admin_cog --cov-fail-under=90 tests/
+
+      - name: Coverage gate — rest of D/W (≥ 85 %)
+        run: uv run pytest --cov=goldrush_deposit_withdraw --cov-fail-under=85 tests/
+
+      - name: Coverage gate — Luck games (≥ 90 %)
+        run: uv run pytest --cov=goldrush_luck/games --cov-fail-under=90 tests/
+
+      - name: Coverage gate — Luck admin (≥ 85 %)
+        run: uv run pytest --cov=goldrush_luck/admin --cov-fail-under=85 tests/
+
+      - name: Coverage gate — global (informational, raised over time)
         run: uv run pytest --cov=. --cov-fail-under=0 tests/
-        # Note: global threshold raised gradually as features land. Per-module gates above are the strict ones.
+
+      - name: Cross-bot integration tests
+        run: uv run pytest tests/integration/cross_bot -v
