@@ -1,0 +1,147 @@
+# =============================================================================
+# Secrets and credentials — NEVER commit these
+# =============================================================================
+.env
+.env.*
+!.env.example
+*.token
+*Keys.txt
+*keys.txt
+*Secret*.txt
+*secret*.txt
+bot-token*
+secrets/
+**/secrets/
+*.pem
+*.key
+*.crt
+!.crt.example
+*.gpg
+backup-gpg-private.asc
+*.asc
+
+# =============================================================================
+# Reference material (third-party screenshots, not project assets)
+# =============================================================================
+GoldRush Luck/
+GoldRush Poker/
+*.dump
+*.dump.gpg
+
+# =============================================================================
+# Python
+# =============================================================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.installed.cfg
+*.egg
+.eggs/
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# =============================================================================
+# Test, coverage, type-check, lint caches
+# =============================================================================
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.cache
+.tox/
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.ruff_cache/
+.hypothesis/
+nosetests.xml
+coverage.xml
+*.cover
+.cache/
+
+# =============================================================================
+# Tooling
+# =============================================================================
+# uv
+.uv-cache/
+
+# Node (verifier and tooling)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# IDE / editor
+.idea/
+.vscode/
+!.vscode/settings.json.example
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# =============================================================================
+# Local data, logs, scratch
+# =============================================================================
+logs/
+*.log
+*.log.*
+local/
+scratch/
+tmp/
+*.tmp
+
+# Backups
+backups/
+*.backup
+*.bak
+
+# =============================================================================
+# Docker
+# =============================================================================
+.docker/
+docker-data/
+
+# =============================================================================
+# Documentation build artefacts
+# =============================================================================
+site/
+_site/
+docs/_build/
+docs/.cache/

@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+jobs:
+  lint-test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: latest
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint (ruff check)
+        run: uv run ruff check .
+
+      - name: Format check (ruff format)
+        run: uv run ruff format --check .
+
+      - name: Type check (mypy --strict)
+        run: uv run mypy --strict goldrush_core goldrush_luck goldrush_deposit_withdraw
+
+      - name: Dependency audit (pip-audit)
+        run: uv run pip-audit --strict
+
+      - name: Unit tests
+        run: uv run pytest tests/unit -v
+
+      - name: Integration tests
+        env:
+          POSTGRES_DSN: postgresql://test:test@localhost:5432/test
+        run: uv run pytest tests/integration -v
+
+      - name: Property tests
+        run: uv run pytest tests/property -v
+
+      - name: Coverage gates — critical modules
+        run: |
+          uv run pytest --cov=goldrush_core/balance --cov-fail-under=95 tests/
+          uv run pytest --cov=goldrush_core/fairness --cov-fail-under=95 tests/
+          uv run pytest --cov=goldrush_core/audit --cov-fail-under=95 tests/
+          uv run pytest --cov=goldrush_deposit_withdraw/tickets --cov-fail-under=95 tests/
+
+      - name: Coverage gate — global
+        run: uv run pytest --cov=. --cov-fail-under=0 tests/
+        # Note: global threshold raised gradually as features land. Per-module gates above are the strict ones.

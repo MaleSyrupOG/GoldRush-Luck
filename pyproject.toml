@@ -1,0 +1,95 @@
+[project]
+name = "goldrush"
+version = "0.0.1"
+description = "GoldRush — Discord-hosted casino platform settling in WoW Gold"
+authors = [{ name = "Aleix" }]
+requires-python = ">=3.12"
+readme = "README.md"
+license = { file = "LICENSE" }
+
+dependencies = [
+    "discord.py==2.4.0",
+    "asyncpg==0.30.0",
+    "sqlalchemy==2.0.36",
+    "alembic==1.14.0",
+    "pydantic==2.10.4",
+    "pydantic-settings==2.7.0",
+    "structlog==24.4.0",
+    "Pillow==11.0.0",
+    "prometheus-client==0.21.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==8.3.4",
+    "pytest-asyncio==0.25.0",
+    "pytest-cov==6.0.0",
+    "hypothesis==6.122.3",
+    "testcontainers[postgres]==4.9.0",
+    "pip-audit==2.7.3",
+    "ruff==0.8.4",
+    "mypy==1.13.0",
+    "types-Pillow",
+]
+
+[tool.uv]
+package = false
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["goldrush_core", "goldrush_luck", "goldrush_deposit_withdraw", "goldrush_poker", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle, pyflakes
+    "I",             # isort
+    "B",             # bugbear
+    "UP",            # pyupgrade
+    "N",             # pep8-naming
+    "S",             # bandit (security)
+    "T20",           # print() usage
+    "RUF",           # ruff-specific
+]
+ignore = [
+    "S101",          # assert in tests is fine
+    "E501",          # line length handled by formatter
+]
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = ["S101", "S105", "S106"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_ignores = true
+warn_return_any = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+addopts = "-ra --strict-markers --strict-config"
+markers = [
+    "unit: unit tests",
+    "integration: integration tests requiring postgres",
+    "property: hypothesis-driven property tests",
+    "e2e: end-to-end tests against a Discord sandbox",
+]
+
+[tool.coverage.run]
+source = ["goldrush_core", "goldrush_luck", "goldrush_deposit_withdraw"]
+omit = ["**/__init__.py", "tests/**"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+]
+fail_under = 0   # global gate is enforced separately in CI per module
