@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 1 — Foundation (Epic 2 complete, applied to live VPS) |
-| **Active epic** | (Epics 1, 2, 12 effectively complete; next is Epic 3 — core services & models, or Epic 14 testing) |
-| **Active story** | (next: either Epic 3 Story 3.1 — Balance manager Python facade, or Epic 14 Story 14.1 — treasury invariant property test) |
-| **Last commit** | `31f826d` (Epic 2 migrations) — APPLIED TO VPS 2026-05-01 |
-| **Next milestone** | Either Python balance facade (Epic 3) or property tests against the migrations (Epic 14) |
-| **Overall progress** | 20 / 78 stories done · 3 / 15 epics done · **VPS Postgres has all schemas, tables, SECURITY DEFINER fns** · placeholder D/W bot still running healthy |
+| **Active phase** | Phase 2 — Core services & models (Epic 3 in progress) |
+| **Active epic** | Epic 3 — Core services & models |
+| **Active story** | (Story 3.1 done; next is Story 3.2 — Pydantic models for tickets/cashier characters) |
+| **Last commit** | Story 3.1 commit pending |
+| **Next milestone** | Complete Epic 3 (Stories 3.2, 3.3, 3.4) so Epic 4 (bot skeleton) can land |
+| **Overall progress** | 21 / 78 stories done · 3 / 15 epics done · Epic 3 in progress (1 / 4) |
 
 ### Epic-level status
 
@@ -36,7 +36,7 @@
 |---|---|---|---|
 | 1 | Foundation extensions | Done | 3 / 3 |
 | 2 | Database schema additions | Done | 12 / 12 |
-| 3 | Core services & models | Pending | 0 / 4 |
+| 3 | Core services & models | In Progress | 1 / 4 |
 | 4 | Bot skeleton | Pending | 0 / 5 |
 | 5 | Deposit flow | Pending | 0 / 5 |
 | 6 | Withdraw flow | Pending | 0 / 4 |
@@ -454,6 +454,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 ## EPIC 3 — Core services & models
 
 ### Story 3.1 — Balance manager: D/W extensions
+
+**Status:** Done (2026-05-01) — `goldrush_core/db.py`, `goldrush_core/balance/exceptions.py` (32 typed exception classes), `goldrush_core/balance/dw_manager.py` (8 wrappers). 32 unit tests cover every documented sentinel + fallback + specific-match-wins-over-generic ordering. Wrappers: `apply_deposit_ticket`, `confirm_deposit`, `cancel_deposit`, `apply_withdraw_ticket`, `confirm_withdraw`, `cancel_withdraw`, `treasury_sweep`, `treasury_withdraw_to_user`. Cashier / lifecycle / dispute wrappers will land in their own stories (3.x and 9.x).
 
 **ACs:**
 - [ ] `goldrush_core/balance/dw_manager.py` exposes typed wrappers around the SECURITY DEFINER fns.
