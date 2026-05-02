@@ -26,6 +26,7 @@ from discord.ext import commands
 from goldrush_core.config import DwSettings
 from goldrush_core.db import create_pool
 
+from goldrush_deposit_withdraw.cashiers.live_updater import OnlineCashiersUpdater
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
 
 # Cog import paths. The six canonical cogs map one-for-one to the
@@ -61,6 +62,7 @@ class DwBot(commands.Bot):
     pool: asyncpg.Pool | None
     _pool_factory: PoolFactory
     _log: structlog.types.FilteringBoundLogger
+    _online_cashiers_updater: OnlineCashiersUpdater | None
 
     def __init__(
         self,
@@ -78,6 +80,7 @@ class DwBot(commands.Bot):
         self._pool_factory = pool_factory
         self.pool = None
         self._log = structlog.get_logger(__name__)
+        self._online_cashiers_updater = None
 
     async def setup_hook(self) -> None:
         """Open the DB pool and prepare for Discord login.
@@ -139,16 +142,56 @@ class DwBot(commands.Bot):
             except Exception as e:
                 self._log.exception("welcome_embeds_failed", error=str(e))
 
+            # Spec §5.7 step 6: start the online-cashiers updater. Like
+            # the welcome reconcile this is wrapped — a missing
+            # channel-id or DB blip must not stop the bot from being
+            # interactive. Idempotent across reconnects: ``start()``
+            # is a no-op if the loop is already running.
+            try:
+                channel_id = await _resolve_online_cashiers_channel(self.pool)
+                if channel_id is not None and self._online_cashiers_updater is None:
+                    self._online_cashiers_updater = OnlineCashiersUpdater(
+                        pool=self.pool,
+                        bot=self,
+                        channel_id=channel_id,
+                    )
+                    self._online_cashiers_updater.start()
+                    self._log.info(
+                        "online_cashiers_updater_started",
+                        channel_id=channel_id,
+                    )
+            except Exception as e:
+                self._log.exception("online_cashiers_updater_failed", error=str(e))
+
     async def close_pool(self) -> None:
-        """Close the DB pool — used on shutdown and by tests.
+        """Close the DB pool and stop background tasks — used on shutdown.
 
         ``commands.Bot.close()`` shuts down the gateway connection
-        but does NOT touch our pool, so we expose this hook for
-        cleanup. A clean shutdown invokes both.
+        but does NOT touch our pool or our background tasks; we
+        own those, so we tear them down here.
         """
+        if self._online_cashiers_updater is not None:
+            await self._online_cashiers_updater.stop()
+            self._online_cashiers_updater = None
         if self.pool is not None:
             await self.pool.close()
             self.pool = None
+
+
+async def _resolve_online_cashiers_channel(pool: asyncpg.Pool) -> int | None:
+    """Read ``channel_id_online_cashiers`` from ``dw.global_config``.
+
+    Returns ``None`` when the operator hasn't yet run ``/admin
+    setup`` (Story 10.x); the updater simply isn't started until
+    a subsequent on_ready picks up the persisted id.
+    """
+    row = await pool.fetchrow(
+        "SELECT value_int FROM dw.global_config WHERE key = $1",
+        "channel_id_online_cashiers",
+    )
+    if row is None or row["value_int"] is None:
+        return None
+    return int(row["value_int"])
 
 
 def _redact_dsn(dsn: str) -> str:

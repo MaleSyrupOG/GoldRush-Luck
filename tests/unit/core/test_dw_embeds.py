@@ -15,6 +15,7 @@ read back the fields. No Discord client is required.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Any
 
 import discord
 import pytest
@@ -488,45 +489,75 @@ def test_cashier_alert_embed_handles_withdraw() -> None:
 # ---------------------------------------------------------------------------
 
 
+def _empty_snapshot() -> Any:
+    """Build a RosterSnapshot with no cashiers — used by the empty-state tests."""
+    from goldrush_core.balance.cashier_roster import RosterSnapshot
+
+    return RosterSnapshot(online_by_region={}, on_break=(), offline_count=0)
+
+
+def _two_cashier_snapshot() -> Any:
+    """Build a RosterSnapshot with one EU online + one NA on break."""
+    from goldrush_core.balance.cashier_roster import RosterEntry, RosterSnapshot
+
+    eu = RosterEntry(
+        discord_id=1,
+        status="online",
+        regions=("EU",),
+        factions=("Horde",),
+        last_active_at=SAMPLE_TS,
+    )
+    na = RosterEntry(
+        discord_id=2,
+        status="break",
+        regions=("NA",),
+        factions=("Alliance",),
+        last_active_at=SAMPLE_TS,
+    )
+    return RosterSnapshot(
+        online_by_region={"EU": (eu,)},
+        on_break=(na,),
+        offline_count=0,
+    )
+
+
 def test_online_cashiers_live_embed_with_no_cashiers() -> None:
     """Empty roster — embed must still render cleanly."""
-    embed = online_cashiers_live_embed(cashiers=[], last_updated=SAMPLE_TS)
+    embed = online_cashiers_live_embed(snapshot=_empty_snapshot(), last_updated=SAMPLE_TS)
     blob = (embed.description or "") + " ".join(f.value or "" for f in embed.fields)
     assert "no" in blob.lower() or "0" in blob or "online" in blob.lower()
 
 
 def test_online_cashiers_live_embed_lists_each_cashier() -> None:
     embed = online_cashiers_live_embed(
-        cashiers=[
-            {
-                "discord_id": 1,
-                "mention": "<@1>",
-                "region": "EU",
-                "faction": "Horde",
-                "status": "online",
-                "location": "Orgrimmar AH",
-            },
-            {
-                "discord_id": 2,
-                "mention": "<@2>",
-                "region": "NA",
-                "faction": "Alliance",
-                "status": "break",
-                "location": "Stormwind",
-            },
-        ],
-        last_updated=SAMPLE_TS,
+        snapshot=_two_cashier_snapshot(), last_updated=SAMPLE_TS
     )
-    blob = (embed.description or "") + " ".join(f.value or "" for f in embed.fields)
+    # Field names carry region labels ("EU" / "NA" / "On break"); values
+    # carry the cashier mentions. Concatenate both so the assertion reads
+    # the whole embed surface.
+    blob = (embed.description or "") + " ".join(
+        f"{f.name} {f.value or ''}" for f in embed.fields
+    )
     assert "<@1>" in blob
     assert "<@2>" in blob
     assert "EU" in blob
-    assert "NA" in blob
+    assert "On break" in blob  # NA cashier rendered under "On break" subsection
 
 
 def test_online_cashiers_live_embed_carries_timestamp() -> None:
-    embed = online_cashiers_live_embed(cashiers=[], last_updated=SAMPLE_TS)
+    embed = online_cashiers_live_embed(snapshot=_empty_snapshot(), last_updated=SAMPLE_TS)
     assert embed.timestamp == SAMPLE_TS
+
+
+def test_online_cashiers_live_embed_offline_count_in_footer() -> None:
+    """The offline count surfaces in the footer per spec §5.6."""
+    from goldrush_core.balance.cashier_roster import RosterSnapshot
+
+    snap = RosterSnapshot(online_by_region={}, on_break=(), offline_count=4)
+    embed = online_cashiers_live_embed(snapshot=snap, last_updated=SAMPLE_TS)
+    footer_text = (embed.footer.text or "") if embed.footer else ""
+    body = (embed.description or "") + " ".join(f.value or "" for f in embed.fields)
+    assert "4" in footer_text or "4" in body
 
 
 # ---------------------------------------------------------------------------

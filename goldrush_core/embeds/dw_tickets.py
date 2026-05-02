@@ -40,7 +40,6 @@ the visual contract.
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any, Literal
 
@@ -421,37 +420,65 @@ def cashier_alert_embed(
 
 def online_cashiers_live_embed(
     *,
-    cashiers: Sequence[Mapping[str, Any]],
+    snapshot: Any,
     last_updated: datetime,
 ) -> discord.Embed:
     """Live roster posted in ``#online-cashiers``; refreshed every 30 s.
 
-    Each entry in ``cashiers`` is a dict with at least the keys
-    ``mention``, ``region``, ``faction``, ``status`` and (optionally)
-    ``location``. Empty rosters render an explicit "No cashiers"
-    message rather than a blank embed so the channel is always
-    informative.
+    ``snapshot`` is a :class:`goldrush_core.balance.cashier_roster.RosterSnapshot`.
+    Typed loosely here to avoid the embed module importing the
+    balance module (one-way dep flow: balance → embeds, never the
+    reverse).
+
+    Layout:
+    - One field per region (``EU`` / ``NA``) listing the online
+      cashiers in that region; sections are added only for regions
+      with at least one online cashier.
+    - One field for "On break" if any cashier is on break.
+    - The footer carries the offline-cashier count so admins see at
+      a glance how many people are nominally cashiers but offline.
+
+    Empty roster (no online + no break + zero offline) falls back to
+    an EMBER-coloured "No cashiers are currently online" message —
+    the same defensive default the placeholder shipped with.
     """
-    if not cashiers:
+    online_by_region = snapshot.online_by_region
+    on_break = snapshot.on_break
+    offline_count = snapshot.offline_count
+
+    has_online = bool(online_by_region)
+    has_on_break = bool(on_break)
+
+    if not has_online and not has_on_break and offline_count == 0:
         return discord.Embed(
             title="Online cashiers",
             description="No cashiers are currently online.",
             color=discord.Color(COLOR_EMBER),
             timestamp=last_updated,
         )
-    lines: list[str] = []
-    for c in cashiers:
-        loc = c.get("location") or "—"
-        lines.append(
-            f"{c['mention']} · {c['region']} {c['faction']} · "
-            f"{c['status']} · {loc}"
-        )
-    return discord.Embed(
+
+    embed = discord.Embed(
         title="Online cashiers",
-        description="\n".join(lines),
-        color=discord.Color(COLOR_WIN),
+        color=discord.Color(COLOR_WIN if has_online else COLOR_EMBER),
         timestamp=last_updated,
     )
+
+    # Render in a deterministic region order so the embed doesn't
+    # flicker between renders.
+    for region in sorted(online_by_region.keys()):
+        entries = online_by_region[region]
+        lines = [
+            f"<@{e.discord_id}> · {' / '.join(e.factions) or '—'}"
+            for e in entries
+        ]
+        embed.add_field(name=region, value="\n".join(lines) or "—", inline=False)
+
+    if has_on_break:
+        lines = [f"<@{e.discord_id}>" for e in on_break]
+        embed.add_field(name="On break", value="\n".join(lines), inline=False)
+
+    embed.set_footer(text=f"Offline cashiers: {offline_count}")
+    return embed
 
 
 def cashier_stats_embed(

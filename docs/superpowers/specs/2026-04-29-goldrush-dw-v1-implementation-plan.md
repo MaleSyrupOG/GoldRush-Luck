@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 3 — Bot skeleton (Epic 4 in progress) |
-| **Active epic** | Epic 4 — Bot skeleton |
-| **Active story** | Stories 4.1-4.4 done; next is Story 4.5 — Online cashiers live embed |
-| **Last commit** | `edc5b87` (Story 4.3) → Story 4.4 commit pending |
-| **Next milestone** | Close Epic 4 with Story 4.5 (online cashiers updater) so Epic 5 / 6 can start |
-| **Overall progress** | 28 / 78 stories done · 4 / 15 epics done · Epic 4 in progress (4 / 5) |
+| **Active phase** | Phase 4 — Money flows (Epic 5 next) |
+| **Active epic** | Epic 5 — Deposit flow (pending start) |
+| **Active story** | Epic 4 closed (Stories 4.1-4.5 done); next is Story 5.1 — `/deposit` command + DepositModal |
+| **Last commit** | `2a4e712` (Story 4.4) → Story 4.5 commit pending |
+| **Next milestone** | Land Epic 5 (deposit flow) — slash command, ticket creation, channel spawning, cashier alerts |
+| **Overall progress** | 29 / 78 stories done · 5 / 15 epics done · Epic 4 complete (5 / 5) |
 
 ### Epic-level status
 
@@ -37,7 +37,7 @@
 | 1 | Foundation extensions | Done | 3 / 3 |
 | 2 | Database schema additions | Done | 12 / 12 |
 | 3 | Core services & models | Done | 4 / 4 |
-| 4 | Bot skeleton | In Progress | 4 / 5 |
+| 4 | Bot skeleton | Done | 5 / 5 |
 | 5 | Deposit flow | Pending | 0 / 5 |
 | 6 | Withdraw flow | Pending | 0 / 4 |
 | 7 | Cashier system | Pending | 0 / 3 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-02 | Story 4.5 done. Epic 4 closed. `goldrush_core/balance/cashier_roster.py` adds the live roster query; `RosterSnapshot` (frozen) buckets cashiers by region + on-break + offline count; a cashier with chars in multiple regions appears in each region's bucket. `online_cashiers_live_embed` refactored to take the snapshot directly (3 existing tests + 1 new test updated). `goldrush_deposit_withdraw/cashiers/live_updater.py` ships `tick(pool, bot, channel_id)` (single iteration, persists message id in `dw.dynamic_embeds[embed_key='online_cashiers']`, self-heals on NotFound) and `OnlineCashiersUpdater` (cancellable asyncio loop with idempotent start, awaitable stop, broad-except wrappers around tick so a transient error doesn't kill the loop). `DwBot.on_ready` resolves the channel id from `dw.global_config.channel_id_online_cashiers` and spins up the updater; `close_pool` shuts it down. 14 new tests + 1 modified test surface; full suite 253 / 253; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.4 done. `goldrush_deposit_withdraw/welcome.py` adds the reconciler for `dw.dynamic_embeds` rows `how_to_deposit` and `how_to_withdraw`. `WelcomeDefault` (frozen) carries the canonical seed title/description; `DEFAULT_WELCOMES` is a tuple of two seeds. `reconcile_welcome_embed(pool, bot, *, embed_key, fallback_channel_id, ...)` handles single-key reconciliation; `reconcile_welcome_embeds(pool, bot)` orchestrates both managed keys, resolving channel ids from `dw.global_config.channel_id_<embed_key>`. Outcomes: `posted` (first run), `edited` (idempotent re-run), `reposted` (self-heal after admin deletes the Discord message), `skipped` (no channel id available pre-`/admin setup`). The reconciler is wired into `DwBot.on_ready` with a broad-except so a DB hiccup is non-fatal — next on_ready retries. 11 new tests (orchestrator + every single-key branch + idempotency property + self-heal); full suite 239 / 239; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.3 done. `goldrush_core/balance/account_stats.py` adds `AccountStats` (frozen) + `fetch_account_stats(executor, *, discord_id) -> AccountStats | None` (single-row JOIN over core.users / core.balances / confirmed dw.deposit_tickets / confirmed dw.withdraw_tickets, all aggregates COALESCEd to 0). `goldrush_core/embeds/account.py` adds `account_summary_embed`, `no_balance_embed` (shared with Luck per spec §5.6), `help_embed` (with `HELP_TOPICS` ordered dict). `goldrush_deposit_withdraw/cogs/account.py` ships the real `/balance` and `/help` slash commands — both ephemeral, `/help` with autocomplete choices for the four topics. Unknown topics fall back to the list view rather than raising. `_resolve_how_to_deposit_mention` does best-effort name lookup until Story 10.x reads channel ids from `dw.global_config`. 17 new tests; full suite 228 / 228; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.2 done. Six cog skeletons created under `goldrush_deposit_withdraw/cogs/` (account, admin, cashier, deposit, ticket, withdraw); each exposes the `async def setup(bot)` contract. `EXTENSIONS` tuple populated; `setup_hook` now loads all six. `DwBot.on_ready` overridden — calls `bot.tree.sync(guild=discord.Object(id=settings.guild_id))` for instant per-guild sync; logs `user_id`, `guild_id`, `command_count`. 10 new tests (1 base + 6 parametrized cog-contract + 3 functional); full suite 211 / 211; ruff + mypy strict clean. |
@@ -600,10 +601,16 @@ Status: Done (2026-05-02)
 
 ### Story 4.5 — Online cashiers live embed
 
+Status: Done (2026-05-02)
+
 **ACs:**
-- [ ] On startup, bot ensures `#online-cashiers` has the live embed message; creates if absent.
-- [ ] Background task `online_cashiers_embed_updater` edits the message every 30 s with current online cashiers grouped by region (EU / NA), plus a "On break" subsection and an "Offline cashiers: N" footer line.
-- [ ] Test: with two mock cashiers online (one EU, one NA), the embed renders both in the correct sections.
+- [x] `goldrush_core/balance/cashier_roster.py` adds `fetch_online_roster(executor) -> RosterSnapshot` (online cashiers grouped by region, on-break list, offline count). Joins `dw.cashier_status` with `dw.cashier_characters` so a cashier with chars in EU + NA appears in both region buckets.
+- [x] `online_cashiers_live_embed` refactored to take a `RosterSnapshot` and render: one field per region (sorted), an "On break" field if non-empty, footer with `Offline cashiers: N`.
+- [x] `goldrush_deposit_withdraw/cashiers/live_updater.py` ships `tick(pool, bot, channel_id)` (single iteration with insert / post / edit / repost-on-NotFound branches) plus `OnlineCashiersUpdater` (cancellable asyncio loop, idempotent `start()`, awaitable `stop()`).
+- [x] `DwBot.on_ready` resolves the channel id from `dw.global_config.channel_id_online_cashiers` and starts the updater (skipped pre-`/admin setup`); `close_pool` stops the updater on shutdown.
+- [x] Test (with two mock cashiers, one EU + one on break NA) renders both in the correct sections; offline count appears in the footer.
+
+**Verification:** 14 new tests in `tests/unit/core/test_cashier_roster.py` (6) and `tests/unit/dw/test_live_updater.py` (7) plus refactor of 3 existing embed tests. Full unit suite 253 / 253 green; ruff + mypy strict clean.
 
 **Dependencies:** Story 4.4
 **Effort:** M
