@@ -38,6 +38,7 @@ from goldrush_core.balance.dw_manager import (
 from goldrush_core.embeds.dw_tickets import (
     cashier_stats_embed,
     dispute_list_embed,
+    dispute_resolved_embed,
 )
 
 from goldrush_deposit_withdraw.audit_log import (
@@ -47,6 +48,10 @@ from goldrush_deposit_withdraw.audit_log import (
     audit_force_cancel_ticket,
     audit_force_cashier_offline,
     audit_force_close_thread,
+)
+from goldrush_deposit_withdraw.disputes import (
+    post_dispute_open_embed,
+    update_dispute_status_embed,
 )
 from goldrush_deposit_withdraw.setup.channel_factory import (
     SetupReport,
@@ -494,6 +499,19 @@ class AdminCog(commands.Cog):
             f"✅ Dispute `#{dispute_id}` opened on `{ticket_uid}`.",
             ephemeral=True,
         )
+        # Story 9.2: post the long-lived embed in #disputes (persists
+        # message_id) and the transient note in #audit-log.
+        await post_dispute_open_embed(
+            pool=bot.pool,
+            bot=bot,
+            dispute_id=dispute_id,
+            ticket_type=ticket_type,
+            ticket_uid=ticket_uid,
+            opener_mention=interaction.user.mention,
+            opener_role="admin",
+            reason=reason,
+            opened_at=discord.utils.utcnow(),
+        )
         await audit_dispute_opened(
             pool=bot.pool,
             bot=bot,
@@ -630,15 +648,34 @@ class AdminCog(commands.Cog):
             "SELECT ticket_uid FROM dw.disputes WHERE id = $1",
             dispute_id,
         )
+        ticket_uid_str = str(ticket_uid) if ticket_uid is not None else "?"
         await interaction.followup.send(
             f"✅ Dispute `#{dispute_id}` resolved as `{action}`.",
             ephemeral=True,
+        )
+        # Story 9.2: edit the existing #disputes embed in place rather
+        # than posting a new one. Best-effort — failures are logged.
+        await update_dispute_status_embed(
+            pool=bot.pool,
+            bot=bot,
+            dispute_id=dispute_id,
+            new_embed=dispute_resolved_embed(
+                dispute_id=dispute_id,
+                ticket_uid=ticket_uid_str,
+                resolution=(
+                    f"action={action}"
+                    + (f", amount={amount:,}g" if amount else "")
+                ),
+                resolved_by_mention=interaction.user.mention,
+                resolved_at=discord.utils.utcnow(),
+                status="resolved",
+            ),
         )
         await audit_dispute_resolved(
             pool=bot.pool,
             bot=bot,
             dispute_id=dispute_id,
-            ticket_uid=str(ticket_uid) if ticket_uid is not None else "?",
+            ticket_uid=ticket_uid_str,
             admin_mention=interaction.user.mention,
             action=action,
             amount=amount,
@@ -702,15 +739,30 @@ class AdminCog(commands.Cog):
             "SELECT ticket_uid FROM dw.disputes WHERE id = $1",
             dispute_id,
         )
+        ticket_uid_str = str(ticket_uid) if ticket_uid is not None else "?"
         await interaction.followup.send(
             f"✅ Dispute `#{dispute_id}` rejected.",
             ephemeral=True,
+        )
+        # Story 9.2: edit the existing #disputes embed in place.
+        await update_dispute_status_embed(
+            pool=bot.pool,
+            bot=bot,
+            dispute_id=dispute_id,
+            new_embed=dispute_resolved_embed(
+                dispute_id=dispute_id,
+                ticket_uid=ticket_uid_str,
+                resolution=reason,
+                resolved_by_mention=interaction.user.mention,
+                resolved_at=discord.utils.utcnow(),
+                status="rejected",
+            ),
         )
         await audit_dispute_rejected(
             pool=bot.pool,
             bot=bot,
             dispute_id=dispute_id,
-            ticket_uid=str(ticket_uid) if ticket_uid is not None else "?",
+            ticket_uid=ticket_uid_str,
             admin_mention=interaction.user.mention,
             reason=reason,
         )
