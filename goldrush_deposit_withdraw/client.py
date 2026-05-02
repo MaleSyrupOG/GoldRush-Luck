@@ -127,8 +127,16 @@ class DwBot(commands.Bot):
         Discord reconnects; both steps are idempotent so re-runs are
         safe (a re-run just re-syncs the tree and edits embeds in
         place).
+
+        Note on the sync: cog ``@app_commands.command`` decorators
+        register globally by default; ``copy_global_to(guild)`` is
+        the canonical discord.py 2.x recipe to mirror them into the
+        per-guild scope before the ``sync(guild=...)`` call so
+        commands actually appear in the test server immediately
+        rather than after Discord's ~1h global propagation.
         """
         guild = discord.Object(id=self.settings.guild_id)
+        self.tree.copy_global_to(guild=guild)
         synced = await self.tree.sync(guild=guild)
         user_id = self.user.id if self.user is not None else 0
         self._log.info(
