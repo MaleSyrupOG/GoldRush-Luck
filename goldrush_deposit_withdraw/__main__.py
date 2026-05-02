@@ -2,61 +2,66 @@
 
 Run with: ``python -m goldrush_deposit_withdraw``
 
-The full implementation lands in Epic 4 (bot skeleton) of the implementation
-plan. Until then, this file behaves as a long-running placeholder so that
-container orchestration treats it as an alive process and `restart:
-unless-stopped` does not crash-loop.
+Boot order (per spec §5.7):
 
-Behaviour:
-- When invoked directly under ``__main__`` (e.g. inside the Docker container),
-  the process logs that the placeholder is running and waits indefinitely on a
-  threading event, exiting 0 cleanly when SIGTERM/SIGINT is received.
-- When the ``main()`` function is called explicitly from tests, it returns
-  immediately with 0 so the smoke test suite stays fast.
+1. Load settings from environment / .env files (validation errors here
+   surface as a startup crash with a typed message rather than a silent
+   misconfig).
+2. Configure structlog with the requested level + format.
+3. Build the ``DwBot`` and wire its DB pool.
+4. ``bot.start(token)`` — opens the gateway and runs forever.
 
-See: docs/superpowers/specs/2026-04-29-goldrush-dw-v1-implementation-plan.md
+Steps 4-6 of the spec (sync command tree, ensure system row,
+ensure dynamic embeds, start workers) land in subsequent stories.
+
+Test note: the existing smoke tests for the placeholder ``main()``
+were removed in Story 4.1 because the new ``main()`` does not return
+without a Discord token; the structural contract is now covered by
+``tests/unit/dw/test_client.py``.
 """
 
 from __future__ import annotations
 
-import signal
+import asyncio
 import sys
-import threading
+
+import structlog
+from goldrush_core.config import DwSettings
+from goldrush_core.logging import setup_logging
+
+from goldrush_deposit_withdraw.client import DwBot, build_bot
+
+_log = structlog.get_logger(__name__)
 
 
 def main() -> int:
-    """Placeholder entry point invoked from tests. Returns 0 immediately."""
-    return 0
+    """Bin entry. Loads settings, configures logging, runs the bot.
 
-
-def _serve_forever() -> int:
-    """Long-running placeholder used when launched as ``python -m goldrush_deposit_withdraw``.
-
-    Blocks until SIGTERM or SIGINT is received, then exits 0. This keeps
-    container orchestration happy until Epic 4 replaces this with the real
-    discord.py client.
+    Returns 0 on clean shutdown (SIGTERM/SIGINT). Any other exit path
+    (uncaught exception, login failure) propagates as a non-zero exit
+    so Docker's ``restart: unless-stopped`` policy can react.
     """
-    print(
-        "[goldrush_deposit_withdraw] placeholder process running; "
-        "Epic 4 will replace this with the real bot.",
-        file=sys.stderr,
-        flush=True,
+    settings = DwSettings()
+    setup_logging(settings.log_level, format=settings.log_format)
+    _log.info(
+        "boot",
+        guild_id=settings.guild_id,
+        log_format=settings.log_format,
+        log_level=settings.log_level,
     )
-    stop = threading.Event()
-
-    def _handle_signal(signum: int, _frame: object) -> None:
-        print(
-            f"[goldrush_deposit_withdraw] received signal {signum}, exiting cleanly.",
-            file=sys.stderr,
-            flush=True,
-        )
-        stop.set()
-
-    signal.signal(signal.SIGTERM, _handle_signal)
-    signal.signal(signal.SIGINT, _handle_signal)
-    stop.wait()
+    bot = build_bot(settings)
+    asyncio.run(_run(bot, settings))
     return 0
+
+
+async def _run(bot: DwBot, settings: DwSettings) -> None:
+    """Run the bot until shutdown; ensure the DB pool is closed cleanly."""
+    try:
+        async with bot:
+            await bot.start(settings.discord_token.get_secret_value())
+    finally:
+        await bot.close_pool()
 
 
 if __name__ == "__main__":
-    raise SystemExit(_serve_forever())
+    sys.exit(main())

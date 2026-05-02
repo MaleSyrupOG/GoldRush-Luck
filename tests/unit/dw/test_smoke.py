@@ -1,11 +1,15 @@
 """Smoke tests for the goldrush_deposit_withdraw package.
 
-These tests verify that the package and its subpackages import cleanly. They
-exist as the most basic regression net: any future PR that breaks the import
+Verifies that the package and its subpackages import cleanly. Acts as
+the most basic regression net: any future PR that breaks the import
 surface fails CI immediately, before more meaningful tests even start.
 
-When Epic 4 lands, these tests will be joined by structural tests against the
-bot client, cog manifest, and healthcheck.
+The original Story 1.1 smoke tests checked that the placeholder
+``main()`` and ``healthcheck.main()`` returned 0 on a synthetic call.
+Both modules were rewritten in Story 4.1 to do real work (open the
+DB pool / run ``SELECT 1``); their structural contract is now
+covered by ``test_client.py`` and ``test_healthcheck.py``. The smoke
+suite focuses on import-level health.
 """
 
 from __future__ import annotations
@@ -30,13 +34,14 @@ def test_subpackages_import() -> None:
         assert module is not None
 
 
-def test_main_module_exits_clean() -> None:
-    from goldrush_deposit_withdraw import __main__ as main_mod
+def test_main_module_imports_without_running() -> None:
+    """Importing the bin entry point must not require env vars or a
+    Discord token — the side effects only happen inside ``main()``."""
+    main_mod = importlib.import_module("goldrush_deposit_withdraw.__main__")
+    assert callable(main_mod.main)
 
-    assert main_mod.main() == 0
 
-
-def test_healthcheck_module_exits_clean() -> None:
-    from goldrush_deposit_withdraw import healthcheck as hc
-
-    assert hc.main() == 0
+def test_healthcheck_module_imports() -> None:
+    hc = importlib.import_module("goldrush_deposit_withdraw.healthcheck")
+    assert callable(hc.main)
+    assert callable(hc.ping)

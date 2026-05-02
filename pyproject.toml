@@ -72,6 +72,12 @@ plugins = ["pydantic.mypy"]
 module = ["tests.*"]
 disallow_untyped_defs = false
 
+# asyncpg ships without a py.typed marker; treat it as untyped so the
+# bot code can ``import asyncpg`` cleanly under strict mode.
+[[tool.mypy.overrides]]
+module = ["asyncpg", "asyncpg.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
