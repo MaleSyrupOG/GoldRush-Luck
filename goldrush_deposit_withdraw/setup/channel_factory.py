@@ -283,8 +283,20 @@ def _category_overwrites(
     everyone: discord.Role,
     cashier: discord.Role | None,
     admin: discord.Role | None,
+    bot: discord.Member,
 ) -> dict[Any, discord.PermissionOverwrite]:
-    """Build the overwrites dict for a category."""
+    """Build the overwrites dict for a category.
+
+    The bot ALWAYS receives an explicit ``view_channel=True`` +
+    ``manage_channels=True`` overwrite. Without it, when a category
+    is created with ``@everyone view_channel=False`` (the
+    ``private_to_staff`` case for ``Cashier``), Discord propagates
+    that deny to the bot too — even though the bot has Manage
+    Channels at the server level — and the subsequent
+    ``create_text_channel`` call under that category fails with
+    ``403 Missing Permissions``. The explicit bot overwrite breaks
+    the inheritance chain.
+    """
     overwrites: dict[Any, discord.PermissionOverwrite] = {}
     if spec.private_to_staff:
         overwrites[everyone] = discord.PermissionOverwrite(view_channel=False)
@@ -298,6 +310,14 @@ def _category_overwrites(
         overwrites[admin] = discord.PermissionOverwrite(
             view_channel=True, send_messages=True, read_message_history=True
         )
+    overwrites[bot] = discord.PermissionOverwrite(
+        view_channel=True,
+        send_messages=True,
+        manage_channels=True,
+        manage_messages=True,
+        manage_threads=True,
+        read_message_history=True,
+    )
     return overwrites
 
 
@@ -417,6 +437,7 @@ async def setup_or_reuse_channels(
             everyone=everyone_role,
             cashier=cashier_role,
             admin=admin_role,
+            bot=bot_member,
         )
         created = await guild.create_category(
             spec.name, overwrites=overwrites, reason=_REASON
