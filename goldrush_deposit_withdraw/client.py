@@ -29,6 +29,7 @@ from goldrush_core.ratelimit import FixedWindowLimiter
 
 from goldrush_deposit_withdraw.cashiers.live_updater import OnlineCashiersUpdater
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
+from goldrush_deposit_withdraw.workers.ticket_timeout import TicketTimeoutWorker
 
 # Cog import paths. The six canonical cogs map one-for-one to the
 # command families in spec §5.1 (account, admin, cashier, deposit,
@@ -65,6 +66,7 @@ class DwBot(commands.Bot):
     _pool_factory: PoolFactory
     _log: structlog.types.FilteringBoundLogger
     _online_cashiers_updater: OnlineCashiersUpdater | None
+    _ticket_timeout_worker: TicketTimeoutWorker | None
 
     def __init__(
         self,
@@ -83,6 +85,7 @@ class DwBot(commands.Bot):
         self.pool = None
         self._log = structlog.get_logger(__name__)
         self._online_cashiers_updater = None
+        self._ticket_timeout_worker = None
         # Rate limiters keyed by command family. Spec: 1 ticket
         # creation per user per 60 s for both /deposit and /withdraw.
         # Other limiters (cashier set-status, /help) can be added by
@@ -181,6 +184,20 @@ class DwBot(commands.Bot):
             except Exception as e:
                 self._log.exception("online_cashiers_updater_failed", error=str(e))
 
+            # Story 8.1: spin up the ticket-timeout worker. Idempotent
+            # across reconnects — ``start()`` is a no-op if the loop
+            # is already running.
+            try:
+                if self._ticket_timeout_worker is None:
+                    self._ticket_timeout_worker = TicketTimeoutWorker(
+                        pool=self.pool,
+                        bot=self,
+                    )
+                    self._ticket_timeout_worker.start()
+                    self._log.info("ticket_timeout_worker_started")
+            except Exception as e:
+                self._log.exception("ticket_timeout_worker_failed", error=str(e))
+
     async def close_pool(self) -> None:
         """Close the DB pool and stop background tasks — used on shutdown.
 
@@ -191,6 +208,9 @@ class DwBot(commands.Bot):
         if self._online_cashiers_updater is not None:
             await self._online_cashiers_updater.stop()
             self._online_cashiers_updater = None
+        if self._ticket_timeout_worker is not None:
+            await self._ticket_timeout_worker.stop()
+            self._ticket_timeout_worker = None
         if self.pool is not None:
             await self.pool.close()
             self.pool = None
