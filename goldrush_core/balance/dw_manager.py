@@ -128,6 +128,63 @@ async def cancel_deposit(
 
 
 # ---------------------------------------------------------------------------
+# Lifecycle (migration 0008_dw_lifecycle_fns) — claim / release
+# Generic across ticket types; the SECURITY DEFINER fn dispatches on
+# ``ticket_type`` to update the right table and writes the audit row.
+# ---------------------------------------------------------------------------
+
+
+async def claim_ticket(
+    conn: Executor,
+    *,
+    ticket_type: Literal["deposit", "withdraw"],
+    ticket_uid: str,
+    cashier_id: int,
+) -> None:
+    """Cashier claims an open ticket.
+
+    Raises:
+        InvalidTicketType, TicketNotFound, TicketAlreadyClaimed,
+        RegionMismatch (cashier has no active char in the ticket's region).
+    """
+    try:
+        await conn.execute(
+            "SELECT dw.claim_ticket($1, $2, $3)",
+            ticket_type,
+            ticket_uid,
+            cashier_id,
+        )
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e
+
+
+async def release_ticket(
+    conn: Executor,
+    *,
+    ticket_type: Literal["deposit", "withdraw"],
+    ticket_uid: str,
+    actor_id: int,
+) -> None:
+    """Cashier voluntarily releases a claimed ticket back to ``open``.
+
+    The withdraw fn does NOT release the locked balance — that only
+    happens on cancel; release just hands the ticket back to FIFO.
+
+    Raises:
+        InvalidTicketType, TicketNotFound, TicketNotClaimed, WrongCashier.
+    """
+    try:
+        await conn.execute(
+            "SELECT dw.release_ticket($1, $2, $3)",
+            ticket_type,
+            ticket_uid,
+            actor_id,
+        )
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e
+
+
+# ---------------------------------------------------------------------------
 # Withdraw lifecycle (migration 0007_dw_withdraw_fns)
 # ---------------------------------------------------------------------------
 

@@ -209,11 +209,165 @@ async def open_withdraw_ticket(
         return WithdrawOutcome.Unexpected(message=e.message)
 
 
+# ---------------------------------------------------------------------------
+# Lifecycle outcomes — claim / release / cancel (generic across ticket types)
+# ---------------------------------------------------------------------------
+
+
+class LifecycleOutcome:
+    """Variants for claim / release / cancel actions."""
+
+    @dataclass(frozen=True)
+    class Success:
+        message: str = "ok"
+
+    @dataclass(frozen=True)
+    class TicketNotFound:
+        message: str = "ticket_not_found"
+
+    @dataclass(frozen=True)
+    class AlreadyClaimed:
+        message: str
+
+    @dataclass(frozen=True)
+    class NotClaimed:
+        message: str
+
+    @dataclass(frozen=True)
+    class WrongCashier:
+        message: str
+
+    @dataclass(frozen=True)
+    class RegionMismatch:
+        message: str
+
+    @dataclass(frozen=True)
+    class AlreadyTerminal:
+        message: str
+
+    @dataclass(frozen=True)
+    class Unexpected:
+        message: str
+
+
+LifecycleResult = (
+    LifecycleOutcome.Success
+    | LifecycleOutcome.TicketNotFound
+    | LifecycleOutcome.AlreadyClaimed
+    | LifecycleOutcome.NotClaimed
+    | LifecycleOutcome.WrongCashier
+    | LifecycleOutcome.RegionMismatch
+    | LifecycleOutcome.AlreadyTerminal
+    | LifecycleOutcome.Unexpected
+)
+
+
+from typing import Literal as _Lit  # local alias to avoid leaking
+
+from goldrush_core.balance.dw_manager import (  # noqa: E402
+    cancel_deposit,
+    cancel_withdraw,
+    claim_ticket,
+    release_ticket,
+)
+
+_TicketType = _Lit["deposit", "withdraw"]
+
+
+async def claim_ticket_for_cashier(
+    *,
+    pool: Executor,
+    ticket_type: _TicketType,
+    ticket_uid: str,
+    cashier_id: int,
+) -> LifecycleResult:
+    """Wrap :func:`dw.claim_ticket` with the typed-outcome envelope."""
+    try:
+        await claim_ticket(
+            pool,
+            ticket_type=ticket_type,
+            ticket_uid=ticket_uid,
+            cashier_id=cashier_id,
+        )
+        return LifecycleOutcome.Success()
+    except exc.TicketNotFound as e:
+        return LifecycleOutcome.TicketNotFound(message=e.message)
+    except exc.TicketAlreadyClaimed as e:
+        return LifecycleOutcome.AlreadyClaimed(message=e.message)
+    except exc.RegionMismatch as e:
+        return LifecycleOutcome.RegionMismatch(message=e.message)
+    except exc.BalanceError as e:
+        return LifecycleOutcome.Unexpected(message=e.message)
+
+
+async def release_ticket_by_cashier(
+    *,
+    pool: Executor,
+    ticket_type: _TicketType,
+    ticket_uid: str,
+    cashier_id: int,
+) -> LifecycleResult:
+    """Wrap :func:`dw.release_ticket`."""
+    try:
+        await release_ticket(
+            pool,
+            ticket_type=ticket_type,
+            ticket_uid=ticket_uid,
+            actor_id=cashier_id,
+        )
+        return LifecycleOutcome.Success()
+    except exc.TicketNotFound as e:
+        return LifecycleOutcome.TicketNotFound(message=e.message)
+    except exc.TicketNotClaimed as e:
+        return LifecycleOutcome.NotClaimed(message=e.message)
+    except exc.WrongCashier as e:
+        return LifecycleOutcome.WrongCashier(message=e.message)
+    except exc.BalanceError as e:
+        return LifecycleOutcome.Unexpected(message=e.message)
+
+
+async def cancel_ticket_dispatch(
+    *,
+    pool: Executor,
+    ticket_type: _TicketType,
+    ticket_uid: str,
+    actor_id: int,
+    reason: str,
+) -> LifecycleResult:
+    """Dispatch to :func:`dw.cancel_deposit` or :func:`dw.cancel_withdraw`.
+
+    Withdraw cancel additionally refunds the locked balance — that
+    behaviour is encapsulated inside the SECURITY DEFINER fn; this
+    wrapper just routes by ticket type.
+    """
+    try:
+        if ticket_type == "deposit":
+            await cancel_deposit(
+                pool, ticket_uid=ticket_uid, actor_id=actor_id, reason=reason
+            )
+        else:
+            await cancel_withdraw(
+                pool, ticket_uid=ticket_uid, actor_id=actor_id, reason=reason
+            )
+        return LifecycleOutcome.Success()
+    except exc.TicketNotFound as e:
+        return LifecycleOutcome.TicketNotFound(message=e.message)
+    except exc.TicketAlreadyTerminal as e:
+        return LifecycleOutcome.AlreadyTerminal(message=e.message)
+    except exc.BalanceError as e:
+        return LifecycleOutcome.Unexpected(message=e.message)
+
+
 __all__ = [
     "DepositOutcome",
     "DepositResult",
+    "LifecycleOutcome",
+    "LifecycleResult",
     "WithdrawOutcome",
     "WithdrawResult",
+    "cancel_ticket_dispatch",
+    "claim_ticket_for_cashier",
     "open_deposit_ticket",
     "open_withdraw_ticket",
+    "release_ticket_by_cashier",
 ]
