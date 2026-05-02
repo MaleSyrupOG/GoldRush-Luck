@@ -25,10 +25,10 @@
 |---|---|
 | **Active phase** | Phase 3 — Bot skeleton (Epic 4 in progress) |
 | **Active epic** | Epic 4 — Bot skeleton |
-| **Active story** | Stories 4.1 and 4.2 done; next is Story 4.3 — Account cog (`/balance`, `/help`) |
-| **Last commit** | `3b331a5` (Story 4.1) → Story 4.2 commit pending |
-| **Next milestone** | Close Epic 4 (Stories 4.3-4.5) so the bot is fully wired and Epic 5 / 6 (deposit + withdraw flows) can start |
-| **Overall progress** | 26 / 78 stories done · 4 / 15 epics done · Epic 4 in progress (2 / 5) |
+| **Active story** | Stories 4.1-4.3 done; next is Story 4.4 — Welcome dynamic embeds |
+| **Last commit** | `376fef8` (Story 4.2) → Story 4.3 commit pending |
+| **Next milestone** | Close Epic 4 (Stories 4.4-4.5) so the bot is fully wired and Epic 5 / 6 (deposit + withdraw flows) can start |
+| **Overall progress** | 27 / 78 stories done · 4 / 15 epics done · Epic 4 in progress (3 / 5) |
 
 ### Epic-level status
 
@@ -37,7 +37,7 @@
 | 1 | Foundation extensions | Done | 3 / 3 |
 | 2 | Database schema additions | Done | 12 / 12 |
 | 3 | Core services & models | Done | 4 / 4 |
-| 4 | Bot skeleton | In Progress | 2 / 5 |
+| 4 | Bot skeleton | In Progress | 3 / 5 |
 | 5 | Deposit flow | Pending | 0 / 5 |
 | 6 | Withdraw flow | Pending | 0 / 4 |
 | 7 | Cashier system | Pending | 0 / 3 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-02 | Story 4.3 done. `goldrush_core/balance/account_stats.py` adds `AccountStats` (frozen) + `fetch_account_stats(executor, *, discord_id) -> AccountStats | None` (single-row JOIN over core.users / core.balances / confirmed dw.deposit_tickets / confirmed dw.withdraw_tickets, all aggregates COALESCEd to 0). `goldrush_core/embeds/account.py` adds `account_summary_embed`, `no_balance_embed` (shared with Luck per spec §5.6), `help_embed` (with `HELP_TOPICS` ordered dict). `goldrush_deposit_withdraw/cogs/account.py` ships the real `/balance` and `/help` slash commands — both ephemeral, `/help` with autocomplete choices for the four topics. Unknown topics fall back to the list view rather than raising. `_resolve_how_to_deposit_mention` does best-effort name lookup until Story 10.x reads channel ids from `dw.global_config`. 17 new tests; full suite 228 / 228; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.2 done. Six cog skeletons created under `goldrush_deposit_withdraw/cogs/` (account, admin, cashier, deposit, ticket, withdraw); each exposes the `async def setup(bot)` contract. `EXTENSIONS` tuple populated; `setup_hook` now loads all six. `DwBot.on_ready` overridden — calls `bot.tree.sync(guild=discord.Object(id=settings.guild_id))` for instant per-guild sync; logs `user_id`, `guild_id`, `command_count`. 10 new tests (1 base + 6 parametrized cog-contract + 3 functional); full suite 211 / 211; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.1 done. `goldrush_core/config/__init__.py` adds `CoreSettings` + `DwSettings` (pydantic-settings v2; secrets typed as SecretStr; reads from `.env.shared` + `.env.dw` in dev). `goldrush_core/logging/__init__.py` adds `setup_logging(level, *, format)` with a structlog + stdlib pipeline that toggles between JSON (production) and ConsoleRenderer (local dev). `goldrush_deposit_withdraw/client.py` adds `DwBot` (commands.Bot subclass) + `build_bot(settings, *, pool_factory=None)`; the pool factory is injectable for tests. `goldrush_deposit_withdraw/healthcheck.py` rewritten — opens a 1-conn pool with 3-second timeout, runs `SELECT 1`, exits 0 only when the result is exactly 1; every failure path (missing DSN, factory raises, timeout, wrong value, exception) maps to exit 1. `goldrush_deposit_withdraw/__main__.py` rewritten — loads settings, configures logging, runs the bot. asyncpg added to mypy `ignore_missing_imports` (no py.typed marker upstream). 25 new tests; full unit suite 201 / 201; ruff + mypy strict clean. |
 | 2026-05-02 | Story 3.4 done. Epic 3 closed. `goldrush_deposit_withdraw/setup/channel_factory.py` implements `setup_or_reuse_channels(guild, *, cashier_role_id, admin_role_id, dry_run=False, persist=None) -> SetupReport`. Idempotent name+parent matching; spec §5.3 permission matrix encoded per channel and per role; `manage_threads` substituted for the spec's "View Private Threads" because discord.py 2.4.0 does not expose `view_private_threads` (folded into manage_threads upstream). Persistence decoupled via async callback; module is DB-agnostic. Channel naming uses spec-canonical (`#cashier-alerts`, `#how-to-deposit`); the live server's renamed equivalents (`#cashier-requests`, etc.) will be re-linked via `/admin set-channel <key>` once Story 10.x lands — flagged inline. 23 tests in `tests/unit/dw/test_channel_factory.py`; full unit suite 177 / 177 green; ruff + mypy strict clean. |
@@ -558,12 +559,20 @@ Status: Done (2026-05-02)
 
 ### Story 4.3 — Account cog: `/balance` and `/help`
 
+Status: Done (2026-05-02)
+
 **As a user I want** to inspect my balance and ask for help **so that** I do not need to leave Discord.
 
 **ACs:**
-- [ ] `/balance` posts ephemeral embed: balance, total deposited (sum of confirmed deposits), total withdrawn, lifetime fee paid.
-- [ ] If the user has no `core.users` row → shows the `no_balance_embed` redirecting to `#how-to-deposit`.
-- [ ] `/help topic?` lists deposit, withdraw, fairness, support topics.
+- [x] `/balance` runs `fetch_account_stats` (joining `core.users`, `core.balances`, confirmed `dw.deposit_tickets`, confirmed `dw.withdraw_tickets`) and renders `account_summary_embed` with balance + total deposited + total withdrawn + lifetime fees paid. Response is `ephemeral=True`.
+- [x] When `fetch_account_stats` returns `None` (no `core.users` row), the cog renders `no_balance_embed` with a deep-link to the `#how-to-deposit` channel (resolved best-effort by name; will read `dw.global_config` once Story 10.x lands).
+- [x] `/help` accepts an optional `topic` argument with autocomplete choices (`deposit`, `withdraw`, `fairness`, `support`); without a topic it lists every topic. Unknown topics fall back to the topic list rather than raising.
+
+**Companion code:**
+- `goldrush_core/balance/account_stats.py` — frozen `AccountStats` dataclass + async `fetch_account_stats` query.
+- `goldrush_core/embeds/account.py` — `account_summary_embed`, `no_balance_embed`, `help_embed`, `HELP_TOPICS` (dict ordered by canonical sequence).
+
+**Verification:** 17 new tests across `tests/unit/core/test_account_stats.py` (4), `tests/unit/core/test_account_embeds.py` (8 incl. parametrized topic test), `tests/unit/dw/test_account_cog.py` (2). Full unit suite 228 / 228 green; ruff + mypy strict clean.
 
 **Dependencies:** Story 4.2, Story 3.1
 **Effort:** M
