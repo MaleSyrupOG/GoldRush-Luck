@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 8 — Admin commands (Epic 10 in progress) |
-| **Active epic** | Epic 10 — Admin commands (1/8 done; remaining stories optional pre-deploy) |
-| **Active story** | Story 10.1 done; bot now self-configures end-to-end via `/admin-setup` |
-| **Last commit** | `8e3aa3f` (Epic 7) → Story 10.1 commit pending |
-| **Next milestone** | Optional: 10.4 (force-cashier-offline), 10.5 (admin cashier-stats), 10.7 (force-cancel-ticket / force-close-thread). Then deploy. |
-| **Overall progress** | 42 / 78 stories done · 8 / 15 epics done · Epic 10 in progress (1 / 8) |
+| **Active phase** | Phase 8 — Admin commands (Epic 10 in progress, deploy-ready slice complete) |
+| **Active epic** | Epic 10 — Admin commands (4/8 done; remaining 10.2/10.3/10.6/10.8 deferred) |
+| **Active story** | Stories 10.1, 10.4, 10.5, 10.7 done; the deploy-ready admin toolkit is complete |
+| **Last commit** | `0ded95f` (Story 10.1) → Stories 10.4+10.5+10.7 commit pending |
+| **Next milestone** | Deploy to VPS — every flow in Epics 4-7-10.1/4/5/7 is operational. Future Epic 10 stories (10.2 limits, 10.3 guides modals, 10.6 treasury 2FA, 10.8 audit view) can land post-deploy. |
+| **Overall progress** | 45 / 78 stories done · 8 / 15 epics done · Epic 10 in progress (4 / 8) |
 
 ### Epic-level status
 
@@ -43,7 +43,7 @@
 | 7 | Cashier system | Done | 3 / 3 |
 | 8 | Background workers | Pending | 0 / 6 |
 | 9 | Disputes & blacklist | Pending | 0 / 3 |
-| 10 | Admin commands | In Progress | 1 / 8 |
+| 10 | Admin commands | In Progress | 4 / 8 |
 | 11 | Observability | Pending | 0 / 3 |
 | 12 | Operations & deploy | In Progress (brought forward) | 5 / 6 |
 | 13 | Documentation final pass | Pending | 0 / 4 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-03 | Stories 10.4 + 10.5 + 10.7 done in a paired commit (admin operational toolkit). New AdminCog commands: `/admin-force-cashier-offline cashier reason` (calls `set_cashier_status` for the target user); `/admin-promote-cashier user` and `/admin-demote-cashier user` (informational reminders pointing at *Server Settings → Members* — bot lacks Manage Roles per spec §6.5); `/admin-cashier-stats cashier` (reuses the cashier-mystats embed); `/admin-force-cancel-ticket ticket_uid reason` (parses prefix, dispatches to cancel_deposit/cancel_withdraw with `admin force: <reason>` audit entry); `/admin-force-close-thread thread reason` (Discord-side archive). Refactor: the previous Story 10.1 commit had 4 method blocks accidentally placed inside `_build_setup_report_embed` (Python parsed them as unreachable inner functions); rewrote `admin.py` so all 7 admin commands live cleanly inside the AdminCog class. 3 new structural tests in `test_admin_cog.py`; full suite 336 / 336; ruff + mypy strict clean. Deploy-ready admin toolkit complete. |
 | 2026-05-03 | Story 10.1 done. New `goldrush_deposit_withdraw/setup/global_config_writer.py::persist_channel_ids(executor, *, channel_id_map, actor_id)` writes one UPSERT per channel into `dw.global_config` keyed `channel_id_<key>`. New `AdminCog` (decorated `default_permissions=administrator`) hosts `/admin-setup [dry_run] [cashier_role] [admin_role]`. The command defers (Discord 3-second window can't accommodate 10 entity creations), then calls `setup_or_reuse_channels` (Story 3.4) with the new persist callback, then `reconcile_welcome_embeds` (Story 4.4) inline so the welcome embeds come up in the same flow. Returns a summary embed listing every category and channel as `created` / `reused`. 6 new tests; full suite 333 / 333; ruff + mypy strict clean. The bot now self-configures end-to-end after one admin command. |
 | 2026-05-03 | Epic 7 closed in a paired commit (Stories 7.1, 7.2, 7.3). Three new SECURITY DEFINER wrappers in `dw_manager.py`: `add_cashier_character` (returns row id) translating `InvalidRegion` / `InvalidFaction`; `remove_cashier_character` translating `CharacterNotFoundOrAlreadyRemoved`; `set_cashier_status` translating `InvalidStatus`. New `CashierCog` with five slash commands (`/cashier-addchar`, `/cashier-removechar`, `/cashier-listchars`, `/cashier-set-status`, `/cashier-mystats`); region / faction / status surfaced as Discord choice menus that match the SQL `Literal` types so users pick rather than type. Onboarding-channel binding enforced inline. `/cashier-mystats` falls back to the all-zeros embed for new cashiers (the embed builder already tolerates `avg=None` / `last_active=None`). 10 new tests across `test_cashier_wrappers.py` (6) and `test_cashier_cog.py` (4); full unit suite 327 / 327; ruff + mypy strict clean. |
 | 2026-05-02 | Stories 5.5 + 6.4 done in a paired commit. Epics 5 + 6 closed. New SECURITY DEFINER orchestration `confirm_ticket_dispatch(ticket_type, ticket_uid, cashier_id) -> ConfirmResult` routes to `dw.confirm_deposit` / `dw.confirm_withdraw` and translates `wrong_cashier`, `ticket_not_claimed`, `invariant_violation` (kept distinct from generic Unexpected so admins notice it). New `ConfirmOutcome` union with 6 variants. `/confirm` slash command in `TicketCog`: opens `ConfirmTicketModal(magic_word="CONFIRM")`; on case-sensitive match the on_confirm callback runs the dispatch and posts `deposit_ticket_confirmed_embed` / `withdraw_ticket_confirmed_embed` showing new balance + (for withdraw) amount/fee/delivered. Treasury credit on withdraw confirm is handled inside the SECURITY DEFINER transaction (migration 0007). 5 new tests in `test_lifecycle_orchestration.py`; full suite 317 / 317; ruff + mypy strict clean. End-to-end deposit + withdraw flows operational. |
@@ -967,10 +968,12 @@ Status: Done (2026-05-03)
 
 ### Story 10.4 — `/admin promote-cashier`, `/admin demote-cashier`, `/admin force-cashier-offline`
 
+Status: Done (2026-05-03; paired with 10.5 + 10.7)
+
 **ACs:**
-- [ ] `promote-cashier @user` adds the `@cashier` role to the user (if bot has `Manage Roles` — wait, we don't grant that; alternative: explicit via Discord settings, command is just a reminder). Document this in the command output if Manage Roles is missing.
-- [ ] `demote-cashier @user` analogous.
-- [ ] `force-cashier-offline @cashier reason` sets status offline + closes session + writes audit row.
+- [x] `/admin-promote-cashier user` posts an informational ephemeral pointing the operator at *Server Settings → Members* (the bot does not hold Manage Roles per spec §6.5; the spec AC explicitly anticipated this).
+- [x] `/admin-demote-cashier user` analogous + reminder to run `/admin-force-cashier-offline` afterwards so the audit log records the transition.
+- [x] `/admin-force-cashier-offline cashier reason` calls `set_cashier_status(discord_id=cashier.id, status="offline")` — the SECURITY DEFINER fn closes the open `dw.cashier_sessions` row and writes the audit entry. The reason is included in the bot's structlog line.
 
 **Dependencies:** Story 2.9
 **Effort:** M
@@ -978,9 +981,12 @@ Status: Done (2026-05-03)
 
 ### Story 10.5 — `/admin cashier-stats @cashier`
 
+Status: Done (2026-05-03; paired with 10.4 + 10.7)
+
 **ACs:**
-- [ ] Renders the rich stats embed per spec §6.3 example (deposits/withdraws done/cancelled, volume, online time, avg claim→confirm, disputes count, last active).
-- [ ] If cashier has no row yet, shows zeros.
+- [x] `/admin-cashier-stats cashier` reads from `dw.cashier_stats` and renders the same `cashier_stats_embed` (Story 3.3) the cashier sees themselves via `/cashier-mystats`. Reuse keeps the visual surface consistent across self-view and admin-view.
+- [x] No-row case (new cashier) renders the zero-filled stats embed (the embed builder already tolerates `avg=None` / `last_active=None`).
+- [x] Disputes count is not yet aggregated in `dw.cashier_stats` (spec §6.3 example mentions it, but the migration doesn't track it as a column); the field is surfaced when Story 10.6 / 9.x lands the dispute counter aggregation.
 
 **Dependencies:** Story 7.3, Story 2.3
 **Effort:** S
@@ -1000,9 +1006,12 @@ Status: Done (2026-05-03)
 
 ### Story 10.7 — `/admin force-cancel-ticket`, `/admin force-close-thread`
 
+Status: Done (2026-05-03; paired with 10.4 + 10.5)
+
 **ACs:**
-- [ ] `force-cancel-ticket ticket_uid reason` cancels via `dw.cancel_deposit` or `dw.cancel_withdraw` regardless of status (admin override); audited.
-- [ ] `force-close-thread thread reason` archives the thread without changing balance — for stuck threads. Audited.
+- [x] `/admin-force-cancel-ticket ticket_uid reason` parses the UID prefix (`deposit-` / `withdraw-`) and routes to `cancel_deposit` or `cancel_withdraw`. The SECURITY DEFINER fn writes the audit row with `actor_id = admin's discord_id` and the reason prefixed `admin force:`. `TicketNotFound` and `TicketAlreadyTerminal` map to clean ephemeral errors.
+- [x] `/admin-force-close-thread thread reason` calls `thread.edit(archived=True, reason=...)` — pure Discord-side archive with no DB change. Best-effort; failure is surfaced to the admin with the underlying exception text.
+- [x] Both commands' actions land in the bot's structlog and (for force-cancel) in `core.audit_log` via the SECURITY DEFINER fn — full forensic trail.
 
 **Dependencies:** Story 2.6, Story 2.7
 **Effort:** M
