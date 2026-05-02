@@ -1,0 +1,58 @@
+"""Persist channel ids produced by the channel factory into ``dw.global_config``.
+
+This is the integration glue between Story 3.4 (the pure-function
+channel factory) and Story 10.1 (the ``/admin setup`` command).
+The channel factory returns a ``SetupReport`` carrying the new
+channel ids; this writer turns each into a row in
+``dw.global_config`` keyed ``channel_id_<key>`` so the rest of
+the bot can read them at runtime via
+``goldrush_core.discord_helpers.channel_binding.resolve_channel_id``.
+
+The UPSERT pattern means re-running ``/admin setup`` after, say,
+the operator deleted and recreated a channel will overwrite the
+stale id without creating a duplicate row.
+"""
+
+from __future__ import annotations
+
+import structlog
+from goldrush_core.db import Executor
+
+_log = structlog.get_logger(__name__)
+
+
+_UPSERT = """
+INSERT INTO dw.global_config (key, value_int, updated_by, updated_at)
+VALUES ($1, $2, $3, NOW())
+ON CONFLICT (key) DO UPDATE SET
+    value_int  = EXCLUDED.value_int,
+    updated_by = EXCLUDED.updated_by,
+    updated_at = NOW()
+"""
+
+
+async def persist_channel_ids(
+    executor: Executor,
+    *,
+    channel_id_map: dict[str, int],
+    actor_id: int,
+) -> None:
+    """Write each ``{key: discord_id}`` entry as ``channel_id_<key>``.
+
+    Skips silently when the map is empty (e.g., dry-run produced
+    no real ids). The ``actor_id`` is the admin who ran
+    ``/admin setup``; it lands on the row's ``updated_by`` column
+    so the audit trail attributes the change.
+    """
+    for key, channel_id in channel_id_map.items():
+        config_key = f"channel_id_{key}"
+        await executor.execute(_UPSERT, config_key, channel_id, actor_id)
+        _log.info(
+            "global_config_channel_id_written",
+            key=config_key,
+            channel_id=channel_id,
+            actor_id=actor_id,
+        )
+
+
+__all__ = ["persist_channel_ids"]

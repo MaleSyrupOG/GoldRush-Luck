@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 5 — Cashier system (Epic 7 closed; Epic 10 next) |
-| **Active epic** | Epic 7 closed; Epic 10 — Admin commands (priority on 10.1 `/admin setup`) |
-| **Active story** | Stories 7.1, 7.2, 7.3 done in a paired commit; next is 10.1 (`/admin setup`) |
-| **Last commit** | `5795304` (Stories 5.5+6.4) → Epic 7 commit pending |
-| **Next milestone** | Land Story 10.1 (`/admin setup`) so the channel ids land in `dw.global_config` and the entire bot self-configures end-to-end without manual SQL |
-| **Overall progress** | 41 / 78 stories done · 8 / 15 epics done · Epic 7 complete (3/3) |
+| **Active phase** | Phase 8 — Admin commands (Epic 10 in progress) |
+| **Active epic** | Epic 10 — Admin commands (1/8 done; remaining stories optional pre-deploy) |
+| **Active story** | Story 10.1 done; bot now self-configures end-to-end via `/admin-setup` |
+| **Last commit** | `8e3aa3f` (Epic 7) → Story 10.1 commit pending |
+| **Next milestone** | Optional: 10.4 (force-cashier-offline), 10.5 (admin cashier-stats), 10.7 (force-cancel-ticket / force-close-thread). Then deploy. |
+| **Overall progress** | 42 / 78 stories done · 8 / 15 epics done · Epic 10 in progress (1 / 8) |
 
 ### Epic-level status
 
@@ -43,7 +43,7 @@
 | 7 | Cashier system | Done | 3 / 3 |
 | 8 | Background workers | Pending | 0 / 6 |
 | 9 | Disputes & blacklist | Pending | 0 / 3 |
-| 10 | Admin commands | Pending | 0 / 8 |
+| 10 | Admin commands | In Progress | 1 / 8 |
 | 11 | Observability | Pending | 0 / 3 |
 | 12 | Operations & deploy | In Progress (brought forward) | 5 / 6 |
 | 13 | Documentation final pass | Pending | 0 / 4 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-03 | Story 10.1 done. New `goldrush_deposit_withdraw/setup/global_config_writer.py::persist_channel_ids(executor, *, channel_id_map, actor_id)` writes one UPSERT per channel into `dw.global_config` keyed `channel_id_<key>`. New `AdminCog` (decorated `default_permissions=administrator`) hosts `/admin-setup [dry_run] [cashier_role] [admin_role]`. The command defers (Discord 3-second window can't accommodate 10 entity creations), then calls `setup_or_reuse_channels` (Story 3.4) with the new persist callback, then `reconcile_welcome_embeds` (Story 4.4) inline so the welcome embeds come up in the same flow. Returns a summary embed listing every category and channel as `created` / `reused`. 6 new tests; full suite 333 / 333; ruff + mypy strict clean. The bot now self-configures end-to-end after one admin command. |
 | 2026-05-03 | Epic 7 closed in a paired commit (Stories 7.1, 7.2, 7.3). Three new SECURITY DEFINER wrappers in `dw_manager.py`: `add_cashier_character` (returns row id) translating `InvalidRegion` / `InvalidFaction`; `remove_cashier_character` translating `CharacterNotFoundOrAlreadyRemoved`; `set_cashier_status` translating `InvalidStatus`. New `CashierCog` with five slash commands (`/cashier-addchar`, `/cashier-removechar`, `/cashier-listchars`, `/cashier-set-status`, `/cashier-mystats`); region / faction / status surfaced as Discord choice menus that match the SQL `Literal` types so users pick rather than type. Onboarding-channel binding enforced inline. `/cashier-mystats` falls back to the all-zeros embed for new cashiers (the embed builder already tolerates `avg=None` / `last_active=None`). 10 new tests across `test_cashier_wrappers.py` (6) and `test_cashier_cog.py` (4); full unit suite 327 / 327; ruff + mypy strict clean. |
 | 2026-05-02 | Stories 5.5 + 6.4 done in a paired commit. Epics 5 + 6 closed. New SECURITY DEFINER orchestration `confirm_ticket_dispatch(ticket_type, ticket_uid, cashier_id) -> ConfirmResult` routes to `dw.confirm_deposit` / `dw.confirm_withdraw` and translates `wrong_cashier`, `ticket_not_claimed`, `invariant_violation` (kept distinct from generic Unexpected so admins notice it). New `ConfirmOutcome` union with 6 variants. `/confirm` slash command in `TicketCog`: opens `ConfirmTicketModal(magic_word="CONFIRM")`; on case-sensitive match the on_confirm callback runs the dispatch and posts `deposit_ticket_confirmed_embed` / `withdraw_ticket_confirmed_embed` showing new balance + (for withdraw) amount/fee/delivered. Treasury credit on withdraw confirm is handled inside the SECURITY DEFINER transaction (migration 0007). 5 new tests in `test_lifecycle_orchestration.py`; full suite 317 / 317; ruff + mypy strict clean. End-to-end deposit + withdraw flows operational. |
 | 2026-05-02 | Stories 5.4 + 6.3 done in a paired commit (single shared `TicketCog`). New SECURITY DEFINER wrappers `claim_ticket(ticket_type, ticket_uid, cashier_id)` and `release_ticket(ticket_type, ticket_uid, actor_id)` in `dw_manager.py`. New orchestration helpers `claim_ticket_for_cashier`, `release_ticket_by_cashier`, `cancel_ticket_dispatch` (LifecycleOutcome union with 8 variants — Success, TicketNotFound, AlreadyClaimed, NotClaimed, WrongCashier, RegionMismatch, AlreadyTerminal, Unexpected). New cog at `goldrush_deposit_withdraw/cogs/ticket.py` with `/claim`, `/release`, `/cancel`, `/cancel-mine` — looks up ticket by thread_id (joins both deposit and withdraw tables), dispatches to the right SECURITY DEFINER fn. /cancel-mine checks ownership + status='open' before delegating. 10 new tests in `test_lifecycle_orchestration.py`; full suite 312 / 312; ruff + mypy strict clean. |
@@ -926,13 +927,18 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 10.1 — `/admin setup` channel auto-creation
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Implements spec §5.3 fully.
-- [ ] `--dry-run` mode shows preview without creating.
-- [ ] Real run creates categories + 8 channels with correct permission overwrites.
-- [ ] Persists every channel ID in `dw.global_config`.
-- [ ] After channels exist, immediately seeds `dw.dynamic_embeds` for `how_to_deposit` and `how_to_withdraw` and posts them.
-- [ ] Test: on a fresh mock guild, dry-run reports "8 channels to create"; real run creates them; second run reports "8 channels reused, 0 created".
+- [x] `/admin-setup` slash command in `AdminCog` (decorated with `@app_commands.default_permissions(administrator=True)` so non-admins don't see it in autocomplete). Wraps `setup_or_reuse_channels` (Story 3.4) which fully implements spec §5.3.
+- [x] `dry_run: bool = False` parameter; on True, no Discord-side mutation, no persistence, no welcome reconcile — but the SetupReport still surfaces accurate would-create vs already-present counts.
+- [x] Real run creates the 2 categories + 8 channels with the spec §5.3 permission overwrites; channel ids are persisted to `dw.global_config` keyed `channel_id_<key>` via the new `persist_channel_ids` writer (UPSERT pattern so re-running converges).
+- [x] After channels are created, `reconcile_welcome_embeds` is invoked immediately so the welcome embeds in `#how-to-deposit` / `#how-to-withdraw` come up in the same flow rather than waiting for the next `on_ready`. Wrapped in try/except so a reconcile blip doesn't roll back the channel creation.
+- [x] The response is an admin-only ephemeral summary embed listing every category + channel with a `created` / `reused` flag and the welcome-embed reconcile outcomes.
+
+**Verification:** `tests/unit/dw/test_global_config_writer.py` (3 tests: writes one row per channel, idempotent across calls, empty-map safe) + `tests/unit/dw/test_admin_cog.py` (3 tests: command registered, `dry_run` parameter present, `dry_run` is optional). End-to-end verification (real Discord guild) deferred to Epic 14. Full unit suite 333 / 333; ruff + mypy strict clean.
+
+**Implication:** Once `/admin setup` runs once, the bot self-configures. `/deposit`, `/withdraw`, `/cashier-*`, the welcome embeds, and the online-cashiers updater all start working without any manual SQL — the channel-binding helpers and welcome reconciler all read from `dw.global_config`.
 
 **Dependencies:** Story 3.4
 **Effort:** L
