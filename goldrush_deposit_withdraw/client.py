@@ -25,6 +25,7 @@ import structlog
 from discord.ext import commands
 from goldrush_core.config import DwSettings
 from goldrush_core.db import create_pool
+from goldrush_core.ratelimit import FixedWindowLimiter
 
 from goldrush_deposit_withdraw.cashiers.live_updater import OnlineCashiersUpdater
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
@@ -60,6 +61,7 @@ class DwBot(commands.Bot):
 
     settings: DwSettings
     pool: asyncpg.Pool | None
+    rate_limiters: dict[str, FixedWindowLimiter]
     _pool_factory: PoolFactory
     _log: structlog.types.FilteringBoundLogger
     _online_cashiers_updater: OnlineCashiersUpdater | None
@@ -81,6 +83,14 @@ class DwBot(commands.Bot):
         self.pool = None
         self._log = structlog.get_logger(__name__)
         self._online_cashiers_updater = None
+        # Rate limiters keyed by command family. Spec: 1 ticket
+        # creation per user per 60 s for both /deposit and /withdraw.
+        # Other limiters (cashier set-status, /help) can be added by
+        # cogs at load time without re-architecting.
+        self.rate_limiters = {
+            "deposit_create": FixedWindowLimiter(capacity=1, window_seconds=60.0),
+            "withdraw_create": FixedWindowLimiter(capacity=1, window_seconds=60.0),
+        }
 
     async def setup_hook(self) -> None:
         """Open the DB pool and prepare for Discord login.

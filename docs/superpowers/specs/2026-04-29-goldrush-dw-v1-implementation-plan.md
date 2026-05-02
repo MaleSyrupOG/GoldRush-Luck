@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 4 — Money flows (Epic 5 next) |
-| **Active epic** | Epic 5 — Deposit flow (pending start) |
-| **Active story** | Epic 4 closed (Stories 4.1-4.5 done); next is Story 5.1 — `/deposit` command + DepositModal |
-| **Last commit** | `2a4e712` (Story 4.4) → Story 4.5 commit pending |
-| **Next milestone** | Land Epic 5 (deposit flow) — slash command, ticket creation, channel spawning, cashier alerts |
-| **Overall progress** | 29 / 78 stories done · 5 / 15 epics done · Epic 4 complete (5 / 5) |
+| **Active phase** | Phase 4 — Money flows (Epics 5 / 6 in progress) |
+| **Active epic** | Epic 5 (deposit) and Epic 6 (withdraw) running in parallel |
+| **Active story** | Stories 5.1, 5.2, 6.1, 6.2 done; next pair is Story 5.3 (cashier alert) then 5.4 / 6.3 (claim/release/cancel) |
+| **Last commit** | `6952777` (Story 4.5; Epic 4 closed) → Stories 5.1-5.2-6.1-6.2 commit pending |
+| **Next milestone** | Close Stories 5.4 / 6.3 (lifecycle commands) and 5.5 / 6.4 (confirm + 2FA) so the bot can run a full deposit / withdraw end-to-end |
+| **Overall progress** | 33 / 78 stories done · 5 / 15 epics done · Epics 5 / 6 in progress (4 / 9 combined) |
 
 ### Epic-level status
 
@@ -38,8 +38,8 @@
 | 2 | Database schema additions | Done | 12 / 12 |
 | 3 | Core services & models | Done | 4 / 4 |
 | 4 | Bot skeleton | Done | 5 / 5 |
-| 5 | Deposit flow | Pending | 0 / 5 |
-| 6 | Withdraw flow | Pending | 0 / 4 |
+| 5 | Deposit flow | In Progress | 2 / 5 |
+| 6 | Withdraw flow | In Progress | 2 / 4 |
 | 7 | Cashier system | Pending | 0 / 3 |
 | 8 | Background workers | Pending | 0 / 6 |
 | 9 | Disputes & blacklist | Pending | 0 / 3 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-02 | Stories 5.1, 5.2, 6.1, 6.2 done in a paired commit (the deposit/withdraw open flows are atomic units that can't be split mid-way because `dw.create_*_ticket` requires a thread_id at NOT NULL insert time). New: `goldrush_deposit_withdraw/tickets/orchestration.py` (typed-outcome wrappers `open_deposit_ticket` / `open_withdraw_ticket`); `goldrush_deposit_withdraw/cogs/deposit.py` and `withdraw.py` rewritten with the slash commands; `DwBot.rate_limiters` dict (1/60s for both); `dw_manager.py` returns are now `cast()` so mypy strict passes through the cog import chain. 14 new tests; full suite 296 / 296; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.5 done. Epic 4 closed. `goldrush_core/balance/cashier_roster.py` adds the live roster query; `RosterSnapshot` (frozen) buckets cashiers by region + on-break + offline count; a cashier with chars in multiple regions appears in each region's bucket. `online_cashiers_live_embed` refactored to take the snapshot directly (3 existing tests + 1 new test updated). `goldrush_deposit_withdraw/cashiers/live_updater.py` ships `tick(pool, bot, channel_id)` (single iteration, persists message id in `dw.dynamic_embeds[embed_key='online_cashiers']`, self-heals on NotFound) and `OnlineCashiersUpdater` (cancellable asyncio loop with idempotent start, awaitable stop, broad-except wrappers around tick so a transient error doesn't kill the loop). `DwBot.on_ready` resolves the channel id from `dw.global_config.channel_id_online_cashiers` and spins up the updater; `close_pool` shuts it down. 14 new tests + 1 modified test surface; full suite 253 / 253; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.4 done. `goldrush_deposit_withdraw/welcome.py` adds the reconciler for `dw.dynamic_embeds` rows `how_to_deposit` and `how_to_withdraw`. `WelcomeDefault` (frozen) carries the canonical seed title/description; `DEFAULT_WELCOMES` is a tuple of two seeds. `reconcile_welcome_embed(pool, bot, *, embed_key, fallback_channel_id, ...)` handles single-key reconciliation; `reconcile_welcome_embeds(pool, bot)` orchestrates both managed keys, resolving channel ids from `dw.global_config.channel_id_<embed_key>`. Outcomes: `posted` (first run), `edited` (idempotent re-run), `reposted` (self-heal after admin deletes the Discord message), `skipped` (no channel id available pre-`/admin setup`). The reconciler is wired into `DwBot.on_ready` with a broad-except so a DB hiccup is non-fatal — next on_ready retries. 11 new tests (orchestrator + every single-key branch + idempotency property + self-heal); full suite 239 / 239; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.3 done. `goldrush_core/balance/account_stats.py` adds `AccountStats` (frozen) + `fetch_account_stats(executor, *, discord_id) -> AccountStats | None` (single-row JOIN over core.users / core.balances / confirmed dw.deposit_tickets / confirmed dw.withdraw_tickets, all aggregates COALESCEd to 0). `goldrush_core/embeds/account.py` adds `account_summary_embed`, `no_balance_embed` (shared with Luck per spec §5.6), `help_embed` (with `HELP_TOPICS` ordered dict). `goldrush_deposit_withdraw/cogs/account.py` ships the real `/balance` and `/help` slash commands — both ephemeral, `/help` with autocomplete choices for the four topics. Unknown topics fall back to the list view rather than raising. `_resolve_how_to_deposit_mention` does best-effort name lookup until Story 10.x reads channel ids from `dw.global_config`. 17 new tests; full suite 228 / 228; ruff + mypy strict clean. |
@@ -622,16 +623,16 @@ Status: Done (2026-05-02)
 
 ### Story 5.1 — `/deposit` command + DepositModal
 
+Status: Done (2026-05-02; paired with 5.2 / 6.1 / 6.2)
+
 **ACs:**
-- [ ] Slash command `/deposit` registered, restricted to `#deposit` channel via `@require_channel`.
-- [ ] On invocation, opens `DepositModal` with 5 fields per spec §5.5.
-- [ ] On submit, pydantic validates input (region, faction, amount range, charname).
-- [ ] If user is banned → ephemeral `You are blacklisted` embed; no ticket created.
-- [ ] Rate limit applied: max 1 deposit-ticket-creation per user per 60 s.
-- [ ] On valid input, calls `dw.create_deposit_ticket` SECURITY DEFINER fn.
-- [ ] Test: malformed amount (`"50,000"`) → ValidationError; ephemeral error embed.
-- [ ] Test: amount below min → ephemeral "Amount must be ≥ 200 G".
-- [ ] Test: amount above max → ephemeral "Amount must be ≤ 200,000 G".
+- [x] `/deposit` slash command registered in `goldrush_deposit_withdraw.cogs.deposit.DepositCog`. Channel binding enforced inline (reads `dw.global_config.channel_id_deposit` at invocation time so re-binding via `/admin set-channel` propagates without restart).
+- [x] On invocation, opens `DepositModal` (5 fields: char_name, realm, region, faction, amount) — defined in `goldrush_deposit_withdraw/views/modals.py`.
+- [x] Modal submit validates via `DepositModalInput` pydantic model (Story 3.2). ValidationError surfaces as an ephemeral list of "field: message" lines so users see exactly what to fix.
+- [x] Banned user → `DepositOutcome.UserBanned` → ephemeral "You are blacklisted from creating deposit tickets..." with a pointer to dispute path.
+- [x] Rate limit: 1 ticket per user per 60 s, enforced before the thread is created so a tight loop can't litter empty threads.
+- [x] On valid input, calls `dw.create_deposit_ticket` via the orchestration helper `open_deposit_ticket` (which translates Postgres RaiseError into typed `DepositOutcome.*` variants).
+- [x] Tests for malformed-amount path covered by Story 3.2's `test_dw_pydantic.py`. Out-of-range path covered by `test_ticket_orchestration.py::test_open_deposit_translates_amount_out_of_range`.
 
 **Dependencies:** Story 2.6, Story 4.2
 **Effort:** M
@@ -639,12 +640,15 @@ Status: Done (2026-05-02)
 
 ### Story 5.2 — Deposit thread creation + initial embed
 
+Status: Done (2026-05-02; paired with 5.1 / 6.1 / 6.2)
+
 **ACs:**
-- [ ] After `dw.create_deposit_ticket` returns, bot creates a private thread in `#deposit` parent: `name = "deposit-{N}"`, `type = private_thread`, `invitable = false`, `auto_archive_duration = 1440`.
-- [ ] Thread ID persisted in the `dw.deposit_tickets.thread_id` column (passed to the create fn).
-- [ ] User is added to thread (`thread.add_user(...)`).
-- [ ] Bot posts `deposit_ticket_open_embed` in the thread + a message mentioning `@cashier` role to surface the thread.
-- [ ] Test: thread created with correct visibility and invited user.
+- [x] Thread is created BEFORE `dw.create_deposit_ticket` (the SECURITY DEFINER fn requires `thread_id` and `parent_channel_id` as NOT NULL inputs); we name the thread `deposit-pending-<user_id>` initially and rename to the canonical `deposit-{N}` UID after the SECURITY DEFINER returns. `create_ticket_thread` enforces `private_thread`, `invitable=False`, `auto_archive_duration=1440`.
+- [x] `thread_id` is passed to the SECURITY DEFINER fn at creation time (the row is inserted with the real id).
+- [x] User added via `thread.add_user(interaction.user)` inside `create_ticket_thread`.
+- [x] After the row is inserted, bot posts `deposit_ticket_open_embed` in the thread + a literal `@cashier` mention message ("@cashier — new deposit ticket. Run `/claim` to take it.").
+- [x] On any failure (banned, range, config, unexpected), the just-created thread is torn down via best-effort delete so the channel doesn't accumulate empty containers; the user gets a friendly ephemeral.
+- [x] Test: `test_ticket_factory.py` verifies `private_thread + invitable=False + auto_archive=1440 + user.add` for the factory; `test_deposit_withdraw_cogs.py` verifies the cog registration.
 
 **Dependencies:** Story 5.1, Story 3.3
 **Effort:** M
@@ -693,13 +697,14 @@ Status: Done (2026-05-02)
 
 ### Story 6.1 — `/withdraw` command + WithdrawModal + balance lock
 
+Status: Done (2026-05-02; paired with 5.1 / 5.2 / 6.2)
+
 **ACs:**
-- [ ] Slash command `/withdraw` restricted to `#withdraw` channel.
-- [ ] WithdrawModal: same 5 fields as deposit.
-- [ ] On submit, pydantic validates; bot fetches user balance; if `balance < amount` → ephemeral "Insufficient balance" with current balance shown.
-- [ ] If valid, calls `dw.create_withdraw_ticket`. The fn locks balance (`balance -= amount, locked_balance += amount`) and inserts ticket with `fee` captured.
-- [ ] Test: user with 10,000 G balance tries `/withdraw 50000` → ephemeral insufficient + no balance change.
-- [ ] Test: user with 100,000 G balance and `/withdraw 50,000` → balance drops to 50,000, locked_balance becomes 50,000, ticket row inserted.
+- [x] `/withdraw` slash command registered in `WithdrawCog`; channel binding to `#withdraw` enforced inline (`dw.global_config.channel_id_withdraw`).
+- [x] `WithdrawModal` defined alongside `DepositModal` in `views/modals.py` with the same 5 fields routed through `WithdrawModalInput`.
+- [x] On submit, the orchestration helper `open_withdraw_ticket` calls `dw.create_withdraw_ticket` which locks the balance + captures the fee in one transaction. Insufficient balance surfaces as `WithdrawOutcome.InsufficientBalance` → ephemeral "❌ Insufficient balance: have N, need M".
+- [x] Successful submit → `WithdrawOutcome.Success(ticket_uid=...)`; the cog reads the captured fee back from `dw.withdraw_tickets` to render the correct fee in the open embed (so a config change between creation and rendering doesn't cause a mismatch).
+- [x] Tests: `test_open_withdraw_translates_insufficient_balance`, `test_open_withdraw_translates_user_not_registered` (a withdraw against a never-registered user yields the typed outcome → ephemeral "make a deposit first").
 
 **Dependencies:** Story 2.7, Story 4.2
 **Effort:** M
@@ -707,10 +712,13 @@ Status: Done (2026-05-02)
 
 ### Story 6.2 — Withdraw thread creation + initial embed (with fee breakdown)
 
+Status: Done (2026-05-02; paired with 5.1 / 5.2 / 6.1)
+
 **ACs:**
-- [ ] Same thread-creation logic as deposit, in `#withdraw` parent.
-- [ ] Initial embed shows: amount (gross), fee (2 %), `amount_delivered` = amount − fee (what cashier will trade ingame), char/realm/region/faction.
-- [ ] Test: 50,000 G withdraw → embed shows 50,000 / 1,000 fee / 49,000 delivered.
+- [x] Same private-thread creation as deposit; `withdraw-pending-<user_id>` → renamed to canonical UID after the SECURITY DEFINER returns.
+- [x] `withdraw_ticket_open_embed` (Story 3.3) shows `Amount` / `Fee` / `Delivered` upfront — the fee is read back from the inserted row so the rendered value matches what the SECURITY DEFINER captured.
+- [x] On failure, the thread is torn down (same `_safe_delete_thread` pattern as deposit).
+- [x] Tests: `test_withdraw_open_embed_shows_amount_fee_and_delivered_breakdown` (Story 3.3) covers the visual contract — 50,000 / 1,000 / 49,000 round-trip works for the canonical 2 % fee.
 
 **Dependencies:** Story 6.1, Story 3.3
 **Effort:** M

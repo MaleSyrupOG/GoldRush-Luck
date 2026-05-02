@@ -26,7 +26,7 @@ should ``async with pool.acquire() as conn`` and pass the connection.
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, cast
 
 import asyncpg
 
@@ -63,7 +63,7 @@ async def apply_deposit_ticket(
         AmountOutOfRange, InvalidRegion, InvalidFaction, GlobalConfigMissing.
     """
     try:
-        return await conn.fetchval(
+        result = await conn.fetchval(
             "SELECT dw.create_deposit_ticket($1, $2, $3, $4, $5, $6, $7, $8)",
             discord_id,
             char_name,
@@ -74,6 +74,7 @@ async def apply_deposit_ticket(
             thread_id,
             parent_channel_id,
         )
+        return cast(str, result)
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
 
@@ -93,11 +94,12 @@ async def confirm_deposit(
         TicketNotFound, TicketNotClaimed, WrongCashier.
     """
     try:
-        return await conn.fetchval(
+        result = await conn.fetchval(
             "SELECT dw.confirm_deposit($1, $2)",
             ticket_uid,
             cashier_id,
         )
+        return cast(int, result)
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
 
@@ -153,7 +155,7 @@ async def apply_withdraw_ticket(
         UserBanned, InsufficientBalance.
     """
     try:
-        return await conn.fetchval(
+        result = await conn.fetchval(
             "SELECT dw.create_withdraw_ticket($1, $2, $3, $4, $5, $6, $7, $8)",
             discord_id,
             char_name,
@@ -164,6 +166,7 @@ async def apply_withdraw_ticket(
             thread_id,
             parent_channel_id,
         )
+        return cast(str, result)
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
 
@@ -184,11 +187,12 @@ async def confirm_withdraw(
         TicketNotFound, TicketNotClaimed, WrongCashier, InvariantViolation.
     """
     try:
-        return await conn.fetchval(
+        result = await conn.fetchval(
             "SELECT dw.confirm_withdraw($1, $2)",
             ticket_uid,
             cashier_id,
         )
+        return cast(int, result)
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
 
@@ -206,12 +210,13 @@ async def cancel_withdraw(
         TicketNotFound, TicketAlreadyTerminal, InvariantViolation.
     """
     try:
-        return await conn.fetchval(
+        result = await conn.fetchval(
             "SELECT dw.cancel_withdraw($1, $2, $3)",
             ticket_uid,
             actor_id,
             reason,
         )
+        return cast(int, result)
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
 
@@ -236,12 +241,13 @@ async def treasury_sweep(
         AmountMustBePositive, TreasuryRowMissing, InsufficientTreasury.
     """
     try:
-        return await conn.fetchval(
+        result = await conn.fetchval(
             "SELECT dw.treasury_sweep($1, $2, $3)",
             amount,
             admin_id,
             reason,
         )
+        return cast(int, result)
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
 
