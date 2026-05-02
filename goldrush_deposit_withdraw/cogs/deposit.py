@@ -29,6 +29,7 @@ from goldrush_core.discord_helpers.channel_binding import resolve_channel_id
 from goldrush_core.embeds.dw_tickets import deposit_ticket_open_embed
 from goldrush_core.models.dw_pydantic import DepositModalInput
 
+from goldrush_deposit_withdraw.cashiers.alert import post_cashier_alert
 from goldrush_deposit_withdraw.tickets.factory import create_ticket_thread
 from goldrush_deposit_withdraw.tickets.orchestration import (
     DepositOutcome,
@@ -158,6 +159,18 @@ class DepositCog(commands.Cog):
             await interaction.response.send_message(
                 f"Ticket opened: {thread.mention}",
                 ephemeral=True,
+            )
+            # Story 5.3: post the alert in #cashier-alerts. Best-effort
+            # — failure here doesn't roll back the ticket.
+            await post_cashier_alert(
+                pool=bot.pool,
+                bot=bot,
+                ticket_uid=outcome.ticket_uid,
+                ticket_type="deposit",
+                region=payload.region,
+                faction=payload.faction,
+                amount=payload.amount,
+                ticket_channel_mention=thread.mention,
             )
             _log.info(
                 "deposit_ticket_opened",

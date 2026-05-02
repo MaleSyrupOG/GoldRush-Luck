@@ -25,10 +25,10 @@
 |---|---|
 | **Active phase** | Phase 4 — Money flows (Epics 5 / 6 in progress) |
 | **Active epic** | Epic 5 (deposit) and Epic 6 (withdraw) running in parallel |
-| **Active story** | Stories 5.1, 5.2, 6.1, 6.2 done; next pair is Story 5.3 (cashier alert) then 5.4 / 6.3 (claim/release/cancel) |
-| **Last commit** | `6952777` (Story 4.5; Epic 4 closed) → Stories 5.1-5.2-6.1-6.2 commit pending |
+| **Active story** | Stories 5.1, 5.2, 5.3, 6.1, 6.2 done; next pair is 5.4 / 6.3 (claim/release/cancel) |
+| **Last commit** | `595ad43` (Stories 5.1+5.2+6.1+6.2) → Story 5.3 commit pending |
 | **Next milestone** | Close Stories 5.4 / 6.3 (lifecycle commands) and 5.5 / 6.4 (confirm + 2FA) so the bot can run a full deposit / withdraw end-to-end |
-| **Overall progress** | 33 / 78 stories done · 5 / 15 epics done · Epics 5 / 6 in progress (4 / 9 combined) |
+| **Overall progress** | 34 / 78 stories done · 5 / 15 epics done · Epics 5 / 6 in progress (5 / 9 combined) |
 
 ### Epic-level status
 
@@ -38,7 +38,7 @@
 | 2 | Database schema additions | Done | 12 / 12 |
 | 3 | Core services & models | Done | 4 / 4 |
 | 4 | Bot skeleton | Done | 5 / 5 |
-| 5 | Deposit flow | In Progress | 2 / 5 |
+| 5 | Deposit flow | In Progress | 3 / 5 |
 | 6 | Withdraw flow | In Progress | 2 / 4 |
 | 7 | Cashier system | Pending | 0 / 3 |
 | 8 | Background workers | Pending | 0 / 6 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-02 | Story 5.3 done. `goldrush_deposit_withdraw/cashiers/alert.py::post_cashier_alert(...)` posts a `cashier_alert_embed` in `#cashier-alerts` with the @cashier role mention as the message content. The embed now carries a "Compatible cashiers" field built from `find_compatible_cashiers(roster, region, faction)` (Story 5.3 foundation) — empty matches render a "_none online for this region/faction_" placeholder. Same poster is reused for withdraw alerts. 6 new tests covering happy path, none-online placeholder, both ticket types, and the two skip paths (channel id unconfigured, channel not in cache). Full suite 302 / 302; ruff + mypy strict clean. |
 | 2026-05-02 | Stories 5.1, 5.2, 6.1, 6.2 done in a paired commit (the deposit/withdraw open flows are atomic units that can't be split mid-way because `dw.create_*_ticket` requires a thread_id at NOT NULL insert time). New: `goldrush_deposit_withdraw/tickets/orchestration.py` (typed-outcome wrappers `open_deposit_ticket` / `open_withdraw_ticket`); `goldrush_deposit_withdraw/cogs/deposit.py` and `withdraw.py` rewritten with the slash commands; `DwBot.rate_limiters` dict (1/60s for both); `dw_manager.py` returns are now `cast()` so mypy strict passes through the cog import chain. 14 new tests; full suite 296 / 296; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.5 done. Epic 4 closed. `goldrush_core/balance/cashier_roster.py` adds the live roster query; `RosterSnapshot` (frozen) buckets cashiers by region + on-break + offline count; a cashier with chars in multiple regions appears in each region's bucket. `online_cashiers_live_embed` refactored to take the snapshot directly (3 existing tests + 1 new test updated). `goldrush_deposit_withdraw/cashiers/live_updater.py` ships `tick(pool, bot, channel_id)` (single iteration, persists message id in `dw.dynamic_embeds[embed_key='online_cashiers']`, self-heals on NotFound) and `OnlineCashiersUpdater` (cancellable asyncio loop with idempotent start, awaitable stop, broad-except wrappers around tick so a transient error doesn't kill the loop). `DwBot.on_ready` resolves the channel id from `dw.global_config.channel_id_online_cashiers` and spins up the updater; `close_pool` shuts it down. 14 new tests + 1 modified test surface; full suite 253 / 253; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.4 done. `goldrush_deposit_withdraw/welcome.py` adds the reconciler for `dw.dynamic_embeds` rows `how_to_deposit` and `how_to_withdraw`. `WelcomeDefault` (frozen) carries the canonical seed title/description; `DEFAULT_WELCOMES` is a tuple of two seeds. `reconcile_welcome_embed(pool, bot, *, embed_key, fallback_channel_id, ...)` handles single-key reconciliation; `reconcile_welcome_embeds(pool, bot)` orchestrates both managed keys, resolving channel ids from `dw.global_config.channel_id_<embed_key>`. Outcomes: `posted` (first run), `edited` (idempotent re-run), `reposted` (self-heal after admin deletes the Discord message), `skipped` (no channel id available pre-`/admin setup`). The reconciler is wired into `DwBot.on_ready` with a broad-except so a DB hiccup is non-fatal — next on_ready retries. 11 new tests (orchestrator + every single-key branch + idempotency property + self-heal); full suite 239 / 239; ruff + mypy strict clean. |
@@ -656,10 +657,14 @@ Status: Done (2026-05-02; paired with 5.1 / 6.1 / 6.2)
 
 ### Story 5.3 — Cashier alert ping in `#cashier-alerts`
 
+Status: Done (2026-05-02)
+
 **ACs:**
-- [ ] After thread created, bot posts a `cashier_alert_embed` in `#cashier-alerts` mentioning `@cashier`, with thread link.
-- [ ] Embed shows: ticket UID, amount, char/realm/region, "compatible cashiers: <list>" if any cashier has matching region char online.
-- [ ] Test: with one EU cashier online and an EU ticket, embed lists that cashier as compatible.
+- [x] `goldrush_deposit_withdraw/cashiers/alert.py::post_cashier_alert(...)` posts the embed in `#cashier-alerts` (channel id resolved at call time from `dw.global_config.channel_id_cashier_alerts`); the message ``content`` is the literal `@cashier` mention so the role gets pinged. Same poster is reused by both deposit and withdraw cogs.
+- [x] `cashier_alert_embed` extended with a ``compatible_cashiers`` argument; the embed surfaces a "Compatible cashiers" field listing matching online mentions or a "_none online for this region/faction_" placeholder so the field's presence is consistent across alerts.
+- [x] Test `test_post_alert_includes_compatible_cashier_for_eu_horde_ticket` verifies that with one EU Horde online cashier and an EU Horde ticket, the embed lists that cashier; complementary tests cover the no-match placeholder, both ticket types, missing-channel-id skip, and missing-channel-cache skip.
+
+**Verification:** 6 new tests in `tests/unit/dw/test_cashier_alert.py`; full suite 302 / 302 green; ruff + mypy strict clean.
 
 **Dependencies:** Story 5.2
 **Effort:** S

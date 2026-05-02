@@ -40,6 +40,7 @@ the visual contract.
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Any, Literal
 
@@ -399,8 +400,17 @@ def cashier_alert_embed(
     faction: str,
     amount: int,
     channel_mention: str,
+    compatible_cashiers: Sequence[str] = (),
 ) -> discord.Embed:
-    """Posted in ``#cashier-alerts`` (or equivalent) so cashiers see new tickets fast."""
+    """Posted in ``#cashier-alerts`` (or equivalent) so cashiers see new tickets fast.
+
+    ``compatible_cashiers`` is the list of mentions (``<@id>``) for
+    cashiers currently online whose active chars cover the (region,
+    faction) pair. The list is included as a dedicated field when
+    non-empty so cashiers see at a glance whether someone is on
+    duty for this ticket; an empty list renders a "none online"
+    placeholder so the field's presence is consistent across alerts.
+    """
     embed = discord.Embed(
         title=f"🔔 New {ticket_type} ticket",
         description=(
@@ -415,6 +425,12 @@ def cashier_alert_embed(
     embed.add_field(name="Region", value=region, inline=True)
     embed.add_field(name="Faction", value=faction, inline=True)
     embed.add_field(name="Open in", value=channel_mention, inline=True)
+    compatible_value = (
+        ", ".join(compatible_cashiers)
+        if compatible_cashiers
+        else "_none online for this region/faction_"
+    )
+    embed.add_field(name="Compatible cashiers", value=compatible_value, inline=False)
     return embed
 
 

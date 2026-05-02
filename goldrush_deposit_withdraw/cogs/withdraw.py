@@ -30,6 +30,7 @@ from goldrush_core.discord_helpers.channel_binding import resolve_channel_id
 from goldrush_core.embeds.dw_tickets import withdraw_ticket_open_embed
 from goldrush_core.models.dw_pydantic import WithdrawModalInput
 
+from goldrush_deposit_withdraw.cashiers.alert import post_cashier_alert
 from goldrush_deposit_withdraw.tickets.factory import create_ticket_thread
 from goldrush_deposit_withdraw.tickets.orchestration import (
     WithdrawOutcome,
@@ -146,6 +147,18 @@ class WithdrawCog(commands.Cog):
             await interaction.response.send_message(
                 f"Ticket opened: {thread.mention}",
                 ephemeral=True,
+            )
+            # Story 5.3 (also covers withdraw): post alert in
+            # #cashier-alerts. Same poster as deposit.
+            await post_cashier_alert(
+                pool=bot.pool,
+                bot=bot,
+                ticket_uid=outcome.ticket_uid,
+                ticket_type="withdraw",
+                region=payload.region,
+                faction=payload.faction,
+                amount=payload.amount,
+                ticket_channel_mention=thread.mention,
             )
             _log.info(
                 "withdraw_ticket_opened",
