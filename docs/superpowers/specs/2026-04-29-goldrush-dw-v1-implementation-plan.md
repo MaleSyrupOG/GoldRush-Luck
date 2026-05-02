@@ -892,11 +892,15 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 9.1 — `/admin dispute open / list / resolve / reject`
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] `/admin dispute open ticket_uid reason` calls `dw.open_dispute`; posts a `dispute_open_embed` in `#disputes`.
-- [ ] `/admin dispute list status?` paginated embed of disputes.
-- [ ] `/admin dispute resolve dispute_id action amount?` calls `dw.resolve_dispute`; posts `dispute_resolved_embed`.
-- [ ] `/admin dispute reject dispute_id reason` similar but with `status='rejected'`.
+- [x] `/admin-dispute-open ticket_type ticket_uid reason` calls `dw.open_dispute`; posts the `dispute_open_embed` in `#disputes` and the audit poster posts the lifecycle event in `#audit-log`. Friendly ephemeral errors for `ticket_not_found`, `invalid_ticket_type`, `invalid_opener_role`.
+- [x] `/admin-dispute-list status?` returns a single embed (capped at 25 most-recent rows) using the new `dispute_list_embed` builder. Empty state explicit; status filter renders in the title.
+- [x] `/admin-dispute-resolve dispute_id action amount?` calls `dw.resolve_dispute`; the cog handles every translated error (`DisputeNotFound`, `DisputeAlreadyTerminal`, `PartialRefundRequiresPositiveAmount`, `RefundFullOnlyForWithdrawDisputes`) with copy-tailored ephemerals. Edits the `#disputes` embed in place (Story 9.2).
+- [x] `/admin-dispute-reject dispute_id reason` calls the new `dw.reject_dispute` SECURITY DEFINER fn (migration `20260503_0013_dw_dispute_reject_fn`) which always sets `status='rejected'` and writes a `dispute_rejected` audit row.
+
+**Verification:** `tests/unit/dw/test_dispute_wrappers.py` (14 tests covering success + every translated sentinel for open / resolve / reject), `tests/unit/dw/test_admin_cog.py` (5 new registration tests), `tests/unit/core/test_dw_embeds.py` (3 new tests for `dispute_list_embed` empty / populated / filtered states). End-to-end Discord-side flow exercised via Epic 14.
 
 **Dependencies:** Story 2.10
 **Effort:** L
@@ -904,9 +908,14 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 9.2 — `#disputes` embed posting
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Each dispute open / status change posts a new embed in `#disputes` with status updates editing prior message.
-- [ ] Message IDs persisted on the `dw.disputes` row.
+- [x] Each dispute open posts the `dispute_open_embed` in `#disputes` and persists `discord_message_id` on the row. Subsequent resolve / reject EDITS that same message in place (one row per dispute keeps the channel transcript readable). Migration `20260503_0014_dw_disputes_message_id` adds the BIGINT NULL column.
+- [x] Best-effort throughout: `post_dispute_open_embed` swallows API failures (logs, never raises) so a Discord blip never rolls back the SQL state change. `update_dispute_status_embed` falls back to a no-op when the dispute row has no `discord_message_id` (open post failed) or when the message disappeared on the Discord side (admin manual delete).
+- [x] Cross-channel redundancy: even when the `#disputes` edit no-ops, the resolve / reject still surfaces in `#audit-log` via the audit poster.
+
+**Verification:** `tests/unit/dw/test_disputes_poster.py` — 6 tests covering happy path (send + persist), channel-not-configured / channel-deleted skip paths, edit-when-id-present, no-op when no id, swallow-on-message-deleted.
 
 **Dependencies:** Story 9.1
 **Effort:** S
@@ -914,9 +923,13 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 9.3 — `/admin ban-user` and `/admin unban-user`
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Both commands restricted to `@admin`; both audit-logged.
-- [ ] After ban, banned user's `/deposit` and `/withdraw` invocations rejected with ephemeral "blacklisted" embed.
+- [x] `/admin-ban-user user reason` and `/admin-unban-user user` are both `@app_commands.default_permissions(administrator=True)` commands; both translate the SQL sentinels (`cannot_ban_treasury` → `CannotBanTreasury`, `user_not_registered` → `UserNotRegistered`) and surface friendly ephemerals. Both audit-logged via the new `audit_user_banned` / `audit_user_unbanned` posters.
+- [x] After ban, banned user's `/deposit` and `/withdraw` invocations are rejected with the existing ephemeral "blacklisted" copy. Withdraw was already gated (migration `0007`); migration `20260503_0015_dw_deposit_ban_check` brings parity to deposit by adding the `core.users.banned` check at the top of `dw.create_deposit_ticket` so the rejection happens BEFORE the row insert (no audit pollution).
+
+**Verification:** `tests/unit/dw/test_ban_wrappers.py` (4 tests: success + the two translation paths), `tests/unit/dw/test_admin_cog.py` (3 new registration tests), `tests/unit/dw/test_deposit_withdraw_cogs.py` (2 new tests asserting the user-facing 'blacklisted' copy on UserBanned outcomes for both deposit and withdraw paths). Suite 343 → 380.
 
 **Dependencies:** Story 2.12
 **Effort:** S
