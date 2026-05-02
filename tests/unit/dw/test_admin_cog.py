@@ -203,3 +203,47 @@ def test_admin_dispute_reject_takes_id_and_reason() -> None:
         return {p.name for p in cmd.parameters}
 
     assert asyncio.run(_exercise()) == {"dispute_id", "reason"}
+
+
+# ---------------------------------------------------------------------------
+# Story 9.3 — /admin-ban-user / /admin-unban-user
+# ---------------------------------------------------------------------------
+
+
+def test_admin_cog_registers_ban_and_unban_commands() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        return {cmd.name for cmd in cog.get_app_commands()}
+
+    names = asyncio.run(_exercise())
+    assert {"admin-ban-user", "admin-unban-user"}.issubset(names)
+
+
+def test_admin_ban_user_takes_user_and_reason() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        cmd = next(c for c in cog.get_app_commands() if c.name == "admin-ban-user")
+        return {p.name for p in cmd.parameters}
+
+    assert asyncio.run(_exercise()) == {"user", "reason"}
+
+
+def test_admin_unban_user_takes_user_only() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        cmd = next(c for c in cog.get_app_commands() if c.name == "admin-unban-user")
+        return {p.name for p in cmd.parameters}
+
+    assert asyncio.run(_exercise()) == {"user"}

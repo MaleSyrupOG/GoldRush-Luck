@@ -28,12 +28,14 @@ from discord import app_commands
 from discord.ext import commands
 from goldrush_core.balance import exceptions as exc
 from goldrush_core.balance.dw_manager import (
+    ban_user,
     cancel_deposit,
     cancel_withdraw,
     open_dispute,
     reject_dispute,
     resolve_dispute,
     set_cashier_status,
+    unban_user,
 )
 from goldrush_core.embeds.dw_tickets import (
     cashier_stats_embed,
@@ -48,6 +50,8 @@ from goldrush_deposit_withdraw.audit_log import (
     audit_force_cancel_ticket,
     audit_force_cashier_offline,
     audit_force_close_thread,
+    audit_user_banned,
+    audit_user_unbanned,
 )
 from goldrush_deposit_withdraw.disputes import (
     post_dispute_open_embed,
@@ -771,6 +775,123 @@ class AdminCog(commands.Cog):
             actor_id=interaction.user.id,
             dispute_id=dispute_id,
             reason=reason,
+        )
+
+    # -----------------------------------------------------------------------
+    # Story 9.3: /admin-ban-user and /admin-unban-user
+    # The SECURITY DEFINER fns idempotently insert the user row so a
+    # pre-emptive ban (against a user the bot has never seen) Just Works.
+    # After ban, the deposit + withdraw create-ticket fns reject with
+    # ``user_banned`` which the cogs surface as a "blacklisted" ephemeral.
+    # -----------------------------------------------------------------------
+
+    @app_commands.command(
+        name="admin-ban-user",
+        description="Blacklist a user from /deposit and /withdraw.",
+    )
+    @app_commands.describe(
+        user="The user to blacklist.",
+        reason="Why (visible in audit log).",
+    )
+    async def ban_user_cmd(
+        self,
+        interaction: discord.Interaction,
+        user: discord.User,
+        reason: str,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        try:
+            await ban_user(
+                bot.pool,
+                user_id=user.id,
+                reason=reason,
+                admin_id=interaction.user.id,
+            )
+        except exc.CannotBanTreasury:
+            await interaction.response.send_message(
+                "❌ The treasury account cannot be banned.",
+                ephemeral=True,
+            )
+            return
+        except exc.BalanceError as e:
+            await interaction.response.send_message(
+                f"❌ Could not ban: {e.message}",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            f"🚫 {user.mention} is now blacklisted. Reason: {reason}",
+            ephemeral=True,
+        )
+        await audit_user_banned(
+            pool=bot.pool,
+            bot=bot,
+            admin_mention=interaction.user.mention,
+            target_mention=user.mention,
+            reason=reason,
+        )
+        _log.info(
+            "admin_user_banned",
+            actor_id=interaction.user.id,
+            target_id=user.id,
+            reason=reason,
+        )
+
+    @app_commands.command(
+        name="admin-unban-user",
+        description="Lift the blacklist from a user.",
+    )
+    @app_commands.describe(user="The user to unban.")
+    async def unban_user_cmd(
+        self,
+        interaction: discord.Interaction,
+        user: discord.User,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        try:
+            await unban_user(
+                bot.pool,
+                user_id=user.id,
+                admin_id=interaction.user.id,
+            )
+        except exc.UserNotRegistered:
+            await interaction.response.send_message(
+                f"❌ {user.mention} has no balance row — never banned to begin with.",
+                ephemeral=True,
+            )
+            return
+        except exc.BalanceError as e:
+            await interaction.response.send_message(
+                f"❌ Could not unban: {e.message}",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            f"✅ {user.mention} is no longer blacklisted.",
+            ephemeral=True,
+        )
+        await audit_user_unbanned(
+            pool=bot.pool,
+            bot=bot,
+            admin_mention=interaction.user.mention,
+            target_mention=user.mention,
+        )
+        _log.info(
+            "admin_user_unbanned",
+            actor_id=interaction.user.id,
+            target_id=user.id,
         )
 
 

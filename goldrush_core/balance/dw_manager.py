@@ -523,3 +523,59 @@ async def reject_dispute(
         )
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
+
+
+# ---------------------------------------------------------------------------
+# Blacklist (migration 0012_dw_ban_fns)
+# ---------------------------------------------------------------------------
+
+
+async def ban_user(
+    conn: Executor,
+    *,
+    user_id: int,
+    reason: str,
+    admin_id: int,
+) -> None:
+    """Mark a user as banned (``core.users.banned = TRUE``).
+
+    The SECURITY DEFINER fn idempotently inserts the user row if absent
+    so admins can pre-emptively ban a known-bad Discord ID before that
+    user has ever interacted with the bot.
+
+    Raises:
+        CannotBanTreasury — when ``user_id == 0`` (the treasury seed
+        row, which must never be banned because every refund passes
+        through it).
+    """
+    try:
+        await conn.execute(
+            "SELECT dw.ban_user($1, $2, $3)",
+            user_id,
+            reason,
+            admin_id,
+        )
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e
+
+
+async def unban_user(
+    conn: Executor,
+    *,
+    user_id: int,
+    admin_id: int,
+) -> None:
+    """Reverse a ban. Clears banned / banned_reason / banned_at.
+
+    Raises:
+        UserNotRegistered — the user has no row in ``core.users``
+        (never deposited and was never pre-emptively banned).
+    """
+    try:
+        await conn.execute(
+            "SELECT dw.unban_user($1, $2)",
+            user_id,
+            admin_id,
+        )
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e

@@ -44,6 +44,9 @@ _ACTION_COLOR: dict[str, int] = {
     "dispute_opened": 0xD8231A,       # BUST red
     "dispute_resolved": 0x5DBE5A,     # WIN green
     "dispute_rejected": 0xC8511C,     # EMBER orange
+    # Story 9.3 — blacklist
+    "user_banned": 0xD8231A,          # BUST red
+    "user_unbanned": 0x5DBE5A,        # WIN green
 }
 
 
@@ -353,6 +356,48 @@ async def audit_dispute_rejected(
     )
 
 
+# ---------------------------------------------------------------------------
+# Story 9.3 — blacklist posters
+# ---------------------------------------------------------------------------
+
+
+async def audit_user_banned(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    admin_mention: str,
+    target_mention: str,
+    reason: str,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="user_banned",
+        title="🚫 User banned",
+        description=f"{admin_mention} banned {target_mention}. Reason: *{reason}*",
+        actor_mention=admin_mention,
+        target_mention=target_mention,
+    )
+
+
+async def audit_user_unbanned(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    admin_mention: str,
+    target_mention: str,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="user_unbanned",
+        title="✅ User unbanned",
+        description=f"{admin_mention} unbanned {target_mention}.",
+        actor_mention=admin_mention,
+        target_mention=target_mention,
+    )
+
+
 __all__ = [
     "audit_dispute_opened",
     "audit_dispute_rejected",
@@ -364,5 +409,7 @@ __all__ = [
     "audit_ticket_claimed",
     "audit_ticket_confirmed",
     "audit_ticket_opened",
+    "audit_user_banned",
+    "audit_user_unbanned",
     "post_audit_event",
 ]

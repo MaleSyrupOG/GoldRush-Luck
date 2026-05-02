@@ -78,3 +78,26 @@ def test_withdraw_command_takes_no_user_parameters() -> None:
         return len(cmd.parameters)
 
     assert asyncio.run(_exercise()) == 0
+
+
+# ---------------------------------------------------------------------------
+# Story 9.3 — banned user surface: the deposit and withdraw cogs map
+# the UserBanned outcome to a friendly "blacklisted" ephemeral. Drives
+# the spec §6.4 user-facing copy.
+# ---------------------------------------------------------------------------
+
+
+def test_format_deposit_failure_user_banned_says_blacklisted() -> None:
+    from goldrush_deposit_withdraw.cogs.deposit import _format_deposit_failure
+    from goldrush_deposit_withdraw.tickets.orchestration import DepositOutcome
+
+    msg = _format_deposit_failure(DepositOutcome.UserBanned())
+    assert "blacklist" in msg.lower()
+
+
+def test_format_withdraw_failure_user_banned_says_blacklisted() -> None:
+    from goldrush_deposit_withdraw.cogs.withdraw import _format_withdraw_failure
+    from goldrush_deposit_withdraw.tickets.orchestration import WithdrawOutcome
+
+    msg = _format_withdraw_failure(WithdrawOutcome.UserBanned())
+    assert "blacklist" in msg.lower()
