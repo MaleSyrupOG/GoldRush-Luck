@@ -38,6 +38,7 @@ from goldrush_deposit_withdraw.setup.channel_factory import (
 )
 from goldrush_deposit_withdraw.setup.global_config_writer import (
     persist_channel_ids,
+    persist_role_ids,
 )
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
 
@@ -118,6 +119,23 @@ class AdminCog(commands.Cog):
             dry_run=dry_run,
             persist=_persist if not dry_run else None,
         )
+
+        # Persist role ids alongside channel ids so the rest of the bot
+        # can render real ``<@&role_id>`` mentions (instead of literal
+        # ``@cashier`` strings, which Discord treats as plain text and
+        # never pings). Skipped on dry-run.
+        if not dry_run:
+            role_id_map: dict[str, int] = {}
+            if cashier_role is not None:
+                role_id_map["cashier"] = cashier_role.id
+            if admin_role is not None:
+                role_id_map["admin"] = admin_role.id
+            if role_id_map:
+                await persist_role_ids(
+                    bot.pool,
+                    role_id_map=role_id_map,
+                    actor_id=interaction.user.id,
+                )
 
         # On real run, reconcile the welcome embeds immediately so the
         # operator sees the bot's full state in one command. Best-effort:

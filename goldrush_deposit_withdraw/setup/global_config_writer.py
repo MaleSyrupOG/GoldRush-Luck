@@ -55,4 +55,29 @@ async def persist_channel_ids(
         )
 
 
-__all__ = ["persist_channel_ids"]
+async def persist_role_ids(
+    executor: Executor,
+    *,
+    role_id_map: dict[str, int],
+    actor_id: int,
+) -> None:
+    """Write each ``{key: role_id}`` entry as ``role_id_<key>``.
+
+    Used by ``/admin-setup`` so subsequent slash commands can render
+    real role mentions (``<@&id>``) instead of literal strings
+    (``@cashier``) — Discord treats the literal as plain text and
+    never fires the role ping. Empty map is a no-op (consistent
+    with ``persist_channel_ids``).
+    """
+    for key, role_id in role_id_map.items():
+        config_key = f"role_id_{key}"
+        await executor.execute(_UPSERT, config_key, role_id, actor_id)
+        _log.info(
+            "global_config_role_id_written",
+            key=config_key,
+            role_id=role_id,
+            actor_id=actor_id,
+        )
+
+
+__all__ = ["persist_channel_ids", "persist_role_ids"]

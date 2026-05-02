@@ -27,6 +27,7 @@ import structlog
 from discord import app_commands
 from discord.ext import commands
 from goldrush_core.discord_helpers.channel_binding import resolve_channel_id
+from goldrush_core.discord_helpers.role_binding import role_mention
 from goldrush_core.embeds.dw_tickets import withdraw_ticket_open_embed
 from goldrush_core.models.dw_pydantic import WithdrawModalInput
 
@@ -141,8 +142,10 @@ class WithdrawCog(commands.Cog):
                 created_at=discord.utils.utcnow(),
             )
             await thread.send(embed=embed)
+            cashier_ping = await role_mention(bot.pool, "cashier")
             await thread.send(
-                "@cashier — new withdraw ticket. Run `/claim` to take it."
+                f"{cashier_ping} — new withdraw ticket. Run `/claim` to take it.",
+                allowed_mentions=discord.AllowedMentions(roles=True),
             )
             await interaction.response.send_message(
                 f"Ticket opened: {thread.mention}",

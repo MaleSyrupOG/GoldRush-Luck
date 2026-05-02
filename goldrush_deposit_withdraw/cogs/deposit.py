@@ -26,6 +26,7 @@ import structlog
 from discord import app_commands
 from discord.ext import commands
 from goldrush_core.discord_helpers.channel_binding import resolve_channel_id
+from goldrush_core.discord_helpers.role_binding import role_mention
 from goldrush_core.embeds.dw_tickets import deposit_ticket_open_embed
 from goldrush_core.models.dw_pydantic import DepositModalInput
 
@@ -155,7 +156,11 @@ class DepositCog(commands.Cog):
                 created_at=discord.utils.utcnow(),
             )
             await thread.send(embed=embed)
-            await thread.send(_cashier_ping_for_thread())
+            cashier_ping = await role_mention(bot.pool, "cashier")
+            await thread.send(
+                f"{cashier_ping} — new deposit ticket. Run `/claim` to take it.",
+                allowed_mentions=discord.AllowedMentions(roles=True),
+            )
             await interaction.response.send_message(
                 f"Ticket opened: {thread.mention}",
                 ephemeral=True,
@@ -191,18 +196,6 @@ class DepositCog(commands.Cog):
             outcome=type(outcome).__name__,
             discord_id=interaction.user.id,
         )
-
-
-def _cashier_ping_for_thread() -> str:
-    """Render the @cashier role ping that surfaces a fresh thread.
-
-    Discord doesn't make role ids easy to look up at message-build
-    time without a guild lookup; we emit the literal role mention
-    syntax here. Story 7.x will resolve this from
-    ``dw.global_config.cashier_role_id`` once the admin command
-    persists it.
-    """
-    return "@cashier — new deposit ticket. Run `/claim` to take it."
 
 
 def _format_deposit_failure(outcome: object) -> str:

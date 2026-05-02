@@ -25,16 +25,10 @@ from goldrush_core.balance.cashier_matcher import find_compatible_cashiers
 from goldrush_core.balance.cashier_roster import fetch_online_roster
 from goldrush_core.db import Executor
 from goldrush_core.discord_helpers.channel_binding import resolve_channel_id
+from goldrush_core.discord_helpers.role_binding import role_mention
 from goldrush_core.embeds.dw_tickets import cashier_alert_embed
 
 _log = structlog.get_logger(__name__)
-
-
-# ``@cashier`` mention emitted as the message ``content`` so the
-# notification fires for the role. Story 7.x will swap this literal
-# for ``<@&{cashier_role_id}>`` once the role id is persisted in
-# ``dw.global_config`` by ``/admin setup``.
-_CASHIER_MENTION = "@cashier"
 
 
 async def post_cashier_alert(
@@ -89,10 +83,12 @@ async def post_cashier_alert(
         compatible_cashiers=mentions,
     )
 
+    cashier_ping = await role_mention(pool, "cashier")
     try:
         await channel.send(  # type: ignore[union-attr]
-            content=_CASHIER_MENTION,
+            content=cashier_ping,
             embed=embed,
+            allowed_mentions=discord.AllowedMentions(roles=True),
         )
         _log.info(
             "cashier_alert_posted",
