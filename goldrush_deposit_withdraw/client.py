@@ -29,6 +29,7 @@ from goldrush_core.ratelimit import FixedWindowLimiter
 
 from goldrush_deposit_withdraw.cashiers.live_updater import OnlineCashiersUpdater
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
+from goldrush_deposit_withdraw.workers.cashier_idle import CashierIdleWorker
 from goldrush_deposit_withdraw.workers.claim_idle import ClaimIdleWorker
 from goldrush_deposit_withdraw.workers.ticket_timeout import TicketTimeoutWorker
 
@@ -69,6 +70,7 @@ class DwBot(commands.Bot):
     _online_cashiers_updater: OnlineCashiersUpdater | None
     _ticket_timeout_worker: TicketTimeoutWorker | None
     _claim_idle_worker: ClaimIdleWorker | None
+    _cashier_idle_worker: CashierIdleWorker | None
 
     def __init__(
         self,
@@ -89,6 +91,7 @@ class DwBot(commands.Bot):
         self._online_cashiers_updater = None
         self._ticket_timeout_worker = None
         self._claim_idle_worker = None
+        self._cashier_idle_worker = None
         # Rate limiters keyed by command family. Spec: 1 ticket
         # creation per user per 60 s for both /deposit and /withdraw.
         # Other limiters (cashier set-status, /help) can be added by
@@ -214,6 +217,16 @@ class DwBot(commands.Bot):
             except Exception as e:
                 self._log.exception("claim_idle_worker_failed", error=str(e))
 
+            # Story 8.3: spin up the cashier-idle worker (auto-offline
+            # cashiers idle >1h every 5 min).
+            try:
+                if self._cashier_idle_worker is None:
+                    self._cashier_idle_worker = CashierIdleWorker(pool=self.pool)
+                    self._cashier_idle_worker.start()
+                    self._log.info("cashier_idle_worker_started")
+            except Exception as e:
+                self._log.exception("cashier_idle_worker_failed", error=str(e))
+
     async def close_pool(self) -> None:
         """Close the DB pool and stop background tasks — used on shutdown.
 
@@ -230,6 +243,9 @@ class DwBot(commands.Bot):
         if self._claim_idle_worker is not None:
             await self._claim_idle_worker.stop()
             self._claim_idle_worker = None
+        if self._cashier_idle_worker is not None:
+            await self._cashier_idle_worker.stop()
+            self._cashier_idle_worker = None
         if self.pool is not None:
             await self.pool.close()
             self.pool = None

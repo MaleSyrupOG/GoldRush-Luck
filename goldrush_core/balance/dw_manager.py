@@ -270,6 +270,33 @@ async def set_cashier_status(
         raise translate_pg_error(e) from e
 
 
+async def expire_cashier(
+    conn: Executor,
+    *,
+    discord_id: int,
+) -> None:
+    """Auto-offline an idle cashier (Story 8.3).
+
+    Distinct from ``set_cashier_status(status='offline')``: this fn
+    closes the ``cashier_sessions`` row with ``end_reason='expired'``
+    and writes a ``cashier_status_offline_expired`` audit row. The
+    cashier-idle worker calls this every 5 min for any cashier
+    online and idle >1h.
+
+    Raises:
+        CashierNotOnline — the cashier is no longer online (caller
+        swallows; race with manual ``/cashier-offline`` resolves to
+        the desired state).
+    """
+    try:
+        await conn.execute(
+            "SELECT dw.expire_cashier($1)",
+            discord_id,
+        )
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e
+
+
 # ---------------------------------------------------------------------------
 # Withdraw lifecycle (migration 0007_dw_withdraw_fns)
 # ---------------------------------------------------------------------------

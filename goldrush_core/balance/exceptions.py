@@ -152,6 +152,15 @@ class InvalidOpenerRole(BalanceError):
     """open_dispute received an opener_role outside the allowed set."""
 
 
+class CashierNotOnline(BalanceError):
+    """expire_cashier called on a cashier whose status is not 'online'.
+
+    The cashier-idle worker swallows this — concurrent ``/cashier-offline``
+    or another worker iteration may have moved the row to the desired
+    state already.
+    """
+
+
 # ---------------------------------------------------------------------------
 # Translation table: sentinel substring -> exception class.
 #
@@ -192,6 +201,7 @@ _ERROR_TABLE: tuple[tuple[str, type[BalanceError]], ...] = (
     ("invalid_action", InvalidAction),
     ("wrong_cashier", WrongCashier),
     ("user_banned", UserBanned),
+    ("cashier_not_online", CashierNotOnline),
 )
 
 
