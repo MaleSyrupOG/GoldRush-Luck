@@ -25,10 +25,10 @@
 |---|---|
 | **Active phase** | Phase 2 — Core services & models (Epic 3 in progress) |
 | **Active epic** | Epic 3 — Core services & models |
-| **Active story** | (Stories 3.1 and 3.2 done; next is Story 3.3 — Embed builders for D/W) |
-| **Last commit** | `c8bb690` (Story 3.1) → Story 3.2 commit pending |
-| **Next milestone** | Complete Epic 3 (Stories 3.3, 3.4) so Epic 4 (bot skeleton) can land |
-| **Overall progress** | 22 / 78 stories done · 3 / 15 epics done · Epic 3 in progress (2 / 4) |
+| **Active story** | (Stories 3.1, 3.2 and 3.3 done; next is Story 3.4 — `/admin setup` channel factory) |
+| **Last commit** | `28068ee` (Story 3.2) → Story 3.3 commit pending |
+| **Next milestone** | Close Story 3.4 to finish Epic 3, then Epic 4 (bot skeleton) can land |
+| **Overall progress** | 23 / 78 stories done · 3 / 15 epics done · Epic 3 in progress (3 / 4) |
 
 ### Epic-level status
 
@@ -36,7 +36,7 @@
 |---|---|---|---|
 | 1 | Foundation extensions | Done | 3 / 3 |
 | 2 | Database schema additions | Done | 12 / 12 |
-| 3 | Core services & models | In Progress | 2 / 4 |
+| 3 | Core services & models | In Progress | 3 / 4 |
 | 4 | Bot skeleton | Pending | 0 / 5 |
 | 5 | Deposit flow | Pending | 0 / 5 |
 | 6 | Withdraw flow | Pending | 0 / 4 |
@@ -70,6 +70,7 @@
 | 2026-05-01 | VPS infrastructure deployed and verified live on 91.98.234.106. Postgres healthy with all 5 schemas and 4 active roles (poker disabled). Placeholder D/W container running healthy. GPG backup key fingerprint `59CC31BED2A9557C8E6842723C40E9BEA65AF9B8` recorded by Aleix off-VPS. Cron entry for backup not yet installed (deferred until first real data exists, then Story 12.6 backup drill validates the cycle). |
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
+| 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
 
 ---
 
@@ -482,10 +483,14 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 3.3 — Embed builders for D/W
 
+Status: Done (2026-05-02)
+
 **ACs:**
-- [ ] `goldrush_core/embeds/dw_tickets.py` exposes the 14 builders listed in spec §5.6.
-- [ ] All themed with the GoldRush palette (Win/Bust/Gold/Ember/House from Luck §6.3).
-- [ ] Snapshot tests for each embed (title, fields, colour, footer).
+- [x] `goldrush_core/embeds/dw_tickets.py` exposes the 14 builders listed in spec §5.6 (deposit ×4, withdraw ×4, cashier_alert, online_cashiers_live, cashier_stats, dispute_open, dispute_resolved, how_to_deposit_dynamic, treasury_balance) plus two helper builders (`awaiting_cashier_embed`, `wait_instructions_embed`) demanded by the visual contract in `reference_deposit_ticket_ux.md`.
+- [x] All themed with the GoldRush palette: HOUSE blue `#5B7CC9`, WIN green `#5DBE5A`, BUST red `#D8231A`, EMBER orange `#C8511C`, GOLD `#F2B22A` (Luck §6.3 + visual contract).
+- [x] Snapshot-style tests for each embed: title, key fields, colour, timestamp/footer. Anti-phishing warning explicitly covered. Withdraw open shows amount/fee/delivered breakdown; withdraw cancel surfaces `REFUNDED`. Region `NA` is rendered as `(US)` per the visual contract.
+
+**Verification:** `tests/unit/core/test_dw_embeds.py` — 52 tests covering every builder + edge cases (empty cashier roster, null avg-claim-time, zero-amount safety, malformed fields_json fallback, NA→US label, dispute resolved vs rejected colour, etc.). Full unit suite passes 154 / 154.
 
 **Dependencies:** Luck Story 4.10
 **Effort:** M
