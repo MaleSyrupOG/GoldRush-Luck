@@ -25,10 +25,10 @@
 |---|---|
 | **Active phase** | Phase 2 — Core services & models (Epic 3 in progress) |
 | **Active epic** | Epic 3 — Core services & models |
-| **Active story** | (Story 3.1 done; next is Story 3.2 — Pydantic models for tickets/cashier characters) |
-| **Last commit** | Story 3.1 commit pending |
-| **Next milestone** | Complete Epic 3 (Stories 3.2, 3.3, 3.4) so Epic 4 (bot skeleton) can land |
-| **Overall progress** | 21 / 78 stories done · 3 / 15 epics done · Epic 3 in progress (1 / 4) |
+| **Active story** | (Stories 3.1 and 3.2 done; next is Story 3.3 — Embed builders for D/W) |
+| **Last commit** | `c8bb690` (Story 3.1) → Story 3.2 commit pending |
+| **Next milestone** | Complete Epic 3 (Stories 3.3, 3.4) so Epic 4 (bot skeleton) can land |
+| **Overall progress** | 22 / 78 stories done · 3 / 15 epics done · Epic 3 in progress (2 / 4) |
 
 ### Epic-level status
 
@@ -36,7 +36,7 @@
 |---|---|---|---|
 | 1 | Foundation extensions | Done | 3 / 3 |
 | 2 | Database schema additions | Done | 12 / 12 |
-| 3 | Core services & models | In Progress | 1 / 4 |
+| 3 | Core services & models | In Progress | 2 / 4 |
 | 4 | Bot skeleton | Pending | 0 / 5 |
 | 5 | Deposit flow | Pending | 0 / 5 |
 | 6 | Withdraw flow | Pending | 0 / 4 |
@@ -468,6 +468,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 **Spec refs:** D/W §3.3
 
 ### Story 3.2 — Pydantic models for tickets and cashier characters
+
+**Status:** Done (2026-05-01) — `goldrush_core/models/dw_pydantic.py` (16 models: 3 modal-input + 9 domain-row + 4 literal aliases). 66 unit tests cover happy paths, hostile inputs (malformed amount with separators/suffixes/signs/zero, invalid region/faction/charname, oversized realm, boolean amount), normalisation (region case, faction case, hex color), and immutability of frozen models. Domain models constructed from dict payloads matching what asyncpg.Record returns.
 
 **ACs:**
 - [ ] `goldrush_core/models/dw_pydantic.py` defines `DepositTicket`, `WithdrawTicket`, `CashierCharacter`, `CashierStatus`, `Dispute`, `DepositModalInput`, `WithdrawModalInput`, `EditDynamicEmbedInput` per spec §5.5.
