@@ -419,3 +419,107 @@ async def treasury_withdraw_to_user(
         )
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
+
+
+# ---------------------------------------------------------------------------
+# Disputes (migrations 0010_dw_dispute_fns + 0013_dw_dispute_reject_fn)
+# ---------------------------------------------------------------------------
+
+
+async def open_dispute(
+    conn: Executor,
+    *,
+    ticket_type: Literal["deposit", "withdraw"],
+    ticket_uid: str,
+    opener_id: int,
+    opener_role: Literal["admin", "user", "system"],
+    reason: str,
+) -> int:
+    """Open a new dispute on a ticket. Returns the new ``dw.disputes.id``.
+
+    The SQL fn enforces:
+    - ``ticket_type`` is in {deposit, withdraw};
+    - ``opener_role`` is in {admin, user, system};
+    - ``ticket_uid`` exists in the matching tickets table;
+    - At most one open dispute per ticket (UNIQUE constraint).
+
+    Raises:
+        InvalidTicketType, InvalidOpenerRole, TicketNotFound, plus a
+        unique-violation if a dispute is already open on the ticket
+        (translated as a generic BalanceError).
+    """
+    try:
+        result = await conn.fetchval(
+            "SELECT dw.open_dispute($1, $2, $3, $4, $5)",
+            ticket_type,
+            ticket_uid,
+            opener_id,
+            opener_role,
+            reason,
+        )
+        return cast(int, result)
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e
+
+
+async def resolve_dispute(
+    conn: Executor,
+    *,
+    dispute_id: int,
+    action: Literal["no-action", "refund-full", "force-confirm", "partial-refund"],
+    amount: int | None,
+    resolved_by: int,
+) -> None:
+    """Resolve an open dispute with one of four outcomes.
+
+    Action semantics (all written by the SQL fn):
+    - ``no-action``       — close as resolved, no money moves.
+    - ``force-confirm``   — closed without money flow (used when a
+                            cancelled deposit was actually completed
+                            in-game and we accept the cashier's word).
+    - ``refund-full``     — only valid for withdraw disputes; moves the
+                            full ticket amount from treasury to user.
+    - ``partial-refund``  — moves ``amount`` G from treasury to user.
+
+    Raises:
+        DisputeNotFound, DisputeAlreadyTerminal, InvalidAction,
+        PartialRefundRequiresPositiveAmount, RefundFullOnlyForWithdrawDisputes,
+        plus the treasury-side errors when refund routes activate.
+    """
+    try:
+        await conn.execute(
+            "SELECT dw.resolve_dispute($1, $2, $3, $4)",
+            dispute_id,
+            action,
+            amount,
+            resolved_by,
+        )
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e
+
+
+async def reject_dispute(
+    conn: Executor,
+    *,
+    dispute_id: int,
+    reason: str,
+    admin_id: int,
+) -> None:
+    """Reject (close-without-resolution) a dispute. No money moves.
+
+    Distinct from ``resolve_dispute``: this is the verb the admin uses
+    when siding AGAINST the opener — the dispute closes with
+    ``status='rejected'`` and the audit row reads ``dispute_rejected``.
+
+    Raises:
+        DisputeNotFound, DisputeAlreadyTerminal.
+    """
+    try:
+        await conn.execute(
+            "SELECT dw.reject_dispute($1, $2, $3)",
+            dispute_id,
+            reason,
+            admin_id,
+        )
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e

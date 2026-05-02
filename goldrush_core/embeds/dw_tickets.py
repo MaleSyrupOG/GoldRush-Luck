@@ -585,6 +585,65 @@ def dispute_resolved_embed(
     return embed
 
 
+def dispute_list_embed(
+    *,
+    disputes: Sequence[dict[str, Any]],
+    status_filter: str | None,
+) -> discord.Embed:
+    """Render a list of disputes as a single embed (Story 9.1).
+
+    Each row in ``disputes`` is a mapping with at least these keys
+    (extra keys are tolerated for forward compatibility):
+
+    - ``id``           BIGINT
+    - ``ticket_type``  ``"deposit"`` | ``"withdraw"``
+    - ``ticket_uid``   TEXT
+    - ``status``       TEXT (one of ``open``/``investigating``/
+                       ``resolved``/``rejected``)
+    - ``opener_id``    BIGINT (Discord user id; rendered as ``<@id>``)
+    - ``opened_at``    datetime
+
+    Empty list renders an explicit zero-state so admins know the query
+    succeeded but found nothing — not the same as a network failure.
+    Status filter is reflected in the title/description so the operator
+    can verify what they actually queried.
+    """
+    if status_filter is not None:
+        title = f"📋 Disputes — status={status_filter}"
+    else:
+        title = "📋 Disputes — all statuses"
+    if not disputes:
+        return discord.Embed(
+            title=title,
+            description=(
+                f"No disputes found"
+                f"{f' with status={status_filter}' if status_filter else ''}."
+            ),
+            color=discord.Color(COLOR_HOUSE),
+        )
+
+    color = COLOR_GOLD if status_filter == "open" else COLOR_HOUSE
+    # Render the rows as a single markdown block in the description so
+    # that the entire payload stays well below Discord's 6000-char total
+    # embed cap, even with the cog's upstream cap of 25 rows. Putting the
+    # ids and uids inline in the value (rather than in field names)
+    # keeps the embed copy-pasteable for support scripts.
+    lines = [f"**{len(disputes)} dispute(s) shown.**"]
+    for row in disputes:
+        opened: datetime = row["opened_at"]
+        opened_str = opened.strftime("%Y-%m-%d %H:%M UTC")
+        lines.append(
+            f"• `#{row['id']}` · **{row['status']}** · "
+            f"{row['ticket_type']} `{row['ticket_uid']}` · "
+            f"by <@{row['opener_id']}> · {opened_str}"
+        )
+    return discord.Embed(
+        title=title,
+        description="\n".join(lines),
+        color=discord.Color(color),
+    )
+
+
 # ---------------------------------------------------------------------------
 # Dynamic / config-driven
 # ---------------------------------------------------------------------------

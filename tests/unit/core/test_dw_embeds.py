@@ -32,6 +32,7 @@ from goldrush_core.embeds.dw_tickets import (
     deposit_ticket_claimed_embed,
     deposit_ticket_confirmed_embed,
     deposit_ticket_open_embed,
+    dispute_list_embed,
     dispute_open_embed,
     dispute_resolved_embed,
     how_to_deposit_dynamic_embed,
@@ -656,6 +657,56 @@ def test_dispute_resolved_embed_red_when_rejected() -> None:
     )
     assert embed.color is not None
     assert embed.color.value == COLOR_BUST
+
+
+# ---------------------------------------------------------------------------
+# dispute_list_embed (Story 9.1)
+# ---------------------------------------------------------------------------
+
+
+def test_dispute_list_embed_empty_state() -> None:
+    """When there are no disputes, the embed renders a friendly empty
+    description rather than blowing up on an empty list."""
+    embed = dispute_list_embed(disputes=[], status_filter="open")
+    blob = (embed.title or "") + (embed.description or "")
+    assert "open" in blob.lower()
+    # Empty state should explicitly say so — operators rely on this when
+    # confirming there's nothing to triage.
+    assert "no" in blob.lower() or "empty" in blob.lower() or "0" in blob
+
+
+def test_dispute_list_embed_renders_each_row() -> None:
+    """Each row in the list shows id / ticket / status / opened_at."""
+    rows = [
+        {
+            "id": 17,
+            "ticket_type": "deposit",
+            "ticket_uid": "deposit-12",
+            "status": "open",
+            "opener_id": 222,
+            "opened_at": SAMPLE_TS,
+        },
+        {
+            "id": 18,
+            "ticket_type": "withdraw",
+            "ticket_uid": "withdraw-3",
+            "status": "investigating",
+            "opener_id": 333,
+            "opened_at": SAMPLE_TS,
+        },
+    ]
+    embed = dispute_list_embed(disputes=rows, status_filter=None)
+    blob = (embed.description or "") + " ".join(f.value or "" for f in embed.fields)
+    assert "17" in blob
+    assert "18" in blob
+    assert "deposit-12" in blob
+    assert "withdraw-3" in blob
+
+
+def test_dispute_list_embed_titles_with_status_filter() -> None:
+    embed = dispute_list_embed(disputes=[], status_filter="resolved")
+    blob = (embed.title or "") + (embed.description or "")
+    assert "resolved" in blob.lower()
 
 
 # ---------------------------------------------------------------------------

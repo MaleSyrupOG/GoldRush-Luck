@@ -1,12 +1,14 @@
-"""Admin cog — every ``/admin *`` command (Epic 10).
+"""Admin cog — every ``/admin *`` command (Epic 10 + Epic 9 dispute slice).
 
 Story 10.1 lands the foundational ``/admin-setup``; Stories 10.4,
 10.5 and 10.7 add the operational toolkit (force-cashier-offline,
-cashier-stats, force-cancel-ticket, force-close-thread). The
-remaining Epic 10 stories (10.2 set-limits, 10.3 set-guides,
-10.6 treasury, 10.8 view-audit) are deferred — admins can edit
-``dw.global_config`` / ``dw.dynamic_embeds`` via SQL until they
-land.
+cashier-stats, force-cancel-ticket, force-close-thread). Epic 9's
+Story 9.1 adds the dispute commands (open / list / resolve / reject)
+because they are admin-only by spec §5.1 and live alongside the
+other admin tooling. The remaining Epic 10 stories (10.2 set-limits,
+10.3 set-guides, 10.6 treasury, 10.8 view-audit) are deferred —
+admins can edit ``dw.global_config`` / ``dw.dynamic_embeds`` via SQL
+until they land.
 
 All admin commands are hidden from non-admins by default via
 ``@app_commands.default_permissions(administrator=True)``. Aleix
@@ -18,7 +20,7 @@ intent the bot would need to manage @admin role membership itself).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 import discord
 import structlog
@@ -28,11 +30,20 @@ from goldrush_core.balance import exceptions as exc
 from goldrush_core.balance.dw_manager import (
     cancel_deposit,
     cancel_withdraw,
+    open_dispute,
+    reject_dispute,
+    resolve_dispute,
     set_cashier_status,
 )
-from goldrush_core.embeds.dw_tickets import cashier_stats_embed
+from goldrush_core.embeds.dw_tickets import (
+    cashier_stats_embed,
+    dispute_list_embed,
+)
 
 from goldrush_deposit_withdraw.audit_log import (
+    audit_dispute_opened,
+    audit_dispute_rejected,
+    audit_dispute_resolved,
     audit_force_cancel_ticket,
     audit_force_cashier_offline,
     audit_force_close_thread,
@@ -426,6 +437,287 @@ class AdminCog(commands.Cog):
             "admin_force_close_thread",
             actor_id=interaction.user.id,
             thread_id=thread.id,
+            reason=reason,
+        )
+
+    # -----------------------------------------------------------------------
+    # Story 9.1: /admin-dispute-{open,list,resolve,reject}
+    # The dispute lifecycle is admin-only (spec §5.1). The four commands
+    # mirror the SECURITY DEFINER fns in migrations 0010 + 0013.
+    # -----------------------------------------------------------------------
+
+    @app_commands.command(
+        name="admin-dispute-open",
+        description="Open a dispute on a ticket (writes audit row + #disputes embed).",
+    )
+    @app_commands.describe(
+        ticket_type="deposit or withdraw",
+        ticket_uid="The ticket UID (e.g., deposit-12).",
+        reason="Why this dispute is being opened.",
+    )
+    async def dispute_open_cmd(
+        self,
+        interaction: discord.Interaction,
+        ticket_type: Literal["deposit", "withdraw"],
+        ticket_uid: str,
+        reason: str,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            dispute_id = await open_dispute(
+                bot.pool,
+                ticket_type=ticket_type,
+                ticket_uid=ticket_uid,
+                opener_id=interaction.user.id,
+                opener_role="admin",
+                reason=reason,
+            )
+        except exc.TicketNotFound:
+            await interaction.followup.send(
+                f"❌ Ticket `{ticket_uid}` not found.", ephemeral=True
+            )
+            return
+        except exc.BalanceError as e:
+            await interaction.followup.send(
+                f"❌ Could not open dispute: {e.message}",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send(
+            f"✅ Dispute `#{dispute_id}` opened on `{ticket_uid}`.",
+            ephemeral=True,
+        )
+        await audit_dispute_opened(
+            pool=bot.pool,
+            bot=bot,
+            dispute_id=dispute_id,
+            ticket_type=ticket_type,
+            ticket_uid=ticket_uid,
+            opener_mention=interaction.user.mention,
+            opener_role="admin",
+            reason=reason,
+        )
+        _log.info(
+            "admin_dispute_opened",
+            actor_id=interaction.user.id,
+            dispute_id=dispute_id,
+            ticket_type=ticket_type,
+            ticket_uid=ticket_uid,
+        )
+
+    @app_commands.command(
+        name="admin-dispute-list",
+        description="List recent disputes (optionally filtered by status).",
+    )
+    @app_commands.describe(
+        status=(
+            "Filter to one status. Omit to see every status. "
+            "Cap is 25 most recent rows."
+        ),
+    )
+    async def dispute_list_cmd(
+        self,
+        interaction: discord.Interaction,
+        status: Literal["open", "investigating", "resolved", "rejected"] | None = None,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        # Cap at 25 to stay below Discord's per-embed field cap and keep
+        # the list scannable; admins paginate by status filter.
+        if status is None:
+            rows = await bot.pool.fetch(
+                """
+                SELECT id, ticket_type, ticket_uid, status, opener_id, opened_at
+                  FROM dw.disputes
+                 ORDER BY opened_at DESC
+                 LIMIT 25
+                """
+            )
+        else:
+            rows = await bot.pool.fetch(
+                """
+                SELECT id, ticket_type, ticket_uid, status, opener_id, opened_at
+                  FROM dw.disputes
+                 WHERE status = $1
+                 ORDER BY opened_at DESC
+                 LIMIT 25
+                """,
+                status,
+            )
+        embed = dispute_list_embed(
+            disputes=[dict(r) for r in rows],
+            status_filter=status,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @app_commands.command(
+        name="admin-dispute-resolve",
+        description="Resolve a dispute. Optional refund routes via the treasury.",
+    )
+    @app_commands.describe(
+        dispute_id="The dispute id (from /admin-dispute-list).",
+        action="How the dispute resolved.",
+        amount="Required only for partial-refund (gold amount).",
+    )
+    async def dispute_resolve_cmd(
+        self,
+        interaction: discord.Interaction,
+        dispute_id: int,
+        action: Literal["no-action", "refund-full", "force-confirm", "partial-refund"],
+        amount: int | None = None,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            await resolve_dispute(
+                bot.pool,
+                dispute_id=dispute_id,
+                action=action,
+                amount=amount,
+                resolved_by=interaction.user.id,
+            )
+        except exc.DisputeNotFound:
+            await interaction.followup.send(
+                f"❌ Dispute `#{dispute_id}` not found.",
+                ephemeral=True,
+            )
+            return
+        except exc.DisputeAlreadyTerminal:
+            await interaction.followup.send(
+                f"❌ Dispute `#{dispute_id}` is already in a terminal state.",
+                ephemeral=True,
+            )
+            return
+        except exc.PartialRefundRequiresPositiveAmount:
+            await interaction.followup.send(
+                "❌ `partial-refund` requires a positive `amount`.",
+                ephemeral=True,
+            )
+            return
+        except exc.RefundFullOnlyForWithdrawDisputes:
+            await interaction.followup.send(
+                "❌ `refund-full` is only valid for withdraw disputes.",
+                ephemeral=True,
+            )
+            return
+        except exc.BalanceError as e:
+            await interaction.followup.send(
+                f"❌ Could not resolve: {e.message}",
+                ephemeral=True,
+            )
+            return
+        # Look up the ticket_uid for the audit poster — pure read, never
+        # blocks the resolve flow.
+        ticket_uid = await bot.pool.fetchval(
+            "SELECT ticket_uid FROM dw.disputes WHERE id = $1",
+            dispute_id,
+        )
+        await interaction.followup.send(
+            f"✅ Dispute `#{dispute_id}` resolved as `{action}`.",
+            ephemeral=True,
+        )
+        await audit_dispute_resolved(
+            pool=bot.pool,
+            bot=bot,
+            dispute_id=dispute_id,
+            ticket_uid=str(ticket_uid) if ticket_uid is not None else "?",
+            admin_mention=interaction.user.mention,
+            action=action,
+            amount=amount,
+        )
+        _log.info(
+            "admin_dispute_resolved",
+            actor_id=interaction.user.id,
+            dispute_id=dispute_id,
+            action=action,
+            amount=amount,
+        )
+
+    @app_commands.command(
+        name="admin-dispute-reject",
+        description="Reject a dispute (close-without-resolution; no money moves).",
+    )
+    @app_commands.describe(
+        dispute_id="The dispute id.",
+        reason="Why the dispute is rejected (visible in audit log).",
+    )
+    async def dispute_reject_cmd(
+        self,
+        interaction: discord.Interaction,
+        dispute_id: int,
+        reason: str,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            await reject_dispute(
+                bot.pool,
+                dispute_id=dispute_id,
+                reason=reason,
+                admin_id=interaction.user.id,
+            )
+        except exc.DisputeNotFound:
+            await interaction.followup.send(
+                f"❌ Dispute `#{dispute_id}` not found.",
+                ephemeral=True,
+            )
+            return
+        except exc.DisputeAlreadyTerminal:
+            await interaction.followup.send(
+                f"❌ Dispute `#{dispute_id}` is already in a terminal state.",
+                ephemeral=True,
+            )
+            return
+        except exc.BalanceError as e:
+            await interaction.followup.send(
+                f"❌ Could not reject: {e.message}",
+                ephemeral=True,
+            )
+            return
+        ticket_uid = await bot.pool.fetchval(
+            "SELECT ticket_uid FROM dw.disputes WHERE id = $1",
+            dispute_id,
+        )
+        await interaction.followup.send(
+            f"✅ Dispute `#{dispute_id}` rejected.",
+            ephemeral=True,
+        )
+        await audit_dispute_rejected(
+            pool=bot.pool,
+            bot=bot,
+            dispute_id=dispute_id,
+            ticket_uid=str(ticket_uid) if ticket_uid is not None else "?",
+            admin_mention=interaction.user.mention,
+            reason=reason,
+        )
+        _log.info(
+            "admin_dispute_rejected",
+            actor_id=interaction.user.id,
+            dispute_id=dispute_id,
             reason=reason,
         )
 

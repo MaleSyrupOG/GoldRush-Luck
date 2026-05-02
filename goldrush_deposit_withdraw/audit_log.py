@@ -40,6 +40,10 @@ _ACTION_COLOR: dict[str, int] = {
     "force_cashier_offline": 0xC8511C,
     "force_close_thread": 0xC8511C,
     "treasury": 0xF2B22A,
+    # Story 9.1 — disputes
+    "dispute_opened": 0xD8231A,       # BUST red
+    "dispute_resolved": 0x5DBE5A,     # WIN green
+    "dispute_rejected": 0xC8511C,     # EMBER orange
 }
 
 
@@ -270,7 +274,89 @@ async def audit_force_close_thread(
     )
 
 
+# ---------------------------------------------------------------------------
+# Story 9.1 — dispute lifecycle posters
+# ---------------------------------------------------------------------------
+
+
+async def audit_dispute_opened(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    dispute_id: int,
+    ticket_type: TicketType,
+    ticket_uid: str,
+    opener_mention: str,
+    opener_role: str,
+    reason: str,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="dispute_opened",
+        title=f"🚨 Dispute #{dispute_id} opened",
+        description=(
+            f"{opener_mention} ({opener_role}) opened a dispute on the "
+            f"{ticket_type} ticket. Reason: *{reason}*"
+        ),
+        actor_mention=opener_mention,
+        ticket_uid=ticket_uid,
+        extra_fields={"Dispute ID": str(dispute_id), "Type": ticket_type},
+    )
+
+
+async def audit_dispute_resolved(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    dispute_id: int,
+    ticket_uid: str,
+    admin_mention: str,
+    action: str,
+    amount: int | None,
+) -> None:
+    extras: dict[str, str] = {"Dispute ID": str(dispute_id), "Action": action}
+    description = (
+        f"{admin_mention} resolved dispute #{dispute_id} as **{action}**."
+    )
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="dispute_resolved",
+        title=f"✅ Dispute #{dispute_id} resolved",
+        description=description,
+        actor_mention=admin_mention,
+        ticket_uid=ticket_uid,
+        amount=amount,
+        extra_fields=extras,
+    )
+
+
+async def audit_dispute_rejected(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    dispute_id: int,
+    ticket_uid: str,
+    admin_mention: str,
+    reason: str,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="dispute_rejected",
+        title=f"❌ Dispute #{dispute_id} rejected",
+        description=f"{admin_mention} rejected the dispute. Reason: *{reason}*",
+        actor_mention=admin_mention,
+        ticket_uid=ticket_uid,
+        extra_fields={"Dispute ID": str(dispute_id)},
+    )
+
+
 __all__ = [
+    "audit_dispute_opened",
+    "audit_dispute_rejected",
+    "audit_dispute_resolved",
     "audit_force_cancel_ticket",
     "audit_force_cashier_offline",
     "audit_force_close_thread",
