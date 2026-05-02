@@ -31,6 +31,7 @@ from goldrush_core.discord_helpers.role_binding import role_mention
 from goldrush_core.embeds.dw_tickets import withdraw_ticket_open_embed
 from goldrush_core.models.dw_pydantic import WithdrawModalInput
 
+from goldrush_deposit_withdraw.audit_log import audit_ticket_opened
 from goldrush_deposit_withdraw.cashiers.alert import post_cashier_alert
 from goldrush_deposit_withdraw.tickets.factory import create_ticket_thread
 from goldrush_deposit_withdraw.tickets.orchestration import (
@@ -162,6 +163,14 @@ class WithdrawCog(commands.Cog):
                 faction=payload.faction,
                 amount=payload.amount,
                 ticket_channel_mention=thread.mention,
+            )
+            await audit_ticket_opened(
+                pool=bot.pool,
+                bot=bot,
+                ticket_type="withdraw",
+                ticket_uid=outcome.ticket_uid,
+                user_mention=interaction.user.mention,
+                amount=payload.amount,
             )
             _log.info(
                 "withdraw_ticket_opened",

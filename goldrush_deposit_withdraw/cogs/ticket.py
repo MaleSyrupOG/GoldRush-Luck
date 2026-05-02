@@ -46,6 +46,11 @@ from goldrush_core.embeds.dw_tickets import (
     withdraw_ticket_confirmed_embed,
 )
 
+from goldrush_deposit_withdraw.audit_log import (
+    audit_ticket_cancelled,
+    audit_ticket_claimed,
+    audit_ticket_confirmed,
+)
 from goldrush_deposit_withdraw.tickets.orchestration import (
     ConfirmOutcome,
     LifecycleOutcome,
@@ -108,6 +113,13 @@ class TicketCog(commands.Cog):
             await interaction.response.send_message(
                 "Claimed. Coordinate the in-game trade with the user here.",
                 ephemeral=True,
+            )
+            await audit_ticket_claimed(
+                pool=bot.pool,
+                bot=bot,
+                ticket_type=ticket_type,
+                ticket_uid=ticket_uid,
+                cashier_mention=interaction.user.mention,
             )
             _log.info(
                 "ticket_claimed",
@@ -204,6 +216,14 @@ class TicketCog(commands.Cog):
                 "Ticket cancelled.",
                 ephemeral=True,
             )
+            await audit_ticket_cancelled(
+                pool=bot.pool,
+                bot=bot,
+                ticket_type=ticket_type,
+                ticket_uid=ticket_uid,
+                actor_mention=interaction.user.mention,
+                reason=reason,
+            )
             _log.info(
                 "ticket_cancelled",
                 ticket_uid=ticket_uid,
@@ -264,6 +284,20 @@ class TicketCog(commands.Cog):
                 await modal_interaction.response.send_message(
                     "Confirmed.",
                     ephemeral=True,
+                )
+                # User mention is the ticket owner; we read it from the
+                # ticket row (cached in ticket_row from before the modal).
+                user_id_obj = ticket_row["discord_id"]
+                user_mention = f"<@{user_id_obj}>"
+                await audit_ticket_confirmed(
+                    pool=bot.pool,
+                    bot=bot,
+                    ticket_type=ticket_type,
+                    ticket_uid=ticket_uid,
+                    cashier_mention=modal_interaction.user.mention,
+                    user_mention=user_mention,
+                    amount=cast(int, ticket_row["amount"]),
+                    new_balance=outcome.new_balance,
                 )
                 _log.info(
                     "ticket_confirmed",
@@ -333,6 +367,14 @@ class TicketCog(commands.Cog):
             await interaction.response.send_message(
                 "Your ticket has been cancelled.",
                 ephemeral=True,
+            )
+            await audit_ticket_cancelled(
+                pool=bot.pool,
+                bot=bot,
+                ticket_type=ticket_type,
+                ticket_uid=ticket_uid,
+                actor_mention=interaction.user.mention,
+                reason="cancelled by ticket owner",
             )
             return
 

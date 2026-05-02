@@ -1,0 +1,282 @@
+"""Audit-log Discord channel poster.
+
+Distinct from ``core.audit_log`` (the immutable hash-chained DB
+table that records every economic event with cryptographic
+integrity): this module posts a HUMAN-VISIBLE summary of those
+events into the ``#audit-log`` Discord channel that
+``/admin-setup`` provisions under the ``Admin`` category.
+
+Admins use the channel for at-a-glance oversight: who confirmed
+which ticket, when a force-cancel happened, when a cashier was
+forced offline. Only the bot writes; only @admin reads.
+
+The DB audit log remains the source of truth for forensics —
+this Discord surface is convenience tooling and best-effort:
+posting failures are logged and swallowed so a failed Discord
+post never rolls back an economic action.
+"""
+
+from __future__ import annotations
+
+from datetime import UTC, datetime
+from typing import Literal
+
+import discord
+import structlog
+from goldrush_core.db import Executor
+from goldrush_core.discord_helpers.channel_binding import resolve_channel_id
+
+_log = structlog.get_logger(__name__)
+
+
+_ACTION_COLOR: dict[str, int] = {
+    # Per the design system (Luck §6.3 / D/W §5.6).
+    "ticket_opened": 0x5B7CC9,        # HOUSE blue
+    "ticket_claimed": 0xF2B22A,       # GOLD
+    "ticket_released": 0xC8511C,      # EMBER
+    "ticket_confirmed": 0x5DBE5A,     # WIN green
+    "ticket_cancelled": 0xD8231A,     # BUST red
+    "force_cancel": 0xD8231A,
+    "force_cashier_offline": 0xC8511C,
+    "force_close_thread": 0xC8511C,
+    "treasury": 0xF2B22A,
+}
+
+
+async def post_audit_event(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    action: str,
+    title: str,
+    description: str,
+    actor_mention: str | None = None,
+    target_mention: str | None = None,
+    ticket_uid: str | None = None,
+    amount: int | None = None,
+    extra_fields: dict[str, str] | None = None,
+) -> None:
+    """Post a single audit event in ``#audit-log`` (best-effort).
+
+    Args:
+        action: a short slug used to colour the embed; one of the
+            keys in ``_ACTION_COLOR``. Unknown actions get a
+            HOUSE-blue fallback colour.
+        title: the embed title (what happened, in 1 line).
+        description: longer context (1-2 sentences).
+        actor_mention: ``<@id>`` of who took the action.
+        target_mention: ``<@id>`` of the affected user (if any).
+        ticket_uid: e.g. ``deposit-12``.
+        amount: gold amount in raw integer (rendered as ``50,000g``).
+        extra_fields: additional ``{name: value}`` pairs to surface.
+
+    Skips silently when ``#audit-log`` isn't configured (operator
+    hasn't run ``/admin-setup`` with the new channel) or when the
+    channel can no longer be resolved. Discord post failures are
+    logged but never raised.
+    """
+    channel_id = await resolve_channel_id(pool, "audit_log")
+    if channel_id is None:
+        _log.info(
+            "audit_log_skipped",
+            reason="channel_id_unknown",
+            action=action,
+        )
+        return
+    channel = bot.get_channel(channel_id)
+    if channel is None:
+        _log.warning(
+            "audit_log_skipped",
+            reason="channel_not_found",
+            action=action,
+            channel_id=channel_id,
+        )
+        return
+
+    color = _ACTION_COLOR.get(action, 0x5B7CC9)
+    embed = discord.Embed(
+        title=title,
+        description=description,
+        color=discord.Color(color),
+        timestamp=datetime.now(UTC),
+    )
+    if ticket_uid:
+        embed.add_field(name="Ticket", value=f"`{ticket_uid}`", inline=True)
+    if amount is not None:
+        embed.add_field(name="Amount", value=f"{amount:,}g", inline=True)
+    if actor_mention:
+        embed.add_field(name="Actor", value=actor_mention, inline=True)
+    if target_mention and target_mention != actor_mention:
+        embed.add_field(name="Target", value=target_mention, inline=True)
+    if extra_fields:
+        for k, v in extra_fields.items():
+            embed.add_field(name=k, value=v, inline=False)
+
+    try:
+        await channel.send(embed=embed)  # type: ignore[union-attr]
+        _log.info("audit_log_posted", action=action, ticket_uid=ticket_uid)
+    except Exception as e:
+        _log.exception("audit_log_failed", action=action, error=str(e))
+
+
+# ---------------------------------------------------------------------------
+# Convenience event types — narrow APIs each cog calls
+# ---------------------------------------------------------------------------
+
+
+TicketType = Literal["deposit", "withdraw"]
+
+
+async def audit_ticket_opened(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    ticket_type: TicketType,
+    ticket_uid: str,
+    user_mention: str,
+    amount: int,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="ticket_opened",
+        title=f"📥 {ticket_type.capitalize()} ticket opened",
+        description=f"{user_mention} opened a {ticket_type} ticket.",
+        actor_mention=user_mention,
+        ticket_uid=ticket_uid,
+        amount=amount,
+    )
+
+
+async def audit_ticket_claimed(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    ticket_type: TicketType,
+    ticket_uid: str,
+    cashier_mention: str,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="ticket_claimed",
+        title=f"🟡 {ticket_type.capitalize()} ticket claimed",
+        description=f"{cashier_mention} claimed the ticket.",
+        actor_mention=cashier_mention,
+        ticket_uid=ticket_uid,
+    )
+
+
+async def audit_ticket_confirmed(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    ticket_type: TicketType,
+    ticket_uid: str,
+    cashier_mention: str,
+    user_mention: str,
+    amount: int,
+    new_balance: int,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="ticket_confirmed",
+        title=f"🟢 {ticket_type.capitalize()} confirmed",
+        description=(
+            f"{cashier_mention} confirmed for {user_mention}. "
+            f"User balance is now **{new_balance:,}g**."
+        ),
+        actor_mention=cashier_mention,
+        target_mention=user_mention,
+        ticket_uid=ticket_uid,
+        amount=amount,
+    )
+
+
+async def audit_ticket_cancelled(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    ticket_type: TicketType,
+    ticket_uid: str,
+    actor_mention: str,
+    reason: str,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="ticket_cancelled",
+        title=f"❌ {ticket_type.capitalize()} cancelled",
+        description=f"{actor_mention} cancelled the ticket. Reason: *{reason}*",
+        actor_mention=actor_mention,
+        ticket_uid=ticket_uid,
+    )
+
+
+async def audit_force_cashier_offline(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    admin_mention: str,
+    cashier_mention: str,
+    reason: str,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="force_cashier_offline",
+        title="🛑 Cashier forced offline",
+        description=f"{admin_mention} forced {cashier_mention} offline. Reason: *{reason}*",
+        actor_mention=admin_mention,
+        target_mention=cashier_mention,
+    )
+
+
+async def audit_force_cancel_ticket(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    admin_mention: str,
+    ticket_uid: str,
+    reason: str,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="force_cancel",
+        title="🛑 Ticket force-cancelled by admin",
+        description=f"{admin_mention} force-cancelled the ticket. Reason: *{reason}*",
+        actor_mention=admin_mention,
+        ticket_uid=ticket_uid,
+    )
+
+
+async def audit_force_close_thread(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    admin_mention: str,
+    thread_mention: str,
+    reason: str,
+) -> None:
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="force_close_thread",
+        title="🛑 Thread force-archived by admin",
+        description=f"{admin_mention} archived {thread_mention}. Reason: *{reason}*",
+        actor_mention=admin_mention,
+    )
+
+
+__all__ = [
+    "audit_force_cancel_ticket",
+    "audit_force_cashier_offline",
+    "audit_force_close_thread",
+    "audit_ticket_cancelled",
+    "audit_ticket_claimed",
+    "audit_ticket_confirmed",
+    "audit_ticket_opened",
+    "post_audit_event",
+]

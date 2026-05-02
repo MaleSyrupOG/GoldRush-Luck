@@ -32,6 +32,11 @@ from goldrush_core.balance.dw_manager import (
 )
 from goldrush_core.embeds.dw_tickets import cashier_stats_embed
 
+from goldrush_deposit_withdraw.audit_log import (
+    audit_force_cancel_ticket,
+    audit_force_cashier_offline,
+    audit_force_close_thread,
+)
 from goldrush_deposit_withdraw.setup.channel_factory import (
     SetupReport,
     setup_or_reuse_channels,
@@ -208,6 +213,13 @@ class AdminCog(commands.Cog):
             f"✅ {cashier.mention} is now offline. Reason logged: {reason}",
             ephemeral=True,
         )
+        await audit_force_cashier_offline(
+            pool=bot.pool,
+            bot=bot,
+            admin_mention=interaction.user.mention,
+            cashier_mention=cashier.mention,
+            reason=reason,
+        )
         _log.info(
             "admin_force_cashier_offline",
             actor_id=interaction.user.id,
@@ -361,6 +373,13 @@ class AdminCog(commands.Cog):
             f"✅ Force-cancelled `{ticket_uid}`. Reason: {reason}",
             ephemeral=True,
         )
+        await audit_force_cancel_ticket(
+            pool=bot.pool,
+            bot=bot,
+            admin_mention=interaction.user.mention,
+            ticket_uid=ticket_uid,
+            reason=reason,
+        )
         _log.info(
             "admin_force_cancel_ticket",
             actor_id=interaction.user.id,
@@ -394,6 +413,15 @@ class AdminCog(commands.Cog):
             f"✅ Archived {thread.mention}. Reason: {reason}",
             ephemeral=True,
         )
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is not None:
+            await audit_force_close_thread(
+                pool=bot.pool,
+                bot=bot,
+                admin_mention=interaction.user.mention,
+                thread_mention=thread.mention,
+                reason=reason,
+            )
         _log.info(
             "admin_force_close_thread",
             actor_id=interaction.user.id,

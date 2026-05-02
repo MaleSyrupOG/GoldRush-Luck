@@ -29,6 +29,7 @@ CANONICAL_KEYS: frozenset[str] = frozenset(
         "cashier_alerts",
         "cashier_onboarding",
         "disputes",
+        "audit_log",
     }
 )
 

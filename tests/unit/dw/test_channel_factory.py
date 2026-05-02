@@ -198,13 +198,15 @@ def _build_guild() -> tuple[_FakeGuild, _FakeRole, _FakeRole]:
 # ---------------------------------------------------------------------------
 
 
-def test_two_canonical_categories_banking_and_cashier() -> None:
+def test_three_canonical_categories_banking_cashier_admin() -> None:
+    """Spec §5.3 was 2 categories at v1.0; v1.0.1 adds Admin for the
+    audit-log channel introduced post-deploy."""
     keys = {c.key for c in CATEGORY_SPECS}
-    assert keys == {"banking", "cashier"}
+    assert keys == {"banking", "cashier", "admin"}
 
 
-def test_eight_canonical_channels_per_spec() -> None:
-    """Spec §5.3 lists exactly 8 channels: 5 in Banking, 3 in Cashier."""
+def test_canonical_channels_per_spec() -> None:
+    """5 in Banking, 3 in Cashier, 1 in Admin = 9 total."""
     keys = {c.key for c in CHANNEL_SPECS}
     expected = {
         "how_to_deposit",
@@ -215,6 +217,7 @@ def test_eight_canonical_channels_per_spec() -> None:
         "cashier_alerts",
         "cashier_onboarding",
         "disputes",
+        "audit_log",
     }
     assert keys == expected
 
@@ -239,7 +242,7 @@ def test_channel_spec_names_are_lowercase_dash_separated() -> None:
 
 
 @pytest.mark.asyncio
-async def test_setup_on_fresh_guild_creates_two_categories_and_eight_channels() -> None:
+async def test_setup_on_fresh_guild_creates_three_categories_and_nine_channels() -> None:
     guild, cashier, admin = _build_guild()
     report = await setup_or_reuse_channels(
         guild,  # type: ignore[arg-type]
@@ -247,12 +250,12 @@ async def test_setup_on_fresh_guild_creates_two_categories_and_eight_channels() 
         admin_role_id=admin.id,
     )
 
-    # 2 + 8 = 10 entities created; nothing reused.
-    assert len(guild.categories) == 2
-    assert len(guild.text_channels) == 8
-    assert sum(1 for c in report.categories if c.created) == 2
-    assert sum(1 for c in report.channels if c.created) == 8
-    assert report.created_count == 10
+    # 3 categories + 9 channels = 12 entities created; nothing reused.
+    assert len(guild.categories) == 3
+    assert len(guild.text_channels) == 9
+    assert sum(1 for c in report.categories if c.created) == 3
+    assert sum(1 for c in report.channels if c.created) == 9
+    assert report.created_count == 12
     assert report.reused_count == 0
 
 
@@ -265,7 +268,7 @@ async def test_setup_on_fresh_guild_reports_correct_outcome_keys() -> None:
         admin_role_id=admin.id,
     )
     cat_keys = [c.key for c in report.categories]
-    assert sorted(cat_keys) == sorted(["banking", "cashier"])
+    assert sorted(cat_keys) == sorted(["banking", "cashier", "admin"])
     ch_keys = sorted(c.key for c in report.channels)
     assert ch_keys == sorted(s.key for s in CHANNEL_SPECS)
 
@@ -318,7 +321,8 @@ async def test_second_run_creates_nothing_when_state_unchanged() -> None:
     # No additional API calls beyond the first run's calls.
     assert len(guild.calls) == calls_before_second
     assert report.created_count == 0
-    assert report.reused_count == 10
+    # 3 categories + 9 channels = 12 entities reused.
+    assert report.reused_count == 12
 
 
 @pytest.mark.asyncio
@@ -340,10 +344,12 @@ async def test_partial_state_creates_only_missing_channels() -> None:
         admin_role_id=admin.id,
     )
 
-    assert len(guild.categories) == 2  # banking reused, cashier created
-    assert len(guild.text_channels) == 8  # 2 reused, 6 created
+    # banking reused; cashier + admin created → 3 total.
+    assert len(guild.categories) == 3
+    # 2 channels reused under banking + 7 created (3 banking + 3 cashier + 1 admin).
+    assert len(guild.text_channels) == 9
     assert report.reused_count == 1 + 2  # 1 category + 2 channels
-    assert report.created_count == 1 + 6  # 1 category + 6 channels
+    assert report.created_count == 2 + 7  # 2 categories + 7 channels
 
 
 # ---------------------------------------------------------------------------
@@ -366,8 +372,8 @@ async def test_dry_run_does_not_call_create_apis() -> None:
     assert guild.text_channels == []
     assert report.dry_run is True
     # The report still shows what WOULD be created so /admin setup --dry-run
-    # is a real preview.
-    assert report.created_count == 10
+    # is a real preview. 3 categories + 9 channels = 12 entities.
+    assert report.created_count == 12
     assert report.reused_count == 0
     # IDs are None in dry-run because nothing was created.
     for c in report.categories:
@@ -391,7 +397,8 @@ async def test_dry_run_marks_existing_entities_as_reused() -> None:
     )
 
     assert report.reused_count == 2  # Banking + how-to-deposit
-    assert report.created_count == 8  # 1 category + 7 channels
+    # 2 missing categories + 8 missing channels = 10 to create.
+    assert report.created_count == 10
 
 
 # ---------------------------------------------------------------------------
@@ -577,7 +584,7 @@ async def test_setup_works_without_role_ids_provided() -> None:
     """
     guild = _FakeGuild()  # no roles set up
     report = await setup_or_reuse_channels(guild)  # type: ignore[arg-type]
-    assert report.created_count == 10
+    assert report.created_count == 12  # 3 categories + 9 channels
     # The cashier-only channels still exist and deny @everyone view.
     cashier_alerts = _channel_by_name(guild, "cashier-alerts")
     assert cashier_alerts.overwrites[guild.default_role].view_channel is False

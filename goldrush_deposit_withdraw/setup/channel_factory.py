@@ -46,14 +46,23 @@ class CategorySpec:
 
     ``key`` is the stable identifier the rest of the system uses
     (e.g., to reference the category in ``dw.global_config``).
-    ``name`` is the display name in Discord. ``private_to_staff``
-    flips the @everyone deny-view bit on the category so newly
-    created channels under it inherit a hidden default.
+    ``name`` is the display name in Discord.
+
+    Privacy levels:
+    - ``private_to_admin_only=True`` — denies @everyone AND
+      @cashier; only @admin (and the bot) sees the category.
+      Used for ``Admin`` (audit log, future admin-only tools).
+    - ``private_to_staff=True`` (without the admin-only flag)
+      — denies @everyone, allows @cashier + @admin. Used for
+      ``Cashier`` (alerts, onboarding, disputes).
+    - Both False — public read-only-ish category. Used for
+      ``Banking``.
     """
 
     key: str
     name: str
     private_to_staff: bool
+    private_to_admin_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -76,6 +85,12 @@ class ChannelSpec:
 CATEGORY_SPECS: tuple[CategorySpec, ...] = (
     CategorySpec(key="banking", name="Banking", private_to_staff=False),
     CategorySpec(key="cashier", name="Cashier", private_to_staff=True),
+    CategorySpec(
+        key="admin",
+        name="Admin",
+        private_to_staff=True,
+        private_to_admin_only=True,
+    ),
 )
 
 
@@ -90,6 +105,8 @@ CHANNEL_SPECS: tuple[ChannelSpec, ...] = (
     ChannelSpec(key="cashier_alerts", name="cashier-alerts", category_key="cashier"),
     ChannelSpec(key="cashier_onboarding", name="cashier-onboarding", category_key="cashier"),
     ChannelSpec(key="disputes", name="disputes", category_key="cashier"),
+    # Admin category — admin-only audit / ops surface.
+    ChannelSpec(key="audit_log", name="audit-log", category_key="admin"),
 )
 
 
@@ -160,7 +177,7 @@ def _everyone_overwrite_for_channel(key: str) -> discord.PermissionOverwrite:
     Public channels get view + read history; the two interactive
     surfaces (``deposit`` and ``withdraw``) additionally get send +
     use application commands so users can run the slash command.
-    Cashier-only channels deny view entirely.
+    Cashier-only and admin-only channels deny view entirely.
     """
     if key in {"how_to_deposit", "how_to_withdraw", "online_cashiers"}:
         return discord.PermissionOverwrite(
@@ -175,7 +192,8 @@ def _everyone_overwrite_for_channel(key: str) -> discord.PermissionOverwrite:
             send_messages=True,
             use_application_commands=True,
         )
-    # cashier_alerts, cashier_onboarding, disputes — staff-only
+    # cashier_alerts, cashier_onboarding, disputes, audit_log —
+    # staff- or admin-only
     return discord.PermissionOverwrite(view_channel=False)
 
 
@@ -220,6 +238,11 @@ def _cashier_overwrite_for_channel(key: str) -> discord.PermissionOverwrite | No
             use_application_commands=True,
         )
     if key == "disputes":
+        return discord.PermissionOverwrite(view_channel=False)
+    if key == "audit_log":
+        # Admin-only audit log — cashiers don't get to see admin
+        # actions or financial events; that's a deliberate
+        # information boundary.
         return discord.PermissionOverwrite(view_channel=False)
     return None  # safety; should be unreachable for canonical keys
 
@@ -298,7 +321,12 @@ def _category_overwrites(
     the inheritance chain.
     """
     overwrites: dict[Any, discord.PermissionOverwrite] = {}
-    if spec.private_to_staff:
+    if spec.private_to_admin_only:
+        # Admin-only: deny @everyone AND @cashier; only @admin sees.
+        overwrites[everyone] = discord.PermissionOverwrite(view_channel=False)
+        if cashier is not None:
+            overwrites[cashier] = discord.PermissionOverwrite(view_channel=False)
+    elif spec.private_to_staff:
         overwrites[everyone] = discord.PermissionOverwrite(view_channel=False)
         if cashier is not None:
             overwrites[cashier] = discord.PermissionOverwrite(view_channel=True)
