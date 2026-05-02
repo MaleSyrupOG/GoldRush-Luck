@@ -132,16 +132,21 @@ async def reconcile_welcome_embed(
         embed_key,
     )
 
-    # Resolve channel id: prefer the existing row, then the caller's
-    # fallback (typically read from dw.global_config). If neither, we
-    # can't post anywhere — skip.
-    channel_id: int | None = None
-    if row is not None:
-        channel_id = int(row["channel_id"])
-    elif fallback_channel_id is not None:
-        channel_id = fallback_channel_id
+    # Resolve the target channel. The fallback (from
+    # ``dw.global_config.channel_id_<embed_key>``) is the canonical
+    # value — it's updated by ``/admin-setup`` so it reflects the
+    # CURRENT channel structure. If the row's stored ``channel_id``
+    # disagrees (for instance because the operator deleted the old
+    # channels and re-ran ``/admin-setup``), we re-target the row to
+    # the fallback and clear ``message_id`` so the next branch posts
+    # a fresh message in the right channel.
+    target_channel_id: int | None = None
+    if fallback_channel_id is not None:
+        target_channel_id = fallback_channel_id
+    elif row is not None:
+        target_channel_id = int(row["channel_id"])
 
-    if channel_id is None:
+    if target_channel_id is None:
         _log.info(
             "welcome_embed_skipped",
             embed_key=embed_key,
@@ -153,6 +158,30 @@ async def reconcile_welcome_embed(
             reason="channel_id_unknown",
         )
 
+    # If the row points at a stale channel id, repoint it. Clearing
+    # message_id forces the next branch to ``channel.send`` rather
+    # than ``message.edit`` (the old message either doesn't exist or
+    # is unreachable from the new channel).
+    if row is not None and int(row["channel_id"]) != target_channel_id:
+        await pool.execute(
+            """
+            UPDATE dw.dynamic_embeds
+                SET channel_id = $1, message_id = NULL, updated_at = NOW()
+                WHERE embed_key = $2
+            """,
+            target_channel_id,
+            embed_key,
+        )
+        row = await pool.fetchrow(
+            "SELECT * FROM dw.dynamic_embeds WHERE embed_key = $1",
+            embed_key,
+        )
+        _log.info(
+            "welcome_embed_retargeted",
+            embed_key=embed_key,
+            new_channel_id=target_channel_id,
+        )
+
     # Insert the row with default content if it didn't exist.
     if row is None:
         await pool.execute(
@@ -162,7 +191,7 @@ async def reconcile_welcome_embed(
             VALUES ($1, $2, $3, $4, $5)
             """,
             embed_key,
-            channel_id,
+            target_channel_id,
             default_title,
             default_description,
             actor_id,
@@ -173,13 +202,13 @@ async def reconcile_welcome_embed(
         )
         assert row is not None  # we just inserted it
 
-    channel = bot.get_channel(channel_id)
+    channel = bot.get_channel(target_channel_id)
     if channel is None:
         _log.warning(
             "welcome_embed_skipped",
             embed_key=embed_key,
             reason="channel_not_found",
-            channel_id=channel_id,
+            channel_id=target_channel_id,
         )
         return ReconcileOutcome(
             embed_key=embed_key,
