@@ -26,6 +26,8 @@ from discord.ext import commands
 from goldrush_core.config import DwSettings
 from goldrush_core.db import create_pool
 
+from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
+
 # Cog import paths. The six canonical cogs map one-for-one to the
 # command families in spec §5.1 (account, admin, cashier, deposit,
 # ticket, withdraw). ``setup_hook`` iterates this list and calls
@@ -102,16 +104,16 @@ class DwBot(commands.Bot):
     async def on_ready(self) -> None:
         """Fired by discord.py once the gateway is ready.
 
-        Spec §5.7 step 3: sync the command tree to the configured
-        guild only. Per-guild sync is instant; global sync takes up
-        to an hour to propagate, so we choose per-guild even though
-        we run on a single server today (revisit when expansion is
-        on the table).
+        Spec §5.7:
+        - step 3: sync the command tree to the configured guild only
+          (per-guild sync is instant; global sync takes up to an hour).
+        - step 5: ensure the welcome dynamic embeds are posted /
+          edited (idempotent reconcile — see ``welcome.py``).
 
-        The number of synced commands is logged for diagnostics —
-        a sudden drop from one boot to the next is the canonical
-        signal that a cog failed to load or a command decorator
-        regressed.
+        ``on_ready`` may fire multiple times across one process if
+        Discord reconnects; both steps are idempotent so re-runs are
+        safe (a re-run just re-syncs the tree and edits embeds in
+        place).
         """
         guild = discord.Object(id=self.settings.guild_id)
         synced = await self.tree.sync(guild=guild)
@@ -122,6 +124,20 @@ class DwBot(commands.Bot):
             guild_id=self.settings.guild_id,
             command_count=len(synced),
         )
+
+        # Reconcile the dynamic welcome embeds. Wrap in a broad except
+        # so a transient DB hiccup or missing channel doesn't stop the
+        # bot from being interactive — the reconcile retries on the
+        # next ready event.
+        if self.pool is not None:
+            try:
+                outcomes = await reconcile_welcome_embeds(pool=self.pool, bot=self)
+                self._log.info(
+                    "welcome_embeds_reconciled",
+                    outcomes={o.embed_key: o.action for o in outcomes},
+                )
+            except Exception as e:
+                self._log.exception("welcome_embeds_failed", error=str(e))
 
     async def close_pool(self) -> None:
         """Close the DB pool — used on shutdown and by tests.

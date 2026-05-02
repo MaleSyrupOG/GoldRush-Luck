@@ -25,10 +25,10 @@
 |---|---|
 | **Active phase** | Phase 3 — Bot skeleton (Epic 4 in progress) |
 | **Active epic** | Epic 4 — Bot skeleton |
-| **Active story** | Stories 4.1-4.3 done; next is Story 4.4 — Welcome dynamic embeds |
-| **Last commit** | `376fef8` (Story 4.2) → Story 4.3 commit pending |
-| **Next milestone** | Close Epic 4 (Stories 4.4-4.5) so the bot is fully wired and Epic 5 / 6 (deposit + withdraw flows) can start |
-| **Overall progress** | 27 / 78 stories done · 4 / 15 epics done · Epic 4 in progress (3 / 5) |
+| **Active story** | Stories 4.1-4.4 done; next is Story 4.5 — Online cashiers live embed |
+| **Last commit** | `edc5b87` (Story 4.3) → Story 4.4 commit pending |
+| **Next milestone** | Close Epic 4 with Story 4.5 (online cashiers updater) so Epic 5 / 6 can start |
+| **Overall progress** | 28 / 78 stories done · 4 / 15 epics done · Epic 4 in progress (4 / 5) |
 
 ### Epic-level status
 
@@ -37,7 +37,7 @@
 | 1 | Foundation extensions | Done | 3 / 3 |
 | 2 | Database schema additions | Done | 12 / 12 |
 | 3 | Core services & models | Done | 4 / 4 |
-| 4 | Bot skeleton | In Progress | 3 / 5 |
+| 4 | Bot skeleton | In Progress | 4 / 5 |
 | 5 | Deposit flow | Pending | 0 / 5 |
 | 6 | Withdraw flow | Pending | 0 / 4 |
 | 7 | Cashier system | Pending | 0 / 3 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-02 | Story 4.4 done. `goldrush_deposit_withdraw/welcome.py` adds the reconciler for `dw.dynamic_embeds` rows `how_to_deposit` and `how_to_withdraw`. `WelcomeDefault` (frozen) carries the canonical seed title/description; `DEFAULT_WELCOMES` is a tuple of two seeds. `reconcile_welcome_embed(pool, bot, *, embed_key, fallback_channel_id, ...)` handles single-key reconciliation; `reconcile_welcome_embeds(pool, bot)` orchestrates both managed keys, resolving channel ids from `dw.global_config.channel_id_<embed_key>`. Outcomes: `posted` (first run), `edited` (idempotent re-run), `reposted` (self-heal after admin deletes the Discord message), `skipped` (no channel id available pre-`/admin setup`). The reconciler is wired into `DwBot.on_ready` with a broad-except so a DB hiccup is non-fatal — next on_ready retries. 11 new tests (orchestrator + every single-key branch + idempotency property + self-heal); full suite 239 / 239; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.3 done. `goldrush_core/balance/account_stats.py` adds `AccountStats` (frozen) + `fetch_account_stats(executor, *, discord_id) -> AccountStats | None` (single-row JOIN over core.users / core.balances / confirmed dw.deposit_tickets / confirmed dw.withdraw_tickets, all aggregates COALESCEd to 0). `goldrush_core/embeds/account.py` adds `account_summary_embed`, `no_balance_embed` (shared with Luck per spec §5.6), `help_embed` (with `HELP_TOPICS` ordered dict). `goldrush_deposit_withdraw/cogs/account.py` ships the real `/balance` and `/help` slash commands — both ephemeral, `/help` with autocomplete choices for the four topics. Unknown topics fall back to the list view rather than raising. `_resolve_how_to_deposit_mention` does best-effort name lookup until Story 10.x reads channel ids from `dw.global_config`. 17 new tests; full suite 228 / 228; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.2 done. Six cog skeletons created under `goldrush_deposit_withdraw/cogs/` (account, admin, cashier, deposit, ticket, withdraw); each exposes the `async def setup(bot)` contract. `EXTENSIONS` tuple populated; `setup_hook` now loads all six. `DwBot.on_ready` overridden — calls `bot.tree.sync(guild=discord.Object(id=settings.guild_id))` for instant per-guild sync; logs `user_id`, `guild_id`, `command_count`. 10 new tests (1 base + 6 parametrized cog-contract + 3 functional); full suite 211 / 211; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.1 done. `goldrush_core/config/__init__.py` adds `CoreSettings` + `DwSettings` (pydantic-settings v2; secrets typed as SecretStr; reads from `.env.shared` + `.env.dw` in dev). `goldrush_core/logging/__init__.py` adds `setup_logging(level, *, format)` with a structlog + stdlib pipeline that toggles between JSON (production) and ConsoleRenderer (local dev). `goldrush_deposit_withdraw/client.py` adds `DwBot` (commands.Bot subclass) + `build_bot(settings, *, pool_factory=None)`; the pool factory is injectable for tests. `goldrush_deposit_withdraw/healthcheck.py` rewritten — opens a 1-conn pool with 3-second timeout, runs `SELECT 1`, exits 0 only when the result is exactly 1; every failure path (missing DSN, factory raises, timeout, wrong value, exception) maps to exit 1. `goldrush_deposit_withdraw/__main__.py` rewritten — loads settings, configures logging, runs the bot. asyncpg added to mypy `ignore_missing_imports` (no py.typed marker upstream). 25 new tests; full unit suite 201 / 201; ruff + mypy strict clean. |
@@ -580,11 +581,18 @@ Status: Done (2026-05-02)
 
 ### Story 4.4 — Welcome dynamic embeds (`#how-to-deposit`, `#how-to-withdraw`)
 
+Status: Done (2026-05-02)
+
 **ACs:**
-- [ ] On startup, bot ensures `dw.dynamic_embeds` has rows for `how_to_deposit` and `how_to_withdraw`; seeds default content if absent.
-- [ ] If `message_id IS NULL`, posts the embed in the configured channel and stores the message id.
-- [ ] If `message_id IS NOT NULL`, edits the existing message (in case content was updated).
-- [ ] Test: deleting the stored message and restarting re-creates it; restarting twice does not duplicate.
+- [x] On startup, `reconcile_welcome_embeds(pool, bot)` runs from `on_ready`. For each managed key (`how_to_deposit`, `how_to_withdraw`) it ensures a `dw.dynamic_embeds` row exists; if absent and a `channel_id` is resolvable (existing row or `dw.global_config.channel_id_<embed_key>`), it INSERTs with the canonical default title + description from `DEFAULT_WELCOMES`.
+- [x] When `message_id IS NULL` (fresh row or repost), the reconciler `channel.send(embed=...)` and persists the new id back via UPDATE.
+- [x] When `message_id IS NOT NULL`, the reconciler `channel.fetch_message(id)` + `message.edit(embed=...)` — idempotent path that picks up admin edits made via `/admin set-deposit-guide` (Story 10.x).
+- [x] Self-heals: a `discord.NotFound` from `fetch_message` (admin deleted the message) triggers a repost and a new id is persisted.
+- [x] Skips gracefully when channel id is unknown (pre-`/admin setup`) or when the channel itself can no longer be resolved — no crash, just an info / warning log line.
+
+**Test coverage:** `tests/unit/dw/test_welcome.py` — 11 tests including the "restart twice does not duplicate" property (single message per channel after two reconcile passes), the "stored message deleted → repost" self-heal path, and orchestrator-level skip behaviour for unconfigured channels.
+
+**Verification:** Full unit suite 239 / 239 green; ruff + mypy strict clean. The reconciler is wired into `DwBot.on_ready` with a broad-except wrapper so a DB hiccup never stops the bot from being interactive — the next `on_ready` retries.
 
 **Dependencies:** Story 4.2, Story 3.3
 **Effort:** M
