@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 5 — Cashier system (Epic 7 next) |
-| **Active epic** | Epics 5 + 6 closed; next is Epic 7 — Cashier system |
-| **Active story** | Epics 5 + 6 fully closed; next is Story 7.1 — `/cashier addchar` etc. |
-| **Last commit** | `42691d1` (Stories 5.4+6.3) → Stories 5.5+6.4 commit pending |
-| **Next milestone** | Land Epic 7 (cashier commands: addchar/removechar/listchars/set-status/mystats) so cashiers can self-serve their roster |
-| **Overall progress** | 38 / 78 stories done · 7 / 15 epics done · Epic 5 complete (5/5) · Epic 6 complete (4/4) |
+| **Active phase** | Phase 5 — Cashier system (Epic 7 closed; Epic 10 next) |
+| **Active epic** | Epic 7 closed; Epic 10 — Admin commands (priority on 10.1 `/admin setup`) |
+| **Active story** | Stories 7.1, 7.2, 7.3 done in a paired commit; next is 10.1 (`/admin setup`) |
+| **Last commit** | `5795304` (Stories 5.5+6.4) → Epic 7 commit pending |
+| **Next milestone** | Land Story 10.1 (`/admin setup`) so the channel ids land in `dw.global_config` and the entire bot self-configures end-to-end without manual SQL |
+| **Overall progress** | 41 / 78 stories done · 8 / 15 epics done · Epic 7 complete (3/3) |
 
 ### Epic-level status
 
@@ -40,7 +40,7 @@
 | 4 | Bot skeleton | Done | 5 / 5 |
 | 5 | Deposit flow | Done | 5 / 5 |
 | 6 | Withdraw flow | Done | 4 / 4 |
-| 7 | Cashier system | Pending | 0 / 3 |
+| 7 | Cashier system | Done | 3 / 3 |
 | 8 | Background workers | Pending | 0 / 6 |
 | 9 | Disputes & blacklist | Pending | 0 / 3 |
 | 10 | Admin commands | Pending | 0 / 8 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-03 | Epic 7 closed in a paired commit (Stories 7.1, 7.2, 7.3). Three new SECURITY DEFINER wrappers in `dw_manager.py`: `add_cashier_character` (returns row id) translating `InvalidRegion` / `InvalidFaction`; `remove_cashier_character` translating `CharacterNotFoundOrAlreadyRemoved`; `set_cashier_status` translating `InvalidStatus`. New `CashierCog` with five slash commands (`/cashier-addchar`, `/cashier-removechar`, `/cashier-listchars`, `/cashier-set-status`, `/cashier-mystats`); region / faction / status surfaced as Discord choice menus that match the SQL `Literal` types so users pick rather than type. Onboarding-channel binding enforced inline. `/cashier-mystats` falls back to the all-zeros embed for new cashiers (the embed builder already tolerates `avg=None` / `last_active=None`). 10 new tests across `test_cashier_wrappers.py` (6) and `test_cashier_cog.py` (4); full unit suite 327 / 327; ruff + mypy strict clean. |
 | 2026-05-02 | Stories 5.5 + 6.4 done in a paired commit. Epics 5 + 6 closed. New SECURITY DEFINER orchestration `confirm_ticket_dispatch(ticket_type, ticket_uid, cashier_id) -> ConfirmResult` routes to `dw.confirm_deposit` / `dw.confirm_withdraw` and translates `wrong_cashier`, `ticket_not_claimed`, `invariant_violation` (kept distinct from generic Unexpected so admins notice it). New `ConfirmOutcome` union with 6 variants. `/confirm` slash command in `TicketCog`: opens `ConfirmTicketModal(magic_word="CONFIRM")`; on case-sensitive match the on_confirm callback runs the dispatch and posts `deposit_ticket_confirmed_embed` / `withdraw_ticket_confirmed_embed` showing new balance + (for withdraw) amount/fee/delivered. Treasury credit on withdraw confirm is handled inside the SECURITY DEFINER transaction (migration 0007). 5 new tests in `test_lifecycle_orchestration.py`; full suite 317 / 317; ruff + mypy strict clean. End-to-end deposit + withdraw flows operational. |
 | 2026-05-02 | Stories 5.4 + 6.3 done in a paired commit (single shared `TicketCog`). New SECURITY DEFINER wrappers `claim_ticket(ticket_type, ticket_uid, cashier_id)` and `release_ticket(ticket_type, ticket_uid, actor_id)` in `dw_manager.py`. New orchestration helpers `claim_ticket_for_cashier`, `release_ticket_by_cashier`, `cancel_ticket_dispatch` (LifecycleOutcome union with 8 variants — Success, TicketNotFound, AlreadyClaimed, NotClaimed, WrongCashier, RegionMismatch, AlreadyTerminal, Unexpected). New cog at `goldrush_deposit_withdraw/cogs/ticket.py` with `/claim`, `/release`, `/cancel`, `/cancel-mine` — looks up ticket by thread_id (joins both deposit and withdraw tables), dispatches to the right SECURITY DEFINER fn. /cancel-mine checks ownership + status='open' before delegating. 10 new tests in `test_lifecycle_orchestration.py`; full suite 312 / 312; ruff + mypy strict clean. |
 | 2026-05-02 | Story 5.3 done. `goldrush_deposit_withdraw/cashiers/alert.py::post_cashier_alert(...)` posts a `cashier_alert_embed` in `#cashier-alerts` with the @cashier role mention as the message content. The embed now carries a "Compatible cashiers" field built from `find_compatible_cashiers(roster, region, faction)` (Story 5.3 foundation) — empty matches render a "_none online for this region/faction_" placeholder. Same poster is reused for withdraw alerts. 6 new tests covering happy path, none-online placeholder, both ticket types, and the two skip paths (channel id unconfigured, channel not in cache). Full suite 302 / 302; ruff + mypy strict clean. |
@@ -772,11 +773,13 @@ End-to-end deposit + withdraw flows now run from `/deposit` / `/withdraw` throug
 
 ### Story 7.1 — `/cashier addchar`, `/cashier removechar`, `/cashier listchars`
 
+Status: Done (2026-05-03; paired with 7.2 + 7.3)
+
 **ACs:**
-- [ ] `/cashier addchar char realm region faction` validates region/faction; calls `dw.add_cashier_character`; ephemeral confirmation.
-- [ ] `/cashier removechar char realm` calls `dw.remove_cashier_character`; ephemeral confirmation.
-- [ ] `/cashier listchars` ephemeral embed listing all active chars of the calling cashier.
-- [ ] All three commands restricted to `#cashier-onboarding` channel.
+- [x] `/cashier-addchar char realm region faction` (region/faction surfaced as Discord choice menus; values match the SQL `Literal` types). Calls `dw.add_cashier_character` via the new `add_cashier_character` wrapper.
+- [x] `/cashier-removechar char realm region` calls `dw.remove_cashier_character`. `CharacterNotFoundOrAlreadyRemoved` is mapped to a friendly ephemeral.
+- [x] `/cashier-listchars` queries `dw.cashier_characters WHERE discord_id=$1 AND is_active=TRUE`, renders a WIN-green embed with each char (or a "no active characters" fallback for new cashiers).
+- [x] All three restricted to `#cashier-onboarding` via the inline `_verify_in_cashier_onboarding` helper (resolves `dw.global_config.channel_id_cashier_onboarding`); skip with friendly redirect if pre-`/admin setup`.
 
 **Dependencies:** Story 2.9, Story 4.2
 **Effort:** M
@@ -784,10 +787,12 @@ End-to-end deposit + withdraw flows now run from `/deposit` / `/withdraw` throug
 
 ### Story 7.2 — `/cashier set-status` + sessions tracking
 
+Status: Done (2026-05-03; paired with 7.1 + 7.3)
+
 **ACs:**
-- [ ] `/cashier set-status status:online/offline/break` (any channel) calls `dw.set_cashier_status`.
-- [ ] Inserts/closes `dw.cashier_sessions` rows correctly.
-- [ ] Triggers refresh of `#online-cashiers` embed.
+- [x] `/cashier-set-status status:online/offline/break` available in any channel; calls `dw.set_cashier_status` via the new `set_cashier_status` wrapper.
+- [x] Session bookkeeping is performed inside the SECURITY DEFINER fn (migration 0009) — opens a row in `dw.cashier_sessions` on online, closes the open row on offline / break.
+- [x] The `#online-cashiers` embed updater (Story 4.5) ticks every 30 s — that's how the embed refreshes after a status change. Spec §5.1's "triggers refresh" is interpreted as "next tick reflects the new state"; an immediate manual trigger is a UX nicety left for v1.x.
 
 **Dependencies:** Story 2.9, Story 4.5
 **Effort:** S
@@ -795,9 +800,11 @@ End-to-end deposit + withdraw flows now run from `/deposit` / `/withdraw` throug
 
 ### Story 7.3 — `/cashier mystats` ephemeral
 
+Status: Done (2026-05-03; paired with 7.1 + 7.2)
+
 **ACs:**
-- [ ] Reads from `dw.cashier_stats` for the calling user; renders ephemeral embed per spec §6.3 example.
-- [ ] If no row exists yet (new cashier), shows zeros.
+- [x] `/cashier-mystats` queries `dw.cashier_stats` for the calling user and renders `cashier_stats_embed` (Story 3.3) ephemerally.
+- [x] When no row exists yet, the embed renders all zeros + "never" as last_active (the embed builder already supports `avg_claim_to_confirm_s=None` and `last_active_at=None`).
 
 **Dependencies:** Story 2.9
 **Effort:** S

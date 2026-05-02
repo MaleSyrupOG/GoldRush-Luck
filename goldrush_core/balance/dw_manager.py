@@ -33,7 +33,6 @@ import asyncpg
 from goldrush_core.balance.exceptions import translate_pg_error
 from goldrush_core.db import Executor
 
-
 # ---------------------------------------------------------------------------
 # Deposit lifecycle (migration 0006_dw_deposit_fns)
 # ---------------------------------------------------------------------------
@@ -179,6 +178,93 @@ async def release_ticket(
             ticket_type,
             ticket_uid,
             actor_id,
+        )
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e
+
+
+# ---------------------------------------------------------------------------
+# Cashier system (migration 0009_dw_cashier_fns)
+# ---------------------------------------------------------------------------
+
+
+async def add_cashier_character(
+    conn: Executor,
+    *,
+    discord_id: int,
+    char: str,
+    realm: str,
+    region: Literal["EU", "NA"],
+    faction: Literal["Alliance", "Horde"],
+) -> int:
+    """Register a (char, realm, region, faction) tuple to the cashier.
+
+    Returns the new ``dw.cashier_characters.id``. Re-registering an
+    existing (cashier, char, realm) reactivates a soft-deleted row
+    in the same migration's logic; no Python work needed here.
+
+    Raises:
+        InvalidRegion, InvalidFaction.
+    """
+    try:
+        result = await conn.fetchval(
+            "SELECT dw.add_cashier_character($1, $2, $3, $4, $5)",
+            discord_id,
+            char,
+            realm,
+            region,
+            faction,
+        )
+        return cast(int, result)
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e
+
+
+async def remove_cashier_character(
+    conn: Executor,
+    *,
+    discord_id: int,
+    char: str,
+    realm: str,
+    region: Literal["EU", "NA"],
+) -> None:
+    """Soft-remove a cashier's character from the active roster.
+
+    Raises:
+        CharacterNotFoundOrAlreadyRemoved, InvalidRegion.
+    """
+    try:
+        await conn.execute(
+            "SELECT dw.remove_cashier_character($1, $2, $3, $4)",
+            discord_id,
+            char,
+            realm,
+            region,
+        )
+    except asyncpg.RaiseError as e:
+        raise translate_pg_error(e) from e
+
+
+async def set_cashier_status(
+    conn: Executor,
+    *,
+    discord_id: int,
+    status: Literal["online", "offline", "break"],
+) -> None:
+    """Toggle the cashier's roster status.
+
+    The SECURITY DEFINER fn handles the ``dw.cashier_sessions``
+    bookkeeping — opens a row on online, closes the open row on
+    offline / break.
+
+    Raises:
+        InvalidStatus.
+    """
+    try:
+        await conn.execute(
+            "SELECT dw.set_cashier_status($1, $2)",
+            discord_id,
+            status,
         )
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
