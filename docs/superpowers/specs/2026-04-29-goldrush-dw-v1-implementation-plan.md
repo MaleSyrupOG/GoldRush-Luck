@@ -25,10 +25,10 @@
 |---|---|
 | **Active phase** | Phase 3 — Bot skeleton (Epic 4 in progress) |
 | **Active epic** | Epic 4 — Bot skeleton |
-| **Active story** | Story 4.1 done; next is Story 4.2 — Cog loading + per-guild sync |
-| **Last commit** | `8f7fb15` (Story 3.4) → Story 4.1 commit pending |
-| **Next milestone** | Close Epic 4 (Stories 4.2-4.5) so the bot is fully wired and Epic 5 / 6 (deposit + withdraw flows) can start |
-| **Overall progress** | 25 / 78 stories done · 4 / 15 epics done · Epic 4 in progress (1 / 5) |
+| **Active story** | Stories 4.1 and 4.2 done; next is Story 4.3 — Account cog (`/balance`, `/help`) |
+| **Last commit** | `3b331a5` (Story 4.1) → Story 4.2 commit pending |
+| **Next milestone** | Close Epic 4 (Stories 4.3-4.5) so the bot is fully wired and Epic 5 / 6 (deposit + withdraw flows) can start |
+| **Overall progress** | 26 / 78 stories done · 4 / 15 epics done · Epic 4 in progress (2 / 5) |
 
 ### Epic-level status
 
@@ -37,7 +37,7 @@
 | 1 | Foundation extensions | Done | 3 / 3 |
 | 2 | Database schema additions | Done | 12 / 12 |
 | 3 | Core services & models | Done | 4 / 4 |
-| 4 | Bot skeleton | In Progress | 1 / 5 |
+| 4 | Bot skeleton | In Progress | 2 / 5 |
 | 5 | Deposit flow | Pending | 0 / 5 |
 | 6 | Withdraw flow | Pending | 0 / 4 |
 | 7 | Cashier system | Pending | 0 / 3 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-02 | Story 4.2 done. Six cog skeletons created under `goldrush_deposit_withdraw/cogs/` (account, admin, cashier, deposit, ticket, withdraw); each exposes the `async def setup(bot)` contract. `EXTENSIONS` tuple populated; `setup_hook` now loads all six. `DwBot.on_ready` overridden — calls `bot.tree.sync(guild=discord.Object(id=settings.guild_id))` for instant per-guild sync; logs `user_id`, `guild_id`, `command_count`. 10 new tests (1 base + 6 parametrized cog-contract + 3 functional); full suite 211 / 211; ruff + mypy strict clean. |
 | 2026-05-02 | Story 4.1 done. `goldrush_core/config/__init__.py` adds `CoreSettings` + `DwSettings` (pydantic-settings v2; secrets typed as SecretStr; reads from `.env.shared` + `.env.dw` in dev). `goldrush_core/logging/__init__.py` adds `setup_logging(level, *, format)` with a structlog + stdlib pipeline that toggles between JSON (production) and ConsoleRenderer (local dev). `goldrush_deposit_withdraw/client.py` adds `DwBot` (commands.Bot subclass) + `build_bot(settings, *, pool_factory=None)`; the pool factory is injectable for tests. `goldrush_deposit_withdraw/healthcheck.py` rewritten — opens a 1-conn pool with 3-second timeout, runs `SELECT 1`, exits 0 only when the result is exactly 1; every failure path (missing DSN, factory raises, timeout, wrong value, exception) maps to exit 1. `goldrush_deposit_withdraw/__main__.py` rewritten — loads settings, configures logging, runs the bot. asyncpg added to mypy `ignore_missing_imports` (no py.typed marker upstream). 25 new tests; full unit suite 201 / 201; ruff + mypy strict clean. |
 | 2026-05-02 | Story 3.4 done. Epic 3 closed. `goldrush_deposit_withdraw/setup/channel_factory.py` implements `setup_or_reuse_channels(guild, *, cashier_role_id, admin_role_id, dry_run=False, persist=None) -> SetupReport`. Idempotent name+parent matching; spec §5.3 permission matrix encoded per channel and per role; `manage_threads` substituted for the spec's "View Private Threads" because discord.py 2.4.0 does not expose `view_private_threads` (folded into manage_threads upstream). Persistence decoupled via async callback; module is DB-agnostic. Channel naming uses spec-canonical (`#cashier-alerts`, `#how-to-deposit`); the live server's renamed equivalents (`#cashier-requests`, etc.) will be re-linked via `/admin set-channel <key>` once Story 10.x lands — flagged inline. 23 tests in `tests/unit/dw/test_channel_factory.py`; full unit suite 177 / 177 green; ruff + mypy strict clean. |
 
@@ -542,10 +543,14 @@ Companion modules: `goldrush_core/config/__init__.py` (CoreSettings + DwSettings
 
 ### Story 4.2 — Cog loading + per-guild sync
 
+Status: Done (2026-05-02)
+
 **ACs:**
-- [ ] Loads all cogs from `EXTENSIONS` constant: `deposit_cog`, `withdraw_cog`, `ticket_cog`, `cashier_cog`, `admin_cog`, `account_cog`.
-- [ ] `on_ready` syncs `bot.tree` to `discord.Object(id=GUILD_ID)`.
-- [ ] Logs include synced command count.
+- [x] `EXTENSIONS` populated with the six canonical cog import paths under `goldrush_deposit_withdraw.cogs.*` (account, admin, cashier, deposit, ticket, withdraw). `setup_hook` iterates and `await self.load_extension(ext)` for each. Each cog module exposes the `async def setup(bot)` contract discord.py expects.
+- [x] `on_ready` overridden on `DwBot`; calls `bot.tree.sync(guild=discord.Object(id=settings.guild_id))` for instant per-guild sync.
+- [x] Logs include user_id + guild_id + synced command_count so a regression in cog loading or command registration is visible at boot.
+
+**Verification:** `tests/unit/dw/test_cogs_loading.py` — 10 tests (1 base + 6 parametrized + 3 functional). 211 / 211 unit tests; ruff + mypy strict clean on the cogs package and the updated client.
 
 **Dependencies:** Story 4.1
 **Effort:** S

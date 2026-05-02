@@ -26,11 +26,20 @@ from discord.ext import commands
 from goldrush_core.config import DwSettings
 from goldrush_core.db import create_pool
 
-# Cog import paths. Empty in Story 4.1; populated in Story 4.2 with
-# the six canonical cogs (deposit, withdraw, ticket, cashier, admin,
-# account). ``setup_hook`` iterates this list and calls
-# ``self.load_extension(ext)`` for each entry.
-EXTENSIONS: tuple[str, ...] = ()
+# Cog import paths. The six canonical cogs map one-for-one to the
+# command families in spec §5.1 (account, admin, cashier, deposit,
+# ticket, withdraw). ``setup_hook`` iterates this list and calls
+# ``self.load_extension(ext)`` for each entry. Slash commands inside
+# each cog are registered against ``bot.tree`` and synced per-guild
+# from ``on_ready``.
+EXTENSIONS: tuple[str, ...] = (
+    "goldrush_deposit_withdraw.cogs.account",
+    "goldrush_deposit_withdraw.cogs.admin",
+    "goldrush_deposit_withdraw.cogs.cashier",
+    "goldrush_deposit_withdraw.cogs.deposit",
+    "goldrush_deposit_withdraw.cogs.ticket",
+    "goldrush_deposit_withdraw.cogs.withdraw",
+)
 
 
 # Type alias for the asyncpg pool factory. Default is the real
@@ -89,6 +98,30 @@ class DwBot(commands.Bot):
         for ext in EXTENSIONS:
             await self.load_extension(ext)
             self._log.info("cog_loaded", extension=ext)
+
+    async def on_ready(self) -> None:
+        """Fired by discord.py once the gateway is ready.
+
+        Spec §5.7 step 3: sync the command tree to the configured
+        guild only. Per-guild sync is instant; global sync takes up
+        to an hour to propagate, so we choose per-guild even though
+        we run on a single server today (revisit when expansion is
+        on the table).
+
+        The number of synced commands is logged for diagnostics —
+        a sudden drop from one boot to the next is the canonical
+        signal that a cog failed to load or a command decorator
+        regressed.
+        """
+        guild = discord.Object(id=self.settings.guild_id)
+        synced = await self.tree.sync(guild=guild)
+        user_id = self.user.id if self.user is not None else 0
+        self._log.info(
+            "ready",
+            user_id=user_id,
+            guild_id=self.settings.guild_id,
+            command_count=len(synced),
+        )
 
     async def close_pool(self) -> None:
         """Close the DB pool — used on shutdown and by tests.
