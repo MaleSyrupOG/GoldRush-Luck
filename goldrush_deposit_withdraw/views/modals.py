@@ -107,8 +107,11 @@ class _TicketInputModal(discord.ui.Modal):
     faction: discord.ui.TextInput[discord.ui.Modal]
     amount: discord.ui.TextInput[discord.ui.Modal]
 
-    def __init__(self) -> None:
-        super().__init__()
+    def __init__(self, *, title: str) -> None:
+        # discord.py's Modal.__init__ validates ``title`` at construction
+        # time (raises ValueError if missing). The subclass is the only
+        # caller, so we accept it as a required kw-only arg and forward.
+        super().__init__(title=title)
         self.char_name = discord.ui.TextInput(
             label="Character name",
             placeholder="e.g., Malesyrup",
@@ -161,8 +164,7 @@ class DepositModal(_TicketInputModal):
             [discord.Interaction, DepositModalInput], Awaitable[None]
         ],
     ) -> None:
-        super().__init__()
-        self.title = "Open deposit ticket"
+        super().__init__(title="Open deposit ticket")
         self._on_validated = on_validated
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
@@ -193,8 +195,7 @@ class WithdrawModal(_TicketInputModal):
             [discord.Interaction, WithdrawModalInput], Awaitable[None]
         ],
     ) -> None:
-        super().__init__()
-        self.title = "Open withdraw ticket"
+        super().__init__(title="Open withdraw ticket")
         self._on_validated = on_validated
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
