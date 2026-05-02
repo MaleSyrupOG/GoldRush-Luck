@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 2 — Core services & models (Epic 3 in progress) |
-| **Active epic** | Epic 3 — Core services & models |
-| **Active story** | (Stories 3.1, 3.2 and 3.3 done; next is Story 3.4 — `/admin setup` channel factory) |
-| **Last commit** | `28068ee` (Story 3.2) → Story 3.3 commit pending |
-| **Next milestone** | Close Story 3.4 to finish Epic 3, then Epic 4 (bot skeleton) can land |
-| **Overall progress** | 23 / 78 stories done · 3 / 15 epics done · Epic 3 in progress (3 / 4) |
+| **Active phase** | Phase 3 — Bot skeleton (Epic 4 next) |
+| **Active epic** | Epic 4 — Bot skeleton (pending start) |
+| **Active story** | (Epic 3 closed: Stories 3.1-3.4 done; next is Story 4.1 — Bot client + healthcheck) |
+| **Last commit** | `ca81924` (Story 3.3) → Story 3.4 commit pending |
+| **Next milestone** | Land Epic 4 — real Discord client, cog manifest, healthcheck wiring against the live VPS Postgres |
+| **Overall progress** | 24 / 78 stories done · 4 / 15 epics done · Epic 3 complete (4 / 4) |
 
 ### Epic-level status
 
@@ -36,7 +36,7 @@
 |---|---|---|---|
 | 1 | Foundation extensions | Done | 3 / 3 |
 | 2 | Database schema additions | Done | 12 / 12 |
-| 3 | Core services & models | In Progress | 3 / 4 |
+| 3 | Core services & models | Done | 4 / 4 |
 | 4 | Bot skeleton | Pending | 0 / 5 |
 | 5 | Deposit flow | Pending | 0 / 5 |
 | 6 | Withdraw flow | Pending | 0 / 4 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-02 | Story 3.4 done. Epic 3 closed. `goldrush_deposit_withdraw/setup/channel_factory.py` implements `setup_or_reuse_channels(guild, *, cashier_role_id, admin_role_id, dry_run=False, persist=None) -> SetupReport`. Idempotent name+parent matching; spec §5.3 permission matrix encoded per channel and per role; `manage_threads` substituted for the spec's "View Private Threads" because discord.py 2.4.0 does not expose `view_private_threads` (folded into manage_threads upstream). Persistence decoupled via async callback; module is DB-agnostic. Channel naming uses spec-canonical (`#cashier-alerts`, `#how-to-deposit`); the live server's renamed equivalents (`#cashier-requests`, etc.) will be re-linked via `/admin set-channel <key>` once Story 10.x lands — flagged inline. 23 tests in `tests/unit/dw/test_channel_factory.py`; full unit suite 177 / 177 green; ruff + mypy strict clean. |
 
 ---
 
@@ -498,16 +499,19 @@ Status: Done (2026-05-02)
 
 ### Story 3.4 — `/admin setup` channel factory
 
+Status: Done (2026-05-02)
+
 **As Aleix I want** the channel-creation logic isolated and testable **so that** the `/admin setup` command can be exercised in tests without a real Discord guild.
 
 **ACs:**
-- [ ] `goldrush_deposit_withdraw/setup/channel_factory.py` exposes `setup_or_reuse_channels(guild, dry_run=False) -> SetupReport`.
-- [ ] Idempotent: if a category or channel already exists by name+parent, reuses it; never creates duplicates.
-- [ ] Applies the canonical permission overwrites per spec §5.3 matrix.
-- [ ] On real run, persists every channel id into `dw.global_config`.
-- [ ] Returns a `SetupReport` with per-channel `created` / `reused` flag for the preview embed.
-- [ ] Test (with discord.py mock): on a fresh mock guild, creates 2 categories + 8 channels with correct overwrites.
-- [ ] Test: re-running on the same mock state reuses everything; no new entities created.
+- [x] `goldrush_deposit_withdraw/setup/channel_factory.py` exposes `setup_or_reuse_channels(guild, *, cashier_role_id, admin_role_id, dry_run=False, persist=None) -> SetupReport`.
+- [x] Idempotent: matches by name + parent category. Re-running on a fully provisioned guild creates nothing (verified via `test_second_run_creates_nothing_when_state_unchanged`); partial state creates only the missing entities (`test_partial_state_creates_only_missing_channels`).
+- [x] Permission overwrites applied per spec §5.3 matrix. The spec's "View Private Threads" maps to discord.py's `manage_threads` flag (no `view_private_threads` flag exists in discord.py 2.4.0; documented inline). Verified for every role on every channel via dedicated tests for `cashier_alerts`, `disputes`, `how_to_deposit`, `deposit`, the `Cashier` category and the bot member.
+- [x] Persistence is decoupled — caller passes an async `persist` callback that receives `{channel_key: discord_id}`; the module never touches the DB. Skipped automatically on `dry_run`.
+- [x] `SetupReport` carries per-entity `created` / `reused` flags + `created_count` / `reused_count` properties for the preview embed.
+- [x] Tests with in-process discord.py fakes — `_FakeGuild`, `_FakeRole`, `_FakeMember`, `_FakeCategory`, `_FakeChannel`. 23 tests covering: spec sanity, fresh-guild creation, idempotent re-run, partial state, dry-run preview, persistence callback, every permission-matrix branch, role-less degraded mode, frozen-spec immutability.
+
+**Verification:** `tests/unit/dw/test_channel_factory.py` — 23 tests green. Full unit suite 177 / 177; ruff + mypy strict clean on the new module.
 
 **Dependencies:** Story 3.2
 **Effort:** L
