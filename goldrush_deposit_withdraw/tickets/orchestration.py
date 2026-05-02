@@ -20,14 +20,23 @@ the seam where DB-side concerns end and Discord-side begin.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal as _Lit
 
 from goldrush_core.balance import exceptions as exc
 from goldrush_core.balance.dw_manager import (
     apply_deposit_ticket,
     apply_withdraw_ticket,
+    cancel_deposit,
+    cancel_withdraw,
+    claim_ticket,
+    confirm_deposit,
+    confirm_withdraw,
+    release_ticket,
 )
 from goldrush_core.db import Executor
 from goldrush_core.models.dw_pydantic import DepositModalInput, WithdrawModalInput
+
+_TicketType = _Lit["deposit", "withdraw"]
 
 # ---------------------------------------------------------------------------
 # Deposit outcome union
@@ -262,18 +271,6 @@ LifecycleResult = (
 )
 
 
-from typing import Literal as _Lit  # local alias to avoid leaking
-
-from goldrush_core.balance.dw_manager import (  # noqa: E402
-    cancel_deposit,
-    cancel_withdraw,
-    claim_ticket,
-    release_ticket,
-)
-
-_TicketType = _Lit["deposit", "withdraw"]
-
-
 async def claim_ticket_for_cashier(
     *,
     pool: Executor,
@@ -358,7 +355,95 @@ async def cancel_ticket_dispatch(
         return LifecycleOutcome.Unexpected(message=e.message)
 
 
+# ---------------------------------------------------------------------------
+# Confirm outcome
+# ---------------------------------------------------------------------------
+
+
+class ConfirmOutcome:
+    """Variants for /confirm. Success carries the new balance so the
+    cog can render it in the confirmed embed without a second query."""
+
+    @dataclass(frozen=True)
+    class Success:
+        new_balance: int
+
+    @dataclass(frozen=True)
+    class TicketNotFound:
+        message: str = "ticket_not_found"
+
+    @dataclass(frozen=True)
+    class NotClaimed:
+        message: str
+
+    @dataclass(frozen=True)
+    class WrongCashier:
+        message: str
+
+    @dataclass(frozen=True)
+    class InvariantViolation:
+        """Raised by ``dw.confirm_withdraw`` if locked_balance < amount.
+
+        Should be impossible if the open flow is correct; we surface
+        it so admins are alerted to a deeper invariant breach."""
+
+        message: str
+
+    @dataclass(frozen=True)
+    class Unexpected:
+        message: str
+
+
+ConfirmResult = (
+    ConfirmOutcome.Success
+    | ConfirmOutcome.TicketNotFound
+    | ConfirmOutcome.NotClaimed
+    | ConfirmOutcome.WrongCashier
+    | ConfirmOutcome.InvariantViolation
+    | ConfirmOutcome.Unexpected
+)
+
+
+async def confirm_ticket_dispatch(
+    *,
+    pool: Executor,
+    ticket_type: _TicketType,
+    ticket_uid: str,
+    cashier_id: int,
+) -> ConfirmResult:
+    """Dispatch /confirm to ``confirm_deposit`` or ``confirm_withdraw``.
+
+    Both fns return the user's new balance after the credit /
+    debit. For deposit: balance increases by the ticket amount.
+    For withdraw: the balance is unchanged from the lock state
+    (the lock already deducted; this finalises) — but the treasury
+    gains the fee.
+    """
+    try:
+        if ticket_type == "deposit":
+            new_balance = await confirm_deposit(
+                pool, ticket_uid=ticket_uid, cashier_id=cashier_id
+            )
+        else:
+            new_balance = await confirm_withdraw(
+                pool, ticket_uid=ticket_uid, cashier_id=cashier_id
+            )
+        return ConfirmOutcome.Success(new_balance=new_balance)
+    except exc.TicketNotFound as e:
+        return ConfirmOutcome.TicketNotFound(message=e.message)
+    except exc.TicketNotClaimed as e:
+        return ConfirmOutcome.NotClaimed(message=e.message)
+    except exc.WrongCashier as e:
+        return ConfirmOutcome.WrongCashier(message=e.message)
+    except exc.InvariantViolation as e:
+        return ConfirmOutcome.InvariantViolation(message=e.message)
+    except exc.BalanceError as e:
+        return ConfirmOutcome.Unexpected(message=e.message)
+
+
 __all__ = [
+    "ConfirmOutcome",
+    "ConfirmResult",
     "DepositOutcome",
     "DepositResult",
     "LifecycleOutcome",
@@ -367,6 +452,7 @@ __all__ = [
     "WithdrawResult",
     "cancel_ticket_dispatch",
     "claim_ticket_for_cashier",
+    "confirm_ticket_dispatch",
     "open_deposit_ticket",
     "open_withdraw_ticket",
     "release_ticket_by_cashier",

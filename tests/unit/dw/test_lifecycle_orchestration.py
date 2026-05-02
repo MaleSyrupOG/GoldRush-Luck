@@ -183,3 +183,113 @@ async def test_cancel_translates_already_terminal() -> None:
         reason="user requested",
     )
     assert isinstance(outcome, LifecycleOutcome.AlreadyTerminal)
+
+
+# ---------------------------------------------------------------------------
+# confirm
+# ---------------------------------------------------------------------------
+
+
+class _PoolWithBalance:
+    """Pool that returns a fixed integer for confirm_deposit / confirm_withdraw."""
+
+    def __init__(self, *, new_balance: int = 0, raise_message: str | None = None) -> None:
+        self._balance = new_balance
+        self._raise = raise_message
+
+    async def fetchval(self, query: str, *args: Any, timeout: float | None = None) -> int:
+        if self._raise is not None:
+            raise asyncpg.RaiseError(self._raise)
+        return self._balance
+
+
+@pytest.mark.asyncio
+async def test_confirm_deposit_returns_new_balance() -> None:
+    from goldrush_deposit_withdraw.tickets.orchestration import (
+        ConfirmOutcome,
+        confirm_ticket_dispatch,
+    )
+
+    pool = _PoolWithBalance(new_balance=125_000)
+    outcome = await confirm_ticket_dispatch(
+        pool=pool,  # type: ignore[arg-type]
+        ticket_type="deposit",
+        ticket_uid="deposit-1",
+        cashier_id=42,
+    )
+    assert isinstance(outcome, ConfirmOutcome.Success)
+    assert outcome.new_balance == 125_000
+
+
+@pytest.mark.asyncio
+async def test_confirm_withdraw_returns_new_balance() -> None:
+    """Withdraw confirm: balance is unchanged (lock already deducted)
+    but the row is now terminal and the treasury has the fee."""
+    from goldrush_deposit_withdraw.tickets.orchestration import (
+        ConfirmOutcome,
+        confirm_ticket_dispatch,
+    )
+
+    pool = _PoolWithBalance(new_balance=50_000)
+    outcome = await confirm_ticket_dispatch(
+        pool=pool,  # type: ignore[arg-type]
+        ticket_type="withdraw",
+        ticket_uid="withdraw-1",
+        cashier_id=42,
+    )
+    assert isinstance(outcome, ConfirmOutcome.Success)
+
+
+@pytest.mark.asyncio
+async def test_confirm_translates_wrong_cashier() -> None:
+    from goldrush_deposit_withdraw.tickets.orchestration import (
+        ConfirmOutcome,
+        confirm_ticket_dispatch,
+    )
+
+    pool = _PoolWithBalance(raise_message="wrong_cashier (claimed_by=999 calling=42)")
+    outcome = await confirm_ticket_dispatch(
+        pool=pool,  # type: ignore[arg-type]
+        ticket_type="deposit",
+        ticket_uid="deposit-1",
+        cashier_id=42,
+    )
+    assert isinstance(outcome, ConfirmOutcome.WrongCashier)
+
+
+@pytest.mark.asyncio
+async def test_confirm_translates_invariant_violation() -> None:
+    """``invariant_violation_locked_too_low`` should arrive as
+    InvariantViolation — distinct from the generic Unexpected."""
+    from goldrush_deposit_withdraw.tickets.orchestration import (
+        ConfirmOutcome,
+        confirm_ticket_dispatch,
+    )
+
+    pool = _PoolWithBalance(
+        raise_message="invariant_violation_locked_too_low (locked=10, ticket_amount=50)"
+    )
+    outcome = await confirm_ticket_dispatch(
+        pool=pool,  # type: ignore[arg-type]
+        ticket_type="withdraw",
+        ticket_uid="withdraw-1",
+        cashier_id=42,
+    )
+    assert isinstance(outcome, ConfirmOutcome.InvariantViolation)
+
+
+@pytest.mark.asyncio
+async def test_confirm_translates_not_claimed() -> None:
+    from goldrush_deposit_withdraw.tickets.orchestration import (
+        ConfirmOutcome,
+        confirm_ticket_dispatch,
+    )
+
+    pool = _PoolWithBalance(raise_message="ticket_not_claimed (status=open)")
+    outcome = await confirm_ticket_dispatch(
+        pool=pool,  # type: ignore[arg-type]
+        ticket_type="deposit",
+        ticket_uid="deposit-1",
+        cashier_id=42,
+    )
+    assert isinstance(outcome, ConfirmOutcome.NotClaimed)

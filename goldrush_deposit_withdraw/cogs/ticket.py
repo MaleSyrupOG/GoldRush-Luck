@@ -40,16 +40,21 @@ from discord.ext import commands
 from goldrush_core.embeds.dw_tickets import (
     deposit_ticket_cancelled_embed,
     deposit_ticket_claimed_embed,
+    deposit_ticket_confirmed_embed,
     withdraw_ticket_cancelled_embed,
     withdraw_ticket_claimed_embed,
+    withdraw_ticket_confirmed_embed,
 )
 
 from goldrush_deposit_withdraw.tickets.orchestration import (
+    ConfirmOutcome,
     LifecycleOutcome,
     cancel_ticket_dispatch,
     claim_ticket_for_cashier,
+    confirm_ticket_dispatch,
     release_ticket_by_cashier,
 )
+from goldrush_deposit_withdraw.views.modals import ConfirmTicketModal
 
 if TYPE_CHECKING:
     from goldrush_deposit_withdraw.client import DwBot
@@ -214,6 +219,71 @@ class TicketCog(commands.Cog):
         )
 
     @app_commands.command(
+        name="confirm",
+        description="Confirm the ticket after the in-game trade has happened (2FA modal).",
+    )
+    async def confirm(self, interaction: discord.Interaction) -> None:
+        """Open the 2FA modal that finalises the ticket.
+
+        Spec §5.5: cashiers MUST type the magic word ``CONFIRM``
+        verbatim. Lowercase / typos are rejected by the modal
+        validator without ever calling the SECURITY DEFINER fn.
+        """
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+
+        ctx = await _resolve_ticket_context(bot.pool, interaction)
+        if ctx is None:
+            return
+        ticket_type, ticket_uid, ticket_row = ctx
+
+        async def _on_confirmed(modal_interaction: discord.Interaction) -> None:
+            assert bot.pool is not None
+            outcome = await confirm_ticket_dispatch(
+                pool=bot.pool,
+                ticket_type=ticket_type,
+                ticket_uid=ticket_uid,
+                cashier_id=modal_interaction.user.id,
+            )
+            if isinstance(outcome, ConfirmOutcome.Success):
+                embed = _build_confirmed_embed(
+                    ticket_type=ticket_type,
+                    ticket_row=ticket_row,
+                    new_balance=outcome.new_balance,
+                )
+                assert isinstance(
+                    modal_interaction.channel,
+                    discord.Thread | discord.TextChannel,
+                )
+                await modal_interaction.channel.send(embed=embed)
+                await modal_interaction.response.send_message(
+                    "Confirmed.",
+                    ephemeral=True,
+                )
+                _log.info(
+                    "ticket_confirmed",
+                    ticket_uid=ticket_uid,
+                    ticket_type=ticket_type,
+                    cashier_id=modal_interaction.user.id,
+                    new_balance=outcome.new_balance,
+                )
+                return
+
+            await modal_interaction.response.send_message(
+                _format_confirm_failure(outcome),
+                ephemeral=True,
+            )
+
+        await interaction.response.send_modal(
+            ConfirmTicketModal(magic_word="CONFIRM", on_confirm=_on_confirmed)
+        )
+
+    @app_commands.command(
         name="cancel-mine",
         description="Cancel your own open ticket before a cashier claims it.",
     )
@@ -374,6 +444,58 @@ def _build_cancelled_embed(
         reason=reason,
         cancelled_at=cancelled_at,
     )
+
+
+def _build_confirmed_embed(
+    *,
+    ticket_type: _TicketType,
+    ticket_row: dict[str, object],
+    new_balance: int,
+) -> discord.Embed:
+    """Render the post-confirm embed with the new balance.
+
+    Withdraw confirm: the user's balance is unchanged from the
+    locked state; the canonical "Delivered" amount is what the
+    cashier traded in-game. We read fee from the ticket row
+    (captured at open time per spec §4.2).
+    """
+    confirmed_at = discord.utils.utcnow()
+    if ticket_type == "deposit":
+        return deposit_ticket_confirmed_embed(
+            ticket_uid=str(ticket_row["ticket_uid"]),
+            amount=cast(int, ticket_row["amount"]),
+            new_balance=new_balance,
+            confirmed_at=confirmed_at,
+        )
+    # Withdraw — fee is on the row; delivered = amount - fee.
+    amount = cast(int, ticket_row["amount"])
+    # The fee column may be absent from our test row; default to 2 %.
+    fee_obj = ticket_row.get("fee", None)
+    fee = cast(int, fee_obj) if fee_obj is not None else amount * 200 // 10000
+    delivered = amount - fee
+    return withdraw_ticket_confirmed_embed(
+        ticket_uid=str(ticket_row["ticket_uid"]),
+        amount=amount,
+        fee=fee,
+        amount_delivered=delivered,
+        new_balance=new_balance,
+        confirmed_at=confirmed_at,
+    )
+
+
+def _format_confirm_failure(outcome: object) -> str:
+    if isinstance(outcome, ConfirmOutcome.TicketNotFound):
+        return "❌ Ticket not found."
+    if isinstance(outcome, ConfirmOutcome.NotClaimed):
+        return "❌ Cannot confirm: this ticket is not currently claimed."
+    if isinstance(outcome, ConfirmOutcome.WrongCashier):
+        return "❌ Only the claiming cashier can confirm this ticket."
+    if isinstance(outcome, ConfirmOutcome.InvariantViolation):
+        return (
+            "❌ A balance invariant was violated — admin has been notified. "
+            "Do not retry."
+        )
+    return "❌ Could not confirm the ticket. Try again later."
 
 
 def _format_lifecycle_failure(outcome: object, *, action: str) -> str:

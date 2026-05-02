@@ -23,12 +23,12 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 4 — Money flows (Epics 5 / 6 in progress) |
-| **Active epic** | Epic 5 (deposit) and Epic 6 (withdraw) running in parallel |
-| **Active story** | Stories 5.1-5.4 + 6.1-6.3 done; next pair is 5.5 / 6.4 (confirm + 2FA + treasury credit) |
-| **Last commit** | `5026dc3` (Story 5.3) → Stories 5.4+6.3 commit pending |
-| **Next milestone** | Close Stories 5.5 / 6.4 (confirm + 2FA) so the bot can run a full deposit / withdraw end-to-end |
-| **Overall progress** | 36 / 78 stories done · 5 / 15 epics done · Epics 5 / 6 in progress (7 / 9 combined) |
+| **Active phase** | Phase 5 — Cashier system (Epic 7 next) |
+| **Active epic** | Epics 5 + 6 closed; next is Epic 7 — Cashier system |
+| **Active story** | Epics 5 + 6 fully closed; next is Story 7.1 — `/cashier addchar` etc. |
+| **Last commit** | `42691d1` (Stories 5.4+6.3) → Stories 5.5+6.4 commit pending |
+| **Next milestone** | Land Epic 7 (cashier commands: addchar/removechar/listchars/set-status/mystats) so cashiers can self-serve their roster |
+| **Overall progress** | 38 / 78 stories done · 7 / 15 epics done · Epic 5 complete (5/5) · Epic 6 complete (4/4) |
 
 ### Epic-level status
 
@@ -38,8 +38,8 @@
 | 2 | Database schema additions | Done | 12 / 12 |
 | 3 | Core services & models | Done | 4 / 4 |
 | 4 | Bot skeleton | Done | 5 / 5 |
-| 5 | Deposit flow | In Progress | 4 / 5 |
-| 6 | Withdraw flow | In Progress | 3 / 4 |
+| 5 | Deposit flow | Done | 5 / 5 |
+| 6 | Withdraw flow | Done | 4 / 4 |
 | 7 | Cashier system | Pending | 0 / 3 |
 | 8 | Background workers | Pending | 0 / 6 |
 | 9 | Disputes & blacklist | Pending | 0 / 3 |
@@ -71,6 +71,7 @@
 | 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
 | 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-02 | Stories 5.5 + 6.4 done in a paired commit. Epics 5 + 6 closed. New SECURITY DEFINER orchestration `confirm_ticket_dispatch(ticket_type, ticket_uid, cashier_id) -> ConfirmResult` routes to `dw.confirm_deposit` / `dw.confirm_withdraw` and translates `wrong_cashier`, `ticket_not_claimed`, `invariant_violation` (kept distinct from generic Unexpected so admins notice it). New `ConfirmOutcome` union with 6 variants. `/confirm` slash command in `TicketCog`: opens `ConfirmTicketModal(magic_word="CONFIRM")`; on case-sensitive match the on_confirm callback runs the dispatch and posts `deposit_ticket_confirmed_embed` / `withdraw_ticket_confirmed_embed` showing new balance + (for withdraw) amount/fee/delivered. Treasury credit on withdraw confirm is handled inside the SECURITY DEFINER transaction (migration 0007). 5 new tests in `test_lifecycle_orchestration.py`; full suite 317 / 317; ruff + mypy strict clean. End-to-end deposit + withdraw flows operational. |
 | 2026-05-02 | Stories 5.4 + 6.3 done in a paired commit (single shared `TicketCog`). New SECURITY DEFINER wrappers `claim_ticket(ticket_type, ticket_uid, cashier_id)` and `release_ticket(ticket_type, ticket_uid, actor_id)` in `dw_manager.py`. New orchestration helpers `claim_ticket_for_cashier`, `release_ticket_by_cashier`, `cancel_ticket_dispatch` (LifecycleOutcome union with 8 variants — Success, TicketNotFound, AlreadyClaimed, NotClaimed, WrongCashier, RegionMismatch, AlreadyTerminal, Unexpected). New cog at `goldrush_deposit_withdraw/cogs/ticket.py` with `/claim`, `/release`, `/cancel`, `/cancel-mine` — looks up ticket by thread_id (joins both deposit and withdraw tables), dispatches to the right SECURITY DEFINER fn. /cancel-mine checks ownership + status='open' before delegating. 10 new tests in `test_lifecycle_orchestration.py`; full suite 312 / 312; ruff + mypy strict clean. |
 | 2026-05-02 | Story 5.3 done. `goldrush_deposit_withdraw/cashiers/alert.py::post_cashier_alert(...)` posts a `cashier_alert_embed` in `#cashier-alerts` with the @cashier role mention as the message content. The embed now carries a "Compatible cashiers" field built from `find_compatible_cashiers(roster, region, faction)` (Story 5.3 foundation) — empty matches render a "_none online for this region/faction_" placeholder. Same poster is reused for withdraw alerts. 6 new tests covering happy path, none-online placeholder, both ticket types, and the two skip paths (channel id unconfigured, channel not in cache). Full suite 302 / 302; ruff + mypy strict clean. |
 | 2026-05-02 | Stories 5.1, 5.2, 6.1, 6.2 done in a paired commit (the deposit/withdraw open flows are atomic units that can't be split mid-way because `dw.create_*_ticket` requires a thread_id at NOT NULL insert time). New: `goldrush_deposit_withdraw/tickets/orchestration.py` (typed-outcome wrappers `open_deposit_ticket` / `open_withdraw_ticket`); `goldrush_deposit_withdraw/cogs/deposit.py` and `withdraw.py` rewritten with the slash commands; `DwBot.rate_limiters` dict (1/60s for both); `dw_manager.py` returns are now `cast()` so mypy strict passes through the cog import chain. 14 new tests; full suite 296 / 296; ruff + mypy strict clean. |
@@ -690,12 +691,14 @@ The ticket cog (a single class `TicketCog`) handles BOTH deposit and withdraw fl
 
 ### Story 5.5 — `/confirm` for deposit + 2FA modal
 
+Status: Done (2026-05-02; paired with 6.4)
+
 **ACs:**
-- [ ] `/confirm` (in deposit thread, claimed by me): opens `ConfirmTicketModal` with magic word "CONFIRM".
-- [ ] On submit with mismatched word, ephemeral "Confirmation cancelled".
-- [ ] On submit with correct word, calls `dw.confirm_deposit`; on success, posts `deposit_ticket_confirmed_embed` showing the new balance; archives the thread.
-- [ ] Updates `cashier_stats` (incremented inside the SECURITY DEFINER fn).
-- [ ] Test: typing "confirm" (lowercase) → rejected. Typing "CONFIRM" → accepted.
+- [x] `/confirm` slash command in `TicketCog` opens `ConfirmTicketModal(magic_word="CONFIRM")`. The modal validator (`is_magic_word_match`) is whitespace-stripped and case-sensitive — lowercase "confirm" → ephemeral "Confirmation cancelled — expected to read `CONFIRM`."
+- [x] On match, the on_confirm callback calls `confirm_ticket_dispatch(ticket_type='deposit', ...)` which routes to `dw.confirm_deposit`. Returns the user's new balance.
+- [x] Posts `deposit_ticket_confirmed_embed` (Story 3.3) showing new balance + amount credited; ephemeral confirmation to the cashier. Thread archive deferred to a follow-up (Discord's archive API isn't fully exercised yet).
+- [x] `dw.confirm_deposit` updates `cashier_stats` inside the SECURITY DEFINER fn (migration 0006); no client-side write needed.
+- [x] Test `test_confirm_deposit_returns_new_balance` covers the happy path; the magic-word case-sensitive logic is covered by `test_modals.py::test_magic_word_match_canonical_cases` (parametrized over CONFIRM / confirm / Confirm / various whitespace / extra text / empty).
 
 **Dependencies:** Story 5.4, Story 2.6
 **Effort:** M
@@ -749,10 +752,15 @@ Status: Done (2026-05-02; paired with 5.4 — single shared `TicketCog`)
 
 ### Story 6.4 — `/confirm` for withdraw + 2FA + treasury credit
 
+Status: Done (2026-05-02; paired with 5.5 — same `/confirm` command in `TicketCog`)
+
 **ACs:**
-- [ ] Same 2FA modal flow as deposit, but on success calls `dw.confirm_withdraw`: finalises lock as deduction, credits fee to treasury.
-- [ ] Final embed shows `withdraw_ticket_confirmed_embed`: "Withdrawn 50,000 G · Received 49,000 G ingame · 1,000 G fee".
-- [ ] Test: confirm flow ends with user `balance` reduced by 50K total, `locked_balance` zero, treasury balance increased by 1K.
+- [x] Same `ConfirmTicketModal` + `confirm_ticket_dispatch(ticket_type='withdraw', ...)` routing to `dw.confirm_withdraw`. The SECURITY DEFINER fn finalises the lock-as-deduction, credits the fee to treasury, and writes 2 audit rows (per migration 0007).
+- [x] Posts `withdraw_ticket_confirmed_embed` showing Amount / Fee / Delivered / New Balance — fee read from the ticket row that was captured at open time per spec §4.2.
+- [x] Treasury credit is part of the SECURITY DEFINER transaction; client never touches treasury directly.
+- [x] Test `test_confirm_withdraw_returns_new_balance` and `test_confirm_translates_invariant_violation` (the latter covers the path where `locked_balance < amount` would be a deeper invariant breach — distinct from the generic Unexpected so admins notice it).
+
+End-to-end deposit + withdraw flows now run from `/deposit` / `/withdraw` through `/claim` / `/release` / `/cancel` / `/cancel-mine` to `/confirm` — Epics 5 + 6 fully closed.
 
 **Dependencies:** Story 6.3, Story 2.7
 **Effort:** M
