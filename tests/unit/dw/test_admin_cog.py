@@ -247,3 +247,21 @@ def test_admin_unban_user_takes_user_only() -> None:
         return {p.name for p in cmd.parameters}
 
     assert asyncio.run(_exercise()) == {"user"}
+
+
+# ---------------------------------------------------------------------------
+# Story 8.6 — /admin-verify-audit (on-demand audit chain verification)
+# ---------------------------------------------------------------------------
+
+
+def test_admin_cog_registers_verify_audit_command() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        return {cmd.name for cmd in cog.get_app_commands()}
+
+    names = asyncio.run(_exercise())
+    assert "admin-verify-audit" in names

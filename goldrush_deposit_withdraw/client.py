@@ -29,6 +29,9 @@ from goldrush_core.ratelimit import FixedWindowLimiter
 
 from goldrush_deposit_withdraw.cashiers.live_updater import OnlineCashiersUpdater
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
+from goldrush_deposit_withdraw.workers.audit_chain_verifier import (
+    AuditChainVerifierWorker,
+)
 from goldrush_deposit_withdraw.workers.cashier_idle import CashierIdleWorker
 from goldrush_deposit_withdraw.workers.claim_idle import ClaimIdleWorker
 from goldrush_deposit_withdraw.workers.stats_aggregator import StatsAggregatorWorker
@@ -73,6 +76,7 @@ class DwBot(commands.Bot):
     _claim_idle_worker: ClaimIdleWorker | None
     _cashier_idle_worker: CashierIdleWorker | None
     _stats_aggregator_worker: StatsAggregatorWorker | None
+    _audit_chain_verifier_worker: AuditChainVerifierWorker | None
 
     def __init__(
         self,
@@ -95,6 +99,7 @@ class DwBot(commands.Bot):
         self._claim_idle_worker = None
         self._cashier_idle_worker = None
         self._stats_aggregator_worker = None
+        self._audit_chain_verifier_worker = None
         # Rate limiters keyed by command family. Spec: 1 ticket
         # creation per user per 60 s for both /deposit and /withdraw.
         # Other limiters (cashier set-status, /help) can be added by
@@ -240,6 +245,20 @@ class DwBot(commands.Bot):
             except Exception as e:
                 self._log.exception("stats_aggregator_worker_failed", error=str(e))
 
+            # Story 8.6: spin up the audit chain verifier (every 6 h,
+            # walks core.audit_log recomputing the HMAC chain).
+            try:
+                if self._audit_chain_verifier_worker is None:
+                    self._audit_chain_verifier_worker = AuditChainVerifierWorker(
+                        pool=self.pool,
+                    )
+                    self._audit_chain_verifier_worker.start()
+                    self._log.info("audit_chain_verifier_worker_started")
+            except Exception as e:
+                self._log.exception(
+                    "audit_chain_verifier_worker_failed", error=str(e)
+                )
+
     async def close_pool(self) -> None:
         """Close the DB pool and stop background tasks — used on shutdown.
 
@@ -262,6 +281,9 @@ class DwBot(commands.Bot):
         if self._stats_aggregator_worker is not None:
             await self._stats_aggregator_worker.stop()
             self._stats_aggregator_worker = None
+        if self._audit_chain_verifier_worker is not None:
+            await self._audit_chain_verifier_worker.stop()
+            self._audit_chain_verifier_worker = None
         if self.pool is not None:
             await self.pool.close()
             self.pool = None

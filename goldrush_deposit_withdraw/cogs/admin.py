@@ -66,6 +66,9 @@ from goldrush_deposit_withdraw.setup.global_config_writer import (
     persist_role_ids,
 )
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
+from goldrush_deposit_withdraw.workers.audit_chain_verifier import (
+    tick as verify_audit_chain_tick,
+)
 
 if TYPE_CHECKING:
     from goldrush_deposit_withdraw.client import DwBot
@@ -841,6 +844,48 @@ class AdminCog(commands.Cog):
             actor_id=interaction.user.id,
             target_id=user.id,
             reason=reason,
+        )
+
+    @app_commands.command(
+        name="admin-verify-audit",
+        description="Walk core.audit_log recomputing the HMAC chain (on-demand).",
+    )
+    async def verify_audit_cmd(
+        self,
+        interaction: discord.Interaction,
+    ) -> None:
+        """Story 8.6: on-demand verifier. Runs the same SDF the
+        background worker does and reports the outcome inline."""
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.defer(ephemeral=True, thinking=True)
+        try:
+            result = await verify_audit_chain_tick(pool=bot.pool)
+        except Exception as e:
+            _log.exception("admin_verify_audit_failed", error=str(e))
+            await interaction.followup.send(
+                f"❌ Verifier crashed: `{type(e).__name__}` — see logs.",
+                ephemeral=True,
+            )
+            return
+
+        if result.broken_at_id is not None:
+            await interaction.followup.send(
+                f"🚨 **Chain break detected at id `{result.broken_at_id}`** — "
+                f"checked {result.checked_count} rows; last verified id is "
+                f"`{result.last_verified_id}`. Investigate immediately.",
+                ephemeral=True,
+            )
+            return
+        await interaction.followup.send(
+            f"✅ Chain verified across {result.checked_count} new row(s). "
+            f"Last verified id: `{result.last_verified_id}`.",
+            ephemeral=True,
         )
 
     @app_commands.command(
