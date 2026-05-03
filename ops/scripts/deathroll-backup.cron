@@ -1,0 +1,12 @@
+# DeathRoll — root cron entry for daily Postgres backup.
+# Install with:
+#     sudo cp /opt/deathroll/repo/ops/scripts/deathroll-backup.cron /etc/cron.d/deathroll-backup
+#     sudo chmod 644 /etc/cron.d/deathroll-backup
+# Cron picks it up automatically.
+
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+MAILTO=""
+
+# Daily at 03:00 UTC
+0 3 * * * root /opt/deathroll/repo/ops/scripts/backup.sh >> /var/log/deathroll-backup.log 2>&1

@@ -23,8 +23,15 @@ backup-gpg-private.asc
 # =============================================================================
 # Reference material (third-party screenshots, not project assets)
 # =============================================================================
+# Local-only reference dirs the operator created from his pre-bot Discord
+# server. Named with the platform's original "GoldRush" name; left as-is
+# because they're untracked operator artefacts (renaming them on disk is
+# the operator's call). DeathRoll-named equivalents also ignored for forward-
+# compat in case the operator does rename them.
 GoldRush Luck/
 GoldRush Poker/
+DeathRoll Luck/
+DeathRoll Poker/
 *.dump
 *.dump.gpg
 

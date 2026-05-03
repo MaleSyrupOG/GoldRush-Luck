@@ -12,7 +12,7 @@
 #     ./restore.sh /opt/deathroll/backups/daily/deathroll-2026-05-01T03-00-00Z.dump.gpg
 #
 # Or for a one-off drill into a temporary DB:
-#     RESTORE_DB=goldrush_drill ./restore.sh /path/to/backup.dump.gpg
+#     RESTORE_DB=deathroll_drill ./restore.sh /path/to/backup.dump.gpg
 #
 # Steps:
 #   1. Verify the archive exists and has a sane size.
