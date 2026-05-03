@@ -16,7 +16,10 @@ dependencies = [
     "pydantic==2.10.4",
     "pydantic-settings==2.7.0",
     "structlog==24.4.0",
-    "Pillow==11.0.0",
+    # Pillow was added for Luck's banner generator which is paused;
+    # no current import touches it, so we drop the dep to remove the
+    # CVE surface (GHSA-cfh3-3jmp-rvhc, GHSA-whj4-6x5x-4v2j on
+    # 11.0.0). Re-add when Luck resumes — bump to 12.x then.
     "prometheus-client==0.21.0",
 ]
 
@@ -30,7 +33,7 @@ dev = [
     "pip-audit==2.7.3",
     "ruff==0.8.4",
     "mypy==1.13.0",
-    "types-Pillow",
+    # types-Pillow dropped alongside Pillow (Story 15.3 security review).
     # Story 11.3: alert rules YAML validation in tests/unit/dw/test_alert_rules.py.
     "pyyaml==6.0.2",
     "types-PyYAML==6.0.12.20240917",
