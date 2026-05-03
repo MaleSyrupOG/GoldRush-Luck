@@ -31,6 +31,7 @@ from goldrush_deposit_withdraw.cashiers.live_updater import OnlineCashiersUpdate
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
 from goldrush_deposit_withdraw.workers.cashier_idle import CashierIdleWorker
 from goldrush_deposit_withdraw.workers.claim_idle import ClaimIdleWorker
+from goldrush_deposit_withdraw.workers.stats_aggregator import StatsAggregatorWorker
 from goldrush_deposit_withdraw.workers.ticket_timeout import TicketTimeoutWorker
 
 # Cog import paths. The six canonical cogs map one-for-one to the
@@ -71,6 +72,7 @@ class DwBot(commands.Bot):
     _ticket_timeout_worker: TicketTimeoutWorker | None
     _claim_idle_worker: ClaimIdleWorker | None
     _cashier_idle_worker: CashierIdleWorker | None
+    _stats_aggregator_worker: StatsAggregatorWorker | None
 
     def __init__(
         self,
@@ -92,6 +94,7 @@ class DwBot(commands.Bot):
         self._ticket_timeout_worker = None
         self._claim_idle_worker = None
         self._cashier_idle_worker = None
+        self._stats_aggregator_worker = None
         # Rate limiters keyed by command family. Spec: 1 ticket
         # creation per user per 60 s for both /deposit and /withdraw.
         # Other limiters (cashier set-status, /help) can be added by
@@ -227,6 +230,16 @@ class DwBot(commands.Bot):
             except Exception as e:
                 self._log.exception("cashier_idle_worker_failed", error=str(e))
 
+            # Story 8.5: spin up the stats aggregator (every 15 min,
+            # recomputes avg_claim_to_confirm_s + total_online_seconds).
+            try:
+                if self._stats_aggregator_worker is None:
+                    self._stats_aggregator_worker = StatsAggregatorWorker(pool=self.pool)
+                    self._stats_aggregator_worker.start()
+                    self._log.info("stats_aggregator_worker_started")
+            except Exception as e:
+                self._log.exception("stats_aggregator_worker_failed", error=str(e))
+
     async def close_pool(self) -> None:
         """Close the DB pool and stop background tasks — used on shutdown.
 
@@ -246,6 +259,9 @@ class DwBot(commands.Bot):
         if self._cashier_idle_worker is not None:
             await self._cashier_idle_worker.stop()
             self._cashier_idle_worker = None
+        if self._stats_aggregator_worker is not None:
+            await self._stats_aggregator_worker.stop()
+            self._stats_aggregator_worker = None
         if self.pool is not None:
             await self.pool.close()
             self.pool = None

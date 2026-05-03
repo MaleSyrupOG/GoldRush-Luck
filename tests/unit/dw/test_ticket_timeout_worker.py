@@ -18,9 +18,7 @@ from typing import Any
 
 import asyncpg
 import pytest
-
 from goldrush_deposit_withdraw.workers.ticket_timeout import tick
-
 
 # ---------------------------------------------------------------------------
 # Pool fake — captures SQL the worker emits and the wrappers it calls.
@@ -92,7 +90,7 @@ class _FakePool:
 class _FakeBot:
     """Minimal bot — only used by the audit poster fallback path."""
 
-    def get_channel(self, channel_id: int) -> None:  # noqa: ARG002
+    def get_channel(self, channel_id: int) -> None:
         return None
 
 

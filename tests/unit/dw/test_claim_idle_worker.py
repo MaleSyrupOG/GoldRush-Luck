@@ -21,7 +21,6 @@ from typing import Any
 
 import asyncpg
 import pytest
-
 from goldrush_deposit_withdraw.workers.claim_idle import tick
 
 
@@ -82,7 +81,7 @@ class _FakePool:
 
 
 class _FakeBot:
-    def get_channel(self, channel_id: int) -> None:  # noqa: ARG002
+    def get_channel(self, channel_id: int) -> None:
         return None
 
 

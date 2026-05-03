@@ -15,7 +15,6 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-
 from goldrush_deposit_withdraw.workers._periodic import PeriodicWorker
 
 
