@@ -80,4 +80,39 @@ async def persist_role_ids(
         )
 
 
-__all__ = ["persist_channel_ids", "persist_role_ids"]
+async def persist_config_int(
+    executor: Executor,
+    *,
+    key: str,
+    value: int,
+    actor_id: int,
+) -> None:
+    """UPSERT a single integer-typed ``dw.global_config`` row.
+
+    Used by Story 10.2 (``/admin-set-deposit-limits``,
+    ``/admin-set-withdraw-limits``, ``/admin-set-fee-withdraw``) and
+    by Story 8.6's audit chain verifier (``last_verified_audit_row_id``,
+    although that one writes inline rather than going through this
+    helper because its key is internal-only).
+
+    Unlike ``persist_channel_ids`` and ``persist_role_ids``, this writer
+    does NOT prefix the key — caller passes the canonical key as-is
+    (e.g. ``"min_deposit_g"``, ``"withdraw_fee_bps"``). The bot's
+    config-reader helpers and the seed migration ``0005`` already use
+    those bare keys, so any prefix here would create a parallel set of
+    rows.
+    """
+    await executor.execute(_UPSERT, key, value, actor_id)
+    _log.info(
+        "global_config_int_written",
+        key=key,
+        value=value,
+        actor_id=actor_id,
+    )
+
+
+__all__ = [
+    "persist_channel_ids",
+    "persist_config_int",
+    "persist_role_ids",
+]

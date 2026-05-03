@@ -44,6 +44,7 @@ from goldrush_core.embeds.dw_tickets import (
 )
 
 from goldrush_deposit_withdraw.audit_log import (
+    audit_config_changed,
     audit_dispute_opened,
     audit_dispute_rejected,
     audit_dispute_resolved,
@@ -63,6 +64,7 @@ from goldrush_deposit_withdraw.setup.channel_factory import (
 )
 from goldrush_deposit_withdraw.setup.global_config_writer import (
     persist_channel_ids,
+    persist_config_int,
     persist_role_ids,
 )
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
@@ -886,6 +888,173 @@ class AdminCog(commands.Cog):
             f"✅ Chain verified across {result.checked_count} new row(s). "
             f"Last verified id: `{result.last_verified_id}`.",
             ephemeral=True,
+        )
+
+    # -----------------------------------------------------------------------
+    # Story 10.2: /admin-set-deposit-limits, /admin-set-withdraw-limits,
+    # /admin-set-fee-withdraw — UPSERT into dw.global_config + audit poster.
+    # -----------------------------------------------------------------------
+
+    @app_commands.command(
+        name="admin-set-deposit-limits",
+        description="Update min / max deposit amount (gold).",
+    )
+    @app_commands.describe(
+        min_g="Minimum deposit amount in gold (positive integer).",
+        max_g="Maximum deposit amount in gold (must be >= min_g).",
+    )
+    async def set_deposit_limits_cmd(
+        self,
+        interaction: discord.Interaction,
+        min_g: int,
+        max_g: int,
+    ) -> None:
+        await self._handle_set_pair(
+            interaction=interaction,
+            label="deposit",
+            key_min="min_deposit_g",
+            key_max="max_deposit_g",
+            min_value=min_g,
+            max_value=max_g,
+        )
+
+    @app_commands.command(
+        name="admin-set-withdraw-limits",
+        description="Update min / max withdraw amount (gold).",
+    )
+    @app_commands.describe(
+        min_g="Minimum withdraw amount in gold (positive integer).",
+        max_g="Maximum withdraw amount in gold (must be >= min_g).",
+    )
+    async def set_withdraw_limits_cmd(
+        self,
+        interaction: discord.Interaction,
+        min_g: int,
+        max_g: int,
+    ) -> None:
+        await self._handle_set_pair(
+            interaction=interaction,
+            label="withdraw",
+            key_min="min_withdraw_g",
+            key_max="max_withdraw_g",
+            min_value=min_g,
+            max_value=max_g,
+        )
+
+    @app_commands.command(
+        name="admin-set-fee-withdraw",
+        description="Update the withdraw fee in basis points (200 = 2%).",
+    )
+    @app_commands.describe(
+        bps="Fee in basis points (0-10000). 200 = 2%.",
+    )
+    async def set_fee_withdraw_cmd(
+        self,
+        interaction: discord.Interaction,
+        bps: int,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        if bps < 0 or bps > 10_000:
+            await interaction.response.send_message(
+                f"❌ Bps must be 0-10000 (got {bps}).",
+                ephemeral=True,
+            )
+            return
+        await persist_config_int(
+            bot.pool,
+            key="withdraw_fee_bps",
+            value=bps,
+            actor_id=interaction.user.id,
+        )
+        await interaction.response.send_message(
+            f"✅ `withdraw_fee_bps` = `{bps}` ({bps / 100:.2f}%).",
+            ephemeral=True,
+        )
+        await audit_config_changed(
+            pool=bot.pool,
+            bot=bot,
+            admin_mention=interaction.user.mention,
+            key="withdraw_fee_bps",
+            new_value=str(bps),
+        )
+        _log.info(
+            "admin_set_fee_withdraw",
+            actor_id=interaction.user.id,
+            bps=bps,
+        )
+
+    async def _handle_set_pair(
+        self,
+        *,
+        interaction: discord.Interaction,
+        label: str,
+        key_min: str,
+        key_max: str,
+        min_value: int,
+        max_value: int,
+    ) -> None:
+        """Shared logic for set-deposit-limits / set-withdraw-limits."""
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        if min_value <= 0 or max_value <= 0:
+            await interaction.response.send_message(
+                "❌ Both `min_g` and `max_g` must be positive.",
+                ephemeral=True,
+            )
+            return
+        if min_value > max_value:
+            await interaction.response.send_message(
+                f"❌ `min_g` ({min_value:,}) must be <= `max_g` ({max_value:,}).",
+                ephemeral=True,
+            )
+            return
+        await persist_config_int(
+            bot.pool,
+            key=key_min,
+            value=min_value,
+            actor_id=interaction.user.id,
+        )
+        await persist_config_int(
+            bot.pool,
+            key=key_max,
+            value=max_value,
+            actor_id=interaction.user.id,
+        )
+        await interaction.response.send_message(
+            f"✅ `{key_min}` = `{min_value:,}g`, `{key_max}` = `{max_value:,}g`.",
+            ephemeral=True,
+        )
+        # One audit row per key for forensic clarity.
+        await audit_config_changed(
+            pool=bot.pool,
+            bot=bot,
+            admin_mention=interaction.user.mention,
+            key=key_min,
+            new_value=f"{min_value:,}g",
+        )
+        await audit_config_changed(
+            pool=bot.pool,
+            bot=bot,
+            admin_mention=interaction.user.mention,
+            key=key_max,
+            new_value=f"{max_value:,}g",
+        )
+        _log.info(
+            f"admin_set_{label}_limits",
+            actor_id=interaction.user.id,
+            min_g=min_value,
+            max_g=max_value,
         )
 
     @app_commands.command(

@@ -47,6 +47,8 @@ _ACTION_COLOR: dict[str, int] = {
     # Story 9.3 — blacklist
     "user_banned": 0xD8231A,          # BUST red
     "user_unbanned": 0x5DBE5A,        # WIN green
+    # Story 10.2 — config writes
+    "config_changed": 0xF2B22A,       # GOLD
 }
 
 
@@ -398,7 +400,44 @@ async def audit_user_unbanned(
     )
 
 
+# ---------------------------------------------------------------------------
+# Story 10.2 / 10.3 — config-edit posters
+# ---------------------------------------------------------------------------
+
+
+async def audit_config_changed(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    admin_mention: str,
+    key: str,
+    new_value: str,
+    old_value: str | None = None,
+) -> None:
+    """Generic config-change poster used by every ``/admin-set-*`` command.
+
+    The ``new_value`` and ``old_value`` are stringified by the caller so
+    a single poster handles ints (limits, fees), text (guides), even
+    JSON (``dynamic_embeds.fields``). Old value is optional because some
+    callers don't read the prior row before overwriting.
+    """
+    description_parts = [f"{admin_mention} updated `{key}`."]
+    if old_value is not None:
+        description_parts.append(f"Old: `{old_value}`")
+    description_parts.append(f"New: `{new_value}`")
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="config_changed",
+        title=f"⚙️ Config changed — `{key}`",
+        description=" ".join(description_parts),
+        actor_mention=admin_mention,
+        extra_fields={"Key": key, "New value": new_value},
+    )
+
+
 __all__ = [
+    "audit_config_changed",
     "audit_dispute_opened",
     "audit_dispute_rejected",
     "audit_dispute_resolved",

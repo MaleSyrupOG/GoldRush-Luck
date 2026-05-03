@@ -265,3 +265,71 @@ def test_admin_cog_registers_verify_audit_command() -> None:
 
     names = asyncio.run(_exercise())
     assert "admin-verify-audit" in names
+
+
+# ---------------------------------------------------------------------------
+# Story 10.2 — set-deposit-limits / set-withdraw-limits / set-fee-withdraw
+# ---------------------------------------------------------------------------
+
+
+def test_admin_cog_registers_set_limits_and_fee_commands() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        return {cmd.name for cmd in cog.get_app_commands()}
+
+    names = asyncio.run(_exercise())
+    expected = {
+        "admin-set-deposit-limits",
+        "admin-set-withdraw-limits",
+        "admin-set-fee-withdraw",
+    }
+    assert expected.issubset(names)
+
+
+def test_admin_set_deposit_limits_takes_min_and_max() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        cmd = next(
+            c for c in cog.get_app_commands() if c.name == "admin-set-deposit-limits"
+        )
+        return {p.name for p in cmd.parameters}
+
+    assert asyncio.run(_exercise()) == {"min_g", "max_g"}
+
+
+def test_admin_set_withdraw_limits_takes_min_and_max() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        cmd = next(
+            c for c in cog.get_app_commands() if c.name == "admin-set-withdraw-limits"
+        )
+        return {p.name for p in cmd.parameters}
+
+    assert asyncio.run(_exercise()) == {"min_g", "max_g"}
+
+
+def test_admin_set_fee_withdraw_takes_bps_only() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        cmd = next(
+            c for c in cog.get_app_commands() if c.name == "admin-set-fee-withdraw"
+        )
+        return {p.name for p in cmd.parameters}
+
+    assert asyncio.run(_exercise()) == {"bps"}
