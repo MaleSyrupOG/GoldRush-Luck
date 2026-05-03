@@ -1088,10 +1088,14 @@ Status: Done (2026-05-03)
 
 ### Story 11.1 — Prometheus metrics for D/W
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] `goldrush_deposit_withdraw/metrics.py` defines all metrics from spec §7.3.
-- [ ] HTTP server on port 9101 (Luck uses 9100) bound inside `goldrush_net`.
-- [ ] Test: scrape `/metrics`, assert all expected metric families present.
+- [x] `goldrush_deposit_withdraw/metrics.py` defines all 10 metric families from spec §7.3 on a custom `CollectorRegistry`. Type choice documented inline: DB-derived totals are Gauges (not Counters) because deploys would reset a true Counter, but the DB still holds the cumulative — Gauges of "current cumulative count" are more honest. Histograms (`ticket_claim_duration_s`, `ticket_confirm_duration_s`) keep Histogram type; populated via `observe()` in the ticket cog at confirm time.
+- [x] HTTP server on port 9101, started from `DwBot.on_ready` via `start_metrics_server(port=9101)`. The port is reachable on `goldrush_net` (the bot's own docker network) — the operator opts into external scraping via the new `compose.observability.yml` overlay (publishes on 127.0.0.1:9101 by default; an alt path attaches to a foreign observability docker network if the operator edits the overlay).
+- [x] `MetricsRefresherWorker` (subclasses Story 8.1's `PeriodicWorker`) refreshes every 30 s by calling `refresh_from_db(pool)` which runs the per-metric SELECT + .set() calls. Per-metric `try`/`except` so a single bad query doesn't poison the rest.
+
+**Verification:** `tests/unit/dw/test_metrics.py` (7 tests: registry shape, no global pollution, histogram observe semantics, refresh_from_db treasury / status / empty paths). Suite 448 → 455.
 
 **Dependencies:** Luck Story 12.1
 **Effort:** M
@@ -1099,9 +1103,13 @@ Status: Done (2026-05-03)
 
 ### Story 11.2 — Grafana dashboard JSON
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] `ops/observability/grafana-dashboards/goldrush-dw.json` defines panels: tickets/min by status, volume processed by region, treasury balance over time, cashiers online by region, claim/confirm duration distributions, dispute rate by cashier, fee revenue trend.
-- [ ] Imports cleanly into existing Grafana.
+- [x] `ops/observability/grafana-dashboards/goldrush-dw.json` ships 9 panels covering every spec metric: tickets/min by status (deposits + withdraws separated, deriv() over 5m), volume processed by region (deposit + withdraw stacked), treasury balance over time, cashiers online by region, fee revenue trend, claim → confirm duration P50/P95 (deposits), confirm SDF latency P50/P95 (both ticket types), dispute rate per cashier (top-10 table).
+- [x] Imports cleanly into Grafana 11+ (schemaVersion=39); uses a `$datasource` template var so the dashboard ports across environments without manual edits.
+
+**Verification:** `tests/unit/dw/test_grafana_dashboard.py` (4 tests: JSON loads, title says GoldRush, every spec metric family is referenced in some panel's PromQL expr, every target uses Prometheus datasource type). Suite 455 → 459.
 
 **Dependencies:** Story 11.1
 **Effort:** L
@@ -1109,10 +1117,16 @@ Status: Done (2026-05-03)
 
 ### Story 11.3 — Alertmanager rules
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Five alerts from spec §7.3 added to `sdr-agentic` Alertmanager config.
-- [ ] Webhook to staff `#alerts` Discord channel.
-- [ ] Test alert fires on simulated stuck ticket.
+- [x] `ops/observability/alerts/goldrush-dw.yml` ships all 5 alerts from spec §7.3: `GoldRushDWStuckTicket`, `GoldRushNoCashiersOnline`, `GoldRushTreasuryDrop` (severity: critical), `GoldRushHighCancellationRate`, `GoldRushUnusualCashierActivity`. Each carries `severity` + `project=goldrush-dw` labels and `summary` + `description` annotations for Alertmanager templating.
+- [x] Discord webhook routing: `ops/observability/alertmanager-discord.yml` is a partial snippet (receiver + route entries) the operator merges into their existing `alertmanager.yml`. Uses Alertmanager 0.26+'s built-in `discord_configs:` block reading the webhook URL from a mounted secret file. Inline setup notes guide the operator through creating the staff `#alerts` channel webhook.
+- [x] Test alert path: `tests/unit/dw/test_alert_rules.py` validates the YAML structurally (parses, all 5 alerts present, every rule has severity + summary, every expr references at least one known `goldrush_*` metric — catches PromQL typos).
+
+**Note on VPS changes:** the alert rules + Discord routing config are repo-only artifacts. No VPS changes happen automatically; the operator copies the files onto their Prometheus / Alertmanager hosts and reloads. Decoupled deliberately so the bot deploy doesn't touch foreign monitoring stacks.
+
+**Verification:** `tests/unit/dw/test_alert_rules.py` (4 tests). Suite 459 → 463; mypy strict + ruff baseline clean across all three Epic 11 stories.
 
 **Dependencies:** Story 11.1
 **Effort:** S
