@@ -23,32 +23,42 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 8 — Admin commands (Epic 10 in progress, deploy-ready slice complete) |
-| **Active epic** | Epic 10 — Admin commands (4/8 done; remaining 10.2/10.3/10.6/10.8 deferred) |
-| **Active story** | Stories 10.1, 10.4, 10.5, 10.7 done; the deploy-ready admin toolkit is complete |
-| **Last commit** | `0ded95f` (Story 10.1) → Stories 10.4+10.5+10.7 commit pending |
-| **Next milestone** | Deploy to VPS — every flow in Epics 4-7-10.1/4/5/7 is operational. Future Epic 10 stories (10.2 limits, 10.3 guides modals, 10.6 treasury 2FA, 10.8 audit view) can land post-deploy. |
-| **Overall progress** | 45 / 78 stories done · 8 / 15 epics done · Epic 10 in progress (4 / 8) |
+| **Active phase** | ✅ Launched — `dw-v1.0.0` shipped to production 2026-05-03 16:46 UTC |
+| **Active epic** | All 15 epics done. Polish-only work remains (see "Post-launch follow-ups" below). |
+| **Active story** | n/a — all stories closed |
+| **Last commit** | `1e05d7f` (post-rename docs cleanup); tag `dw-v1.0.0` at `5256c84` |
+| **Next milestone** | Luck bot v1 development resumes (new top-level workstream) |
+| **Overall progress** | 78 / 78 stories done · 15 / 15 epics done · v1.0.0 tag pushed |
 
 ### Epic-level status
 
 | Epic | Title | Status | Stories Done |
 |---|---|---|---|
-| 1 | Foundation extensions | Done | 3 / 3 |
-| 2 | Database schema additions | Done | 12 / 12 |
-| 3 | Core services & models | Done | 4 / 4 |
-| 4 | Bot skeleton | Done | 5 / 5 |
-| 5 | Deposit flow | Done | 5 / 5 |
-| 6 | Withdraw flow | Done | 4 / 4 |
-| 7 | Cashier system | Done | 3 / 3 |
-| 8 | Background workers | Pending | 0 / 6 |
-| 9 | Disputes & blacklist | Pending | 0 / 3 |
-| 10 | Admin commands | In Progress | 4 / 8 |
-| 11 | Observability | Pending | 0 / 3 |
-| 12 | Operations & deploy | In Progress (brought forward) | 5 / 6 |
-| 13 | Documentation final pass | Pending | 0 / 4 |
-| 14 | Testing | Pending | 0 / 8 |
-| 15 | Production verification & launch | Pending | 0 / 4 |
+| 1 | Foundation extensions | ✅ Done | 3 / 3 |
+| 2 | Database schema additions | ✅ Done | 12 / 12 |
+| 3 | Core services & models | ✅ Done | 4 / 4 |
+| 4 | Bot skeleton | ✅ Done | 5 / 5 |
+| 5 | Deposit flow | ✅ Done | 5 / 5 |
+| 6 | Withdraw flow | ✅ Done | 4 / 4 |
+| 7 | Cashier system | ✅ Done | 3 / 3 |
+| 8 | Background workers | ✅ Done | 6 / 6 |
+| 9 | Disputes & blacklist | ✅ Done | 3 / 3 |
+| 10 | Admin commands | ✅ Done | 8 / 8 |
+| 11 | Observability | ✅ Done | 3 / 3 |
+| 12 | Operations & deploy | ✅ Done | 6 / 6 |
+| 13 | Documentation final pass | ✅ Done | 4 / 4 |
+| 14 | Testing | ✅ Done | 8 / 8 |
+| 15 | Production verification & launch | ✅ Done | 4 / 4 |
+
+### Post-launch follow-ups (polish, non-blocking)
+
+| Item | Status | Notes |
+|---|---|---|
+| Spec v1.1 bump (private channels not threads + `GRD-XXXX` UID format) | Done 2026-05-04 | Bumps the canonical spec to match production reality |
+| `/root/goldrush-pre-rename-2026-05-03.dump` cleanup on VPS | Pending | Remove after the 24h watch window ends 2026-05-04 ~17 UTC |
+| pytest 9.x bump (GHSA-6w46-j5rx-g56g, dev-only) | Deferred | pytest 9 is a major bump that also touches pytest-asyncio; out-of-scope for launch |
+| Cron / monitoring sweep on VPS (runbook §10) | Deferred | Nothing scheduled on the host today; revisit when Luck adds cron |
+| GitHub repo rename → `MaleSyrupOG/DeathRoll` | Done 2026-05-04 | Renamed on GitHub UI; remotes updated; in-tree URL refs updated |
 
 ### Decision log additions during implementation
 
