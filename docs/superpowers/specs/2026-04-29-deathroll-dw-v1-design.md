@@ -5,7 +5,7 @@
 | **Document version** | 1.0 |
 | **Date** | 2026-04-29 |
 | **Author** | Aleix |
-| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll-Luck> (monorepo) |
+| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll> (monorepo) |
 | **Status** | Locked — ready for implementation planning |
 | **Companion specs** | `2026-04-29-deathroll-luck-v1-design.md` (sister bot, currently paused) |
 

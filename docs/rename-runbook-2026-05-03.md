@@ -242,15 +242,19 @@ If both pass, the rename is successful.
 
 ## 8. Update the GitHub repo (optional)
 
-The remote URL is currently `github.com/MaleSyrupOG/GoldRush-Luck`.
-Aleix renames the repo on GitHub UI to `DeathRoll` (or whatever
-naming preferred). GitHub auto-redirects the old URL for a while,
-but update the local clone:
+✅ **DONE 2026-05-03**: Aleix renamed the repo on the GitHub UI
+to `MaleSyrupOG/DeathRoll`. GitHub auto-redirects the old
+`MaleSyrupOG/GoldRush-Luck` URL. Both the local clone and the
+VPS clone had `git remote set-url` applied:
 
 ```bash
-git remote set-url origin git@github.com:MaleSyrupOG/DeathRoll.git
-git remote -v
+git remote set-url origin https://github.com/MaleSyrupOG/DeathRoll.git
 ```
+
+All in-tree references to the old repo URL (operations.md,
+vps_first_setup.sh, changelog, planning specs, the
+``DeathRoll-Luck`` mention in this ADR) were updated in a
+follow-up commit.
 
 ---
 
@@ -414,9 +418,9 @@ prefix, all per spec §7.3.
 
 - The `/root/goldrush-pre-rename-2026-05-03.dump` safety backup
   (121K) stays on disk until 2026-05-04 ~17 UTC, then `rm`.
-- The GitHub repo URL is still `MaleSyrupOG/GoldRush-Luck`.
-  Renaming the repo on GitHub UI is optional — the local clone's
-  remote can be re-pointed any time with `git remote set-url`.
-  Aleix to action when ready; not required for the cutover.
+- ~~The GitHub repo URL is still `MaleSyrupOG/GoldRush-Luck`.~~
+  ✅ DONE 2026-05-03: repo renamed on GitHub UI to
+  `MaleSyrupOG/DeathRoll`; both local + VPS clones now point at
+  the new URL; all in-tree references updated.
 - The cron / monitoring sweep (§10) still to do; nothing
   scheduled on the host today, so deferred.

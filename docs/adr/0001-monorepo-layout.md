@@ -33,7 +33,7 @@ Positive:
 
 Negative:
 
-- The repository name `DeathRoll-Luck` no longer reflects the breadth of its contents. Acceptable: rename later if the platform grows beyond the current scope.
+- The repository was originally named `GoldRush-Luck` (the platform's first internal name); renamed to `DeathRoll-Luck` during the 2026-05-03 brand refresh, then to `DeathRoll` later the same day so the name reflects the breadth of the monorepo (all three bots + shared core), not just the Luck bot. GitHub redirects the old URLs.
 - A second public repository (`DeathRoll-Deposit-Withdraw`) was created during a brief period when multi-repo was being considered. It will be archived; this ADR documents that the canonical repository is the monorepo.
 
 ## Alternatives considered

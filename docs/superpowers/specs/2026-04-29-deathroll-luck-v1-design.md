@@ -5,7 +5,7 @@
 | **Document version** | 1.1 |
 | **Date** | 2026-04-29 |
 | **Author** | Aleix |
-| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll-Luck> |
+| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll> |
 | **Status** | Locked — all decisions including economics are final |
 | **Supersedes** | v1.0 (2026-04-29 morning, before collaborator response) |
 

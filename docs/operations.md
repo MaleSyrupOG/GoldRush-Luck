@@ -17,7 +17,7 @@
   This is the existing config alias for unprivileged user `sdr`.
 - **Project root on VPS:** `/opt/deathroll/`.
 - **Operational user on VPS:** `deathroll` (system user, member of `docker` group). Created by `vps_first_setup.sh`.
-- **Repository:** `https://github.com/MaleSyrupOG/DeathRoll-Luck.git` (the monorepo for all three bots).
+- **Repository:** `https://github.com/MaleSyrupOG/DeathRoll.git` (the monorepo for all three bots).
 
 ---
 
@@ -55,7 +55,7 @@ set -e
 apt-get update -qq && apt-get install -y -qq git gpg
 cd /tmp
 curl -fsSL -o vps_first_setup.sh \
-    https://raw.githubusercontent.com/MaleSyrupOG/DeathRoll-Luck/main/ops/scripts/vps_first_setup.sh
+    https://raw.githubusercontent.com/MaleSyrupOG/DeathRoll/main/ops/scripts/vps_first_setup.sh
 chmod +x vps_first_setup.sh
 ./vps_first_setup.sh
 REMOTE
@@ -68,7 +68,7 @@ ssh -i ~/.ssh/id_ed25519 root@91.98.234.106
 # (now on the VPS as root)
 apt-get update && apt-get install -y git gpg
 cd /tmp
-curl -LO https://raw.githubusercontent.com/MaleSyrupOG/DeathRoll-Luck/main/ops/scripts/vps_first_setup.sh
+curl -LO https://raw.githubusercontent.com/MaleSyrupOG/DeathRoll/main/ops/scripts/vps_first_setup.sh
 chmod +x vps_first_setup.sh
 ./vps_first_setup.sh
 ```

@@ -98,7 +98,7 @@ git push origin dw-v1.0.0
 
 ### Repository
 
-- GitHub: github.com/MaleSyrupOG/DeathRoll-Luck
+- GitHub: github.com/MaleSyrupOG/DeathRoll
 - VPS: Hetzner sdr-agentic, container `deathroll-dw`
 
 ### Known accepted risks

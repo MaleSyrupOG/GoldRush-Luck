@@ -5,7 +5,7 @@
 | **Document version** | 1.0 |
 | **Date** | 2026-05-01 |
 | **Author** | Aleix |
-| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll-Luck> (monorepo) |
+| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll> (monorepo) |
 | **Status** | Active — drives implementation work |
 | **Source spec** | `2026-04-29-deathroll-dw-v1-design.md` |
 
@@ -149,7 +149,7 @@ ADRs documenting D/W-specific architectural decisions. Each is immutable except 
 
 ### Public-facing repository
 
-[`https://github.com/MaleSyrupOG/DeathRoll-Luck`](https://github.com/MaleSyrupOG/DeathRoll-Luck) — the monorepo. Despite the name still containing "Luck" (legacy), it hosts all three bots and the shared `deathroll_core`.
+[`https://github.com/MaleSyrupOG/DeathRoll`](https://github.com/MaleSyrupOG/DeathRoll) — the monorepo. Hosts all three bots and the shared `deathroll_core`.
 
 ### Session logs
 

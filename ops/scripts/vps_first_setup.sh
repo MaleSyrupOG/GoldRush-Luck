@@ -8,7 +8,7 @@
 #
 # Usage (as root on the VPS):
 #     ssh -i ~/.ssh/id_ed25519 root@91.98.234.106
-#     cd /tmp && curl -LO https://raw.githubusercontent.com/MaleSyrupOG/DeathRoll-Luck/main/ops/scripts/vps_first_setup.sh
+#     cd /tmp && curl -LO https://raw.githubusercontent.com/MaleSyrupOG/DeathRoll/main/ops/scripts/vps_first_setup.sh
 #     chmod +x vps_first_setup.sh
 #     ./vps_first_setup.sh
 #
@@ -48,7 +48,7 @@ if ! command -v gpg >/dev/null 2>&1; then
     exit 1
 fi
 
-REPO_URL="${REPO_URL:-https://github.com/MaleSyrupOG/DeathRoll-Luck.git}"
+REPO_URL="${REPO_URL:-https://github.com/MaleSyrupOG/DeathRoll.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
 
 echo "==================================================================="

@@ -5,7 +5,7 @@
 | **Document version** | 1.0 |
 | **Date** | 2026-04-29 |
 | **Author** | Aleix |
-| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll-Luck> |
+| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll> |
 | **Status** | Active — drives implementation work |
 | **Source of truth for design** | `2026-04-29-deathroll-luck-v1-design.md` (this plan implements that spec) |
 
@@ -55,7 +55,7 @@ Set up the monorepo, Python toolchain, CI, and documentation skeleton so every s
 - [ ] First commit contains: `README.md`, `.gitignore`, `LICENSE`, the empty top-level directories of the monorepo (`deathroll_core/`, `deathroll_luck/`, `deathroll_poker/`, `deathroll_deposit_withdraw/`, `ops/`, `docs/`, `tests/`, `.github/`).
 - [ ] Commit message contains no reference to Claude, Anthropic, AI, or auto-generation.
 - [ ] `git log --format=%B` for the first commit is reviewed and clean.
-- [ ] Remote `origin` set to `https://github.com/MaleSyrupOG/DeathRoll-Luck.git`.
+- [ ] Remote `origin` set to `https://github.com/MaleSyrupOG/DeathRoll.git`.
 - [ ] `main` pushed to remote.
 - [ ] `.gitignore` excludes `.env*`, `__pycache__/`, `.venv/`, `*.pyc`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `htmlcov/`, `dist/`, `build/`, `node_modules/`, `.DS_Store`.
 
