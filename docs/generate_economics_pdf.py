@@ -1,15 +1,15 @@
 """
-Generates the GoldRush Luck v1 Economics Proposal PDF for collaborator review.
+Generates the DeathRoll Luck v1 Economics Proposal PDF for collaborator review.
 
 NOTE (2026-04-29): this PDF is HISTORIC. It was sent to the collaborator and
 their answers have been incorporated into the locked design at:
-  docs/superpowers/specs/2026-04-29-goldrush-luck-v1-design.md (§10)
+  docs/superpowers/specs/2026-04-29-deathroll-luck-v1-design.md (§10)
 The locked design supersedes everything in this document. Flower Poker was
 removed from scope; house edges were unified at 5%; raffle threshold and
 rake were finalised. The script and its output are kept for traceability
 of how the design evolved.
 
-Visual style follows the GoldRush design system: deep ink background, gold/ember
+Visual style follows the DeathRoll design system: deep ink background, gold/ember
 accents, parchment-tone body text. Built with reportlab Platypus.
 """
 
@@ -34,7 +34,7 @@ from reportlab.platypus import (
 )
 
 
-# ---------- GoldRush palette (from goldrush-design-system.html) ----------
+# ---------- DeathRoll palette (from deathroll-design-system.html) ----------
 INK_1000 = colors.HexColor("#06060B")
 INK_900 = colors.HexColor("#11101A")
 INK_800 = colors.HexColor("#191623")
@@ -54,7 +54,7 @@ WIN = colors.HexColor("#5DBE5A")
 BUST = colors.HexColor("#D8231A")
 
 
-OUTPUT = Path(__file__).parent / "GoldRush_Luck_v1_Economics_Proposal.pdf"
+OUTPUT = Path(__file__).parent / "DeathRoll_Luck_v1_Economics_Proposal.pdf"
 
 
 # ---------- Page background ----------
@@ -78,7 +78,7 @@ def draw_background(canvas, doc):
     canvas.drawString(
         2 * cm,
         1 * cm,
-        "GoldRush Luck — Economics Proposal v1 — Confidential",
+        "DeathRoll Luck — Economics Proposal v1 — Confidential",
     )
     canvas.drawRightString(
         A4[0] - 2 * cm,
@@ -203,7 +203,7 @@ def build_doc():
         rightMargin=2 * cm,
         topMargin=2 * cm,
         bottomMargin=1.6 * cm,
-        title="GoldRush Luck v1 — Economics Proposal",
+        title="DeathRoll Luck v1 — Economics Proposal",
         author="Aleix",
         subject="Game Economics & House Edge — Collaborator Review",
         creator="Aleix",
@@ -216,7 +216,7 @@ def build_doc():
         doc.height,
         id="normal",
     )
-    template = PageTemplate(id="goldrush", frames=frame, onPage=draw_background)
+    template = PageTemplate(id="deathroll", frames=frame, onPage=draw_background)
     doc.addPageTemplates([template])
     return doc
 
@@ -224,7 +224,7 @@ def build_doc():
 # ---------- Tables ----------
 def header_block():
     elems = []
-    elems.append(Paragraph("GoldRush Luck", style_h1))
+    elems.append(Paragraph("DeathRoll Luck", style_h1))
     elems.append(
         Paragraph(
             f"Game Economics Proposal — v1 — {date.today().isoformat()}",

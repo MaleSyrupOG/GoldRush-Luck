@@ -1,4 +1,4 @@
-# GoldRush Deposit/Withdraw — Final security review (Story 15.3)
+# DeathRoll Deposit/Withdraw — Final security review (Story 15.3)
 
 **Date:** 2026-05-03
 **Scope:** All D/W code merged on `main` at commit
@@ -77,8 +77,8 @@ audit-log emission. Findings inline in this table.
 The hash chain (Story 8.6 verifier) re-validates this end-to-end.
 
 **Privilege model**: all SDFs are `SECURITY DEFINER`, granted EXECUTE
-to `goldrush_dw` only (with `core.list_audit_events` and
-`core.verify_audit_chain` also on `goldrush_dw` because they live
+to `deathroll_dw` only (with `core.list_audit_events` and
+`core.verify_audit_chain` also on `deathroll_dw` because they live
 in `core.*`). No table-level `INSERT`/`UPDATE`/`DELETE` is granted
 to bot roles for `core.audit_log` (only `INSERT` for the chain
 helper to do its work; trigger-level immutability blocks
@@ -90,7 +90,7 @@ helper to do its work; trigger-level immutability blocks
 ## 3. Secret redaction
 
 Every secret is typed `SecretStr` in
-`goldrush_core/config/__init__.py`:
+`deathroll_core/config/__init__.py`:
 
 - `postgres_dsn`
 - `button_signing_key`
@@ -108,7 +108,7 @@ structlog and pytest output. Secrets are unwrapped via
   logged directly.
 
 **Verified**: a fresh boot of the test container only logs
-`{"event": "db_pool_ready", "dsn_host": "postgres:5432/goldrush"}`
+`{"event": "db_pool_ready", "dsn_host": "postgres:5432/deathroll"}`
 — no password, no chain key.
 
 ---
@@ -138,12 +138,12 @@ the long-lived dispute card in `#disputes`, the timeline in
 
 ### 5.1. EditDynamicEmbedInput tolerates malformed JSON
 
-**Where**: `goldrush_core/models/dw_pydantic.py` `EditDynamicEmbedInput`,
+**Where**: `deathroll_core/models/dw_pydantic.py` `EditDynamicEmbedInput`,
 field `fields_json: str | None`.
 
 **What**: malformed JSON in the `fields` payload of a dynamic embed
 edit is NOT rejected at validation time. Downstream renderer
-(`goldrush_core/embeds/dw_tickets.py::_parse_fields_json`) catches
+(`deathroll_core/embeds/dw_tickets.py::_parse_fields_json`) catches
 the `JSONDecodeError` and renders an empty fields list.
 
 **Why accepted**: a copy-paste typo in a guide-edit modal would
@@ -194,8 +194,8 @@ test still works. Out of scope for the launch window.
 
 I, Aleix, having read the artefacts referenced above and confirmed
 the test suite + dependency audit clean (with §5 noted as accepted
-risks), authorise launch of `goldrush-dw` v1.0.0 to the live
-GoldRush guild.
+risks), authorise launch of `deathroll-dw` v1.0.0 to the live
+DeathRoll guild.
 
 **Date**: 2026-05-03
 **Signature**: ✅ Aleix (`MaleSyrupOG`)

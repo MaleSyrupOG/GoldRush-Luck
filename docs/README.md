@@ -1,15 +1,15 @@
-# GoldRush — documentation index
+# DeathRoll — documentation index
 
-This directory is the single source of truth for the GoldRush platform's design, security, operations, and progress.
+This directory is the single source of truth for the DeathRoll platform's design, security, operations, and progress.
 
 ## Source-of-truth artefacts
 
 | Document | Purpose |
 |---|---|
-| [`superpowers/specs/2026-04-29-goldrush-luck-v1-design.md`](superpowers/specs/2026-04-29-goldrush-luck-v1-design.md) | Luck bot design (v1.1, locked) |
-| [`superpowers/specs/2026-04-29-goldrush-luck-v1-implementation-plan.md`](superpowers/specs/2026-04-29-goldrush-luck-v1-implementation-plan.md) | Luck bot implementation plan with progress tracker |
-| [`superpowers/specs/2026-04-29-goldrush-dw-v1-design.md`](superpowers/specs/2026-04-29-goldrush-dw-v1-design.md) | Deposit/Withdraw bot design (v1.0, locked) |
-| [`superpowers/specs/2026-04-29-goldrush-dw-v1-implementation-plan.md`](superpowers/specs/2026-04-29-goldrush-dw-v1-implementation-plan.md) | **D/W bot implementation plan with progress tracker — current focus** |
+| [`superpowers/specs/2026-04-29-deathroll-luck-v1-design.md`](superpowers/specs/2026-04-29-deathroll-luck-v1-design.md) | Luck bot design (v1.1, locked) |
+| [`superpowers/specs/2026-04-29-deathroll-luck-v1-implementation-plan.md`](superpowers/specs/2026-04-29-deathroll-luck-v1-implementation-plan.md) | Luck bot implementation plan with progress tracker |
+| [`superpowers/specs/2026-04-29-deathroll-dw-v1-design.md`](superpowers/specs/2026-04-29-deathroll-dw-v1-design.md) | Deposit/Withdraw bot design (v1.0, locked) |
+| [`superpowers/specs/2026-04-29-deathroll-dw-v1-implementation-plan.md`](superpowers/specs/2026-04-29-deathroll-dw-v1-implementation-plan.md) | **D/W bot implementation plan with progress tracker — current focus** |
 
 ## Operational documents (built incrementally during implementation)
 

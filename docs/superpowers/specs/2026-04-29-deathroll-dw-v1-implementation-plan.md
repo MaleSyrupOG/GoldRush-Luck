@@ -1,13 +1,13 @@
-# GoldRush Deposit/Withdraw v1 — Implementation Plan (Epics, Stories, Acceptance Criteria)
+# DeathRoll Deposit/Withdraw v1 — Implementation Plan (Epics, Stories, Acceptance Criteria)
 
 | Field | Value |
 |---|---|
 | **Document version** | 1.0 |
 | **Date** | 2026-05-01 |
 | **Author** | Aleix |
-| **Repository** | <https://github.com/MaleSyrupOG/GoldRush-Luck> (monorepo) |
+| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll-Luck> (monorepo) |
 | **Status** | Active — drives implementation work |
-| **Source spec** | `2026-04-29-goldrush-dw-v1-design.md` |
+| **Source spec** | `2026-04-29-deathroll-dw-v1-design.md` |
 
 ---
 
@@ -68,22 +68,22 @@
 | 2026-05-01 | Decision: bring forward Epic 12 (Operations & deploy) before Epic 2 (DB schema additions) so the VPS infrastructure is set up first. Epic 2 stories will then run their Alembic migrations against the real Postgres on the VPS (or via SSH tunnel for local dev). This out-of-order execution is intentional — the rest of the plan otherwise stands. |
 | 2026-05-01 | Decision: bring forward Luck Story 13.3 (vps_first_setup.sh), 13.4 (backup.sh + cron), 13.5 (restore.sh) as part of the same infrastructure batch. They are foundational for both bots. The Luck plan will reference these as already done when it resumes. |
 | 2026-05-01 | VPS infrastructure deployed and verified live on 91.98.234.106. Postgres healthy with all 5 schemas and 4 active roles (poker disabled). Placeholder D/W container running healthy. GPG backup key fingerprint `59CC31BED2A9557C8E6842723C40E9BEA65AF9B8` recorded by Aleix off-VPS. Cron entry for backup not yet installed (deferred until first real data exists, then Story 12.6 backup drill validates the cycle). |
-| 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: goldrush_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
+| 2026-05-01 | Epic 2 (12 migrations + SECURITY DEFINER fns) applied to the live VPS Postgres. core has 4 tables (users, balances, audit_log, audit_chain_state) and 2 SECURITY DEFINER functions (audit_log_immutable, audit_log_insert_with_chain). dw has 9 tables and 18 SECURITY DEFINER functions. Treasury seeded at discord_id=0. Local end-to-end smoke test verified: deposit cycle (50,000 G credited) and withdraw cycle (30,000 G with 600 G fee captured to treasury, amount_delivered=29400 persisted). Permission boundary tests passed: deathroll_luck cannot UPDATE core.balances or INSERT core.users; audit_log triggers reject UPDATE/DELETE. Bot rebuilt and restarted on VPS with the new image (includes psycopg2-binary for alembic + ops/alembic/ baked in for deploys). |
 | 2026-05-01 | Outstanding for Epic 14 (testing): testcontainers-based integration tests for the migrations and SECURITY DEFINER paths (concurrency, idempotency, treasury invariant property test). Migrations themselves validated by smoke tests; tests will land alongside Python facades in Epic 3 / 14. |
-| 2026-05-02 | Story 3.3 done. `goldrush_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
+| 2026-05-02 | Story 3.3 done. `deathroll_core/embeds/dw_tickets.py` adds 16 embed builders (14 from spec §5.6 + 2 helpers from the visual contract). Builders are pure functions returning `discord.Embed`; no DB / network dependence. The visual contract from `reference_deposit_ticket_ux.md` (5-state colour-coded deposit lifecycle, anti-phishing warning, NA→US label, comma-separated amounts) is fully encoded. Withdraw open embed surfaces `amount`/`fee`/`amount_delivered` upfront; withdraw cancel announces `REFUNDED` in the title. 52 snapshot tests in `tests/unit/core/test_dw_embeds.py` guard the visual contract; full unit suite 154 / 154 green; ruff + mypy strict clean. |
 | 2026-05-03 | Stories 10.4 + 10.5 + 10.7 done in a paired commit (admin operational toolkit). New AdminCog commands: `/admin-force-cashier-offline cashier reason` (calls `set_cashier_status` for the target user); `/admin-promote-cashier user` and `/admin-demote-cashier user` (informational reminders pointing at *Server Settings → Members* — bot lacks Manage Roles per spec §6.5); `/admin-cashier-stats cashier` (reuses the cashier-mystats embed); `/admin-force-cancel-ticket ticket_uid reason` (parses prefix, dispatches to cancel_deposit/cancel_withdraw with `admin force: <reason>` audit entry); `/admin-force-close-thread thread reason` (Discord-side archive). Refactor: the previous Story 10.1 commit had 4 method blocks accidentally placed inside `_build_setup_report_embed` (Python parsed them as unreachable inner functions); rewrote `admin.py` so all 7 admin commands live cleanly inside the AdminCog class. 3 new structural tests in `test_admin_cog.py`; full suite 336 / 336; ruff + mypy strict clean. Deploy-ready admin toolkit complete. |
-| 2026-05-03 | Story 10.1 done. New `goldrush_deposit_withdraw/setup/global_config_writer.py::persist_channel_ids(executor, *, channel_id_map, actor_id)` writes one UPSERT per channel into `dw.global_config` keyed `channel_id_<key>`. New `AdminCog` (decorated `default_permissions=administrator`) hosts `/admin-setup [dry_run] [cashier_role] [admin_role]`. The command defers (Discord 3-second window can't accommodate 10 entity creations), then calls `setup_or_reuse_channels` (Story 3.4) with the new persist callback, then `reconcile_welcome_embeds` (Story 4.4) inline so the welcome embeds come up in the same flow. Returns a summary embed listing every category and channel as `created` / `reused`. 6 new tests; full suite 333 / 333; ruff + mypy strict clean. The bot now self-configures end-to-end after one admin command. |
+| 2026-05-03 | Story 10.1 done. New `deathroll_deposit_withdraw/setup/global_config_writer.py::persist_channel_ids(executor, *, channel_id_map, actor_id)` writes one UPSERT per channel into `dw.global_config` keyed `channel_id_<key>`. New `AdminCog` (decorated `default_permissions=administrator`) hosts `/admin-setup [dry_run] [cashier_role] [admin_role]`. The command defers (Discord 3-second window can't accommodate 10 entity creations), then calls `setup_or_reuse_channels` (Story 3.4) with the new persist callback, then `reconcile_welcome_embeds` (Story 4.4) inline so the welcome embeds come up in the same flow. Returns a summary embed listing every category and channel as `created` / `reused`. 6 new tests; full suite 333 / 333; ruff + mypy strict clean. The bot now self-configures end-to-end after one admin command. |
 | 2026-05-03 | Epic 7 closed in a paired commit (Stories 7.1, 7.2, 7.3). Three new SECURITY DEFINER wrappers in `dw_manager.py`: `add_cashier_character` (returns row id) translating `InvalidRegion` / `InvalidFaction`; `remove_cashier_character` translating `CharacterNotFoundOrAlreadyRemoved`; `set_cashier_status` translating `InvalidStatus`. New `CashierCog` with five slash commands (`/cashier-addchar`, `/cashier-removechar`, `/cashier-listchars`, `/cashier-set-status`, `/cashier-mystats`); region / faction / status surfaced as Discord choice menus that match the SQL `Literal` types so users pick rather than type. Onboarding-channel binding enforced inline. `/cashier-mystats` falls back to the all-zeros embed for new cashiers (the embed builder already tolerates `avg=None` / `last_active=None`). 10 new tests across `test_cashier_wrappers.py` (6) and `test_cashier_cog.py` (4); full unit suite 327 / 327; ruff + mypy strict clean. |
 | 2026-05-02 | Stories 5.5 + 6.4 done in a paired commit. Epics 5 + 6 closed. New SECURITY DEFINER orchestration `confirm_ticket_dispatch(ticket_type, ticket_uid, cashier_id) -> ConfirmResult` routes to `dw.confirm_deposit` / `dw.confirm_withdraw` and translates `wrong_cashier`, `ticket_not_claimed`, `invariant_violation` (kept distinct from generic Unexpected so admins notice it). New `ConfirmOutcome` union with 6 variants. `/confirm` slash command in `TicketCog`: opens `ConfirmTicketModal(magic_word="CONFIRM")`; on case-sensitive match the on_confirm callback runs the dispatch and posts `deposit_ticket_confirmed_embed` / `withdraw_ticket_confirmed_embed` showing new balance + (for withdraw) amount/fee/delivered. Treasury credit on withdraw confirm is handled inside the SECURITY DEFINER transaction (migration 0007). 5 new tests in `test_lifecycle_orchestration.py`; full suite 317 / 317; ruff + mypy strict clean. End-to-end deposit + withdraw flows operational. |
-| 2026-05-02 | Stories 5.4 + 6.3 done in a paired commit (single shared `TicketCog`). New SECURITY DEFINER wrappers `claim_ticket(ticket_type, ticket_uid, cashier_id)` and `release_ticket(ticket_type, ticket_uid, actor_id)` in `dw_manager.py`. New orchestration helpers `claim_ticket_for_cashier`, `release_ticket_by_cashier`, `cancel_ticket_dispatch` (LifecycleOutcome union with 8 variants — Success, TicketNotFound, AlreadyClaimed, NotClaimed, WrongCashier, RegionMismatch, AlreadyTerminal, Unexpected). New cog at `goldrush_deposit_withdraw/cogs/ticket.py` with `/claim`, `/release`, `/cancel`, `/cancel-mine` — looks up ticket by thread_id (joins both deposit and withdraw tables), dispatches to the right SECURITY DEFINER fn. /cancel-mine checks ownership + status='open' before delegating. 10 new tests in `test_lifecycle_orchestration.py`; full suite 312 / 312; ruff + mypy strict clean. |
-| 2026-05-02 | Story 5.3 done. `goldrush_deposit_withdraw/cashiers/alert.py::post_cashier_alert(...)` posts a `cashier_alert_embed` in `#cashier-alerts` with the @cashier role mention as the message content. The embed now carries a "Compatible cashiers" field built from `find_compatible_cashiers(roster, region, faction)` (Story 5.3 foundation) — empty matches render a "_none online for this region/faction_" placeholder. Same poster is reused for withdraw alerts. 6 new tests covering happy path, none-online placeholder, both ticket types, and the two skip paths (channel id unconfigured, channel not in cache). Full suite 302 / 302; ruff + mypy strict clean. |
-| 2026-05-02 | Stories 5.1, 5.2, 6.1, 6.2 done in a paired commit (the deposit/withdraw open flows are atomic units that can't be split mid-way because `dw.create_*_ticket` requires a thread_id at NOT NULL insert time). New: `goldrush_deposit_withdraw/tickets/orchestration.py` (typed-outcome wrappers `open_deposit_ticket` / `open_withdraw_ticket`); `goldrush_deposit_withdraw/cogs/deposit.py` and `withdraw.py` rewritten with the slash commands; `DwBot.rate_limiters` dict (1/60s for both); `dw_manager.py` returns are now `cast()` so mypy strict passes through the cog import chain. 14 new tests; full suite 296 / 296; ruff + mypy strict clean. |
-| 2026-05-02 | Story 4.5 done. Epic 4 closed. `goldrush_core/balance/cashier_roster.py` adds the live roster query; `RosterSnapshot` (frozen) buckets cashiers by region + on-break + offline count; a cashier with chars in multiple regions appears in each region's bucket. `online_cashiers_live_embed` refactored to take the snapshot directly (3 existing tests + 1 new test updated). `goldrush_deposit_withdraw/cashiers/live_updater.py` ships `tick(pool, bot, channel_id)` (single iteration, persists message id in `dw.dynamic_embeds[embed_key='online_cashiers']`, self-heals on NotFound) and `OnlineCashiersUpdater` (cancellable asyncio loop with idempotent start, awaitable stop, broad-except wrappers around tick so a transient error doesn't kill the loop). `DwBot.on_ready` resolves the channel id from `dw.global_config.channel_id_online_cashiers` and spins up the updater; `close_pool` shuts it down. 14 new tests + 1 modified test surface; full suite 253 / 253; ruff + mypy strict clean. |
-| 2026-05-02 | Story 4.4 done. `goldrush_deposit_withdraw/welcome.py` adds the reconciler for `dw.dynamic_embeds` rows `how_to_deposit` and `how_to_withdraw`. `WelcomeDefault` (frozen) carries the canonical seed title/description; `DEFAULT_WELCOMES` is a tuple of two seeds. `reconcile_welcome_embed(pool, bot, *, embed_key, fallback_channel_id, ...)` handles single-key reconciliation; `reconcile_welcome_embeds(pool, bot)` orchestrates both managed keys, resolving channel ids from `dw.global_config.channel_id_<embed_key>`. Outcomes: `posted` (first run), `edited` (idempotent re-run), `reposted` (self-heal after admin deletes the Discord message), `skipped` (no channel id available pre-`/admin setup`). The reconciler is wired into `DwBot.on_ready` with a broad-except so a DB hiccup is non-fatal — next on_ready retries. 11 new tests (orchestrator + every single-key branch + idempotency property + self-heal); full suite 239 / 239; ruff + mypy strict clean. |
-| 2026-05-02 | Story 4.3 done. `goldrush_core/balance/account_stats.py` adds `AccountStats` (frozen) + `fetch_account_stats(executor, *, discord_id) -> AccountStats | None` (single-row JOIN over core.users / core.balances / confirmed dw.deposit_tickets / confirmed dw.withdraw_tickets, all aggregates COALESCEd to 0). `goldrush_core/embeds/account.py` adds `account_summary_embed`, `no_balance_embed` (shared with Luck per spec §5.6), `help_embed` (with `HELP_TOPICS` ordered dict). `goldrush_deposit_withdraw/cogs/account.py` ships the real `/balance` and `/help` slash commands — both ephemeral, `/help` with autocomplete choices for the four topics. Unknown topics fall back to the list view rather than raising. `_resolve_how_to_deposit_mention` does best-effort name lookup until Story 10.x reads channel ids from `dw.global_config`. 17 new tests; full suite 228 / 228; ruff + mypy strict clean. |
-| 2026-05-02 | Story 4.2 done. Six cog skeletons created under `goldrush_deposit_withdraw/cogs/` (account, admin, cashier, deposit, ticket, withdraw); each exposes the `async def setup(bot)` contract. `EXTENSIONS` tuple populated; `setup_hook` now loads all six. `DwBot.on_ready` overridden — calls `bot.tree.sync(guild=discord.Object(id=settings.guild_id))` for instant per-guild sync; logs `user_id`, `guild_id`, `command_count`. 10 new tests (1 base + 6 parametrized cog-contract + 3 functional); full suite 211 / 211; ruff + mypy strict clean. |
-| 2026-05-02 | Story 4.1 done. `goldrush_core/config/__init__.py` adds `CoreSettings` + `DwSettings` (pydantic-settings v2; secrets typed as SecretStr; reads from `.env.shared` + `.env.dw` in dev). `goldrush_core/logging/__init__.py` adds `setup_logging(level, *, format)` with a structlog + stdlib pipeline that toggles between JSON (production) and ConsoleRenderer (local dev). `goldrush_deposit_withdraw/client.py` adds `DwBot` (commands.Bot subclass) + `build_bot(settings, *, pool_factory=None)`; the pool factory is injectable for tests. `goldrush_deposit_withdraw/healthcheck.py` rewritten — opens a 1-conn pool with 3-second timeout, runs `SELECT 1`, exits 0 only when the result is exactly 1; every failure path (missing DSN, factory raises, timeout, wrong value, exception) maps to exit 1. `goldrush_deposit_withdraw/__main__.py` rewritten — loads settings, configures logging, runs the bot. asyncpg added to mypy `ignore_missing_imports` (no py.typed marker upstream). 25 new tests; full unit suite 201 / 201; ruff + mypy strict clean. |
-| 2026-05-02 | Story 3.4 done. Epic 3 closed. `goldrush_deposit_withdraw/setup/channel_factory.py` implements `setup_or_reuse_channels(guild, *, cashier_role_id, admin_role_id, dry_run=False, persist=None) -> SetupReport`. Idempotent name+parent matching; spec §5.3 permission matrix encoded per channel and per role; `manage_threads` substituted for the spec's "View Private Threads" because discord.py 2.4.0 does not expose `view_private_threads` (folded into manage_threads upstream). Persistence decoupled via async callback; module is DB-agnostic. Channel naming uses spec-canonical (`#cashier-alerts`, `#how-to-deposit`); the live server's renamed equivalents (`#cashier-requests`, etc.) will be re-linked via `/admin set-channel <key>` once Story 10.x lands — flagged inline. 23 tests in `tests/unit/dw/test_channel_factory.py`; full unit suite 177 / 177 green; ruff + mypy strict clean. |
+| 2026-05-02 | Stories 5.4 + 6.3 done in a paired commit (single shared `TicketCog`). New SECURITY DEFINER wrappers `claim_ticket(ticket_type, ticket_uid, cashier_id)` and `release_ticket(ticket_type, ticket_uid, actor_id)` in `dw_manager.py`. New orchestration helpers `claim_ticket_for_cashier`, `release_ticket_by_cashier`, `cancel_ticket_dispatch` (LifecycleOutcome union with 8 variants — Success, TicketNotFound, AlreadyClaimed, NotClaimed, WrongCashier, RegionMismatch, AlreadyTerminal, Unexpected). New cog at `deathroll_deposit_withdraw/cogs/ticket.py` with `/claim`, `/release`, `/cancel`, `/cancel-mine` — looks up ticket by thread_id (joins both deposit and withdraw tables), dispatches to the right SECURITY DEFINER fn. /cancel-mine checks ownership + status='open' before delegating. 10 new tests in `test_lifecycle_orchestration.py`; full suite 312 / 312; ruff + mypy strict clean. |
+| 2026-05-02 | Story 5.3 done. `deathroll_deposit_withdraw/cashiers/alert.py::post_cashier_alert(...)` posts a `cashier_alert_embed` in `#cashier-alerts` with the @cashier role mention as the message content. The embed now carries a "Compatible cashiers" field built from `find_compatible_cashiers(roster, region, faction)` (Story 5.3 foundation) — empty matches render a "_none online for this region/faction_" placeholder. Same poster is reused for withdraw alerts. 6 new tests covering happy path, none-online placeholder, both ticket types, and the two skip paths (channel id unconfigured, channel not in cache). Full suite 302 / 302; ruff + mypy strict clean. |
+| 2026-05-02 | Stories 5.1, 5.2, 6.1, 6.2 done in a paired commit (the deposit/withdraw open flows are atomic units that can't be split mid-way because `dw.create_*_ticket` requires a thread_id at NOT NULL insert time). New: `deathroll_deposit_withdraw/tickets/orchestration.py` (typed-outcome wrappers `open_deposit_ticket` / `open_withdraw_ticket`); `deathroll_deposit_withdraw/cogs/deposit.py` and `withdraw.py` rewritten with the slash commands; `DwBot.rate_limiters` dict (1/60s for both); `dw_manager.py` returns are now `cast()` so mypy strict passes through the cog import chain. 14 new tests; full suite 296 / 296; ruff + mypy strict clean. |
+| 2026-05-02 | Story 4.5 done. Epic 4 closed. `deathroll_core/balance/cashier_roster.py` adds the live roster query; `RosterSnapshot` (frozen) buckets cashiers by region + on-break + offline count; a cashier with chars in multiple regions appears in each region's bucket. `online_cashiers_live_embed` refactored to take the snapshot directly (3 existing tests + 1 new test updated). `deathroll_deposit_withdraw/cashiers/live_updater.py` ships `tick(pool, bot, channel_id)` (single iteration, persists message id in `dw.dynamic_embeds[embed_key='online_cashiers']`, self-heals on NotFound) and `OnlineCashiersUpdater` (cancellable asyncio loop with idempotent start, awaitable stop, broad-except wrappers around tick so a transient error doesn't kill the loop). `DwBot.on_ready` resolves the channel id from `dw.global_config.channel_id_online_cashiers` and spins up the updater; `close_pool` shuts it down. 14 new tests + 1 modified test surface; full suite 253 / 253; ruff + mypy strict clean. |
+| 2026-05-02 | Story 4.4 done. `deathroll_deposit_withdraw/welcome.py` adds the reconciler for `dw.dynamic_embeds` rows `how_to_deposit` and `how_to_withdraw`. `WelcomeDefault` (frozen) carries the canonical seed title/description; `DEFAULT_WELCOMES` is a tuple of two seeds. `reconcile_welcome_embed(pool, bot, *, embed_key, fallback_channel_id, ...)` handles single-key reconciliation; `reconcile_welcome_embeds(pool, bot)` orchestrates both managed keys, resolving channel ids from `dw.global_config.channel_id_<embed_key>`. Outcomes: `posted` (first run), `edited` (idempotent re-run), `reposted` (self-heal after admin deletes the Discord message), `skipped` (no channel id available pre-`/admin setup`). The reconciler is wired into `DwBot.on_ready` with a broad-except so a DB hiccup is non-fatal — next on_ready retries. 11 new tests (orchestrator + every single-key branch + idempotency property + self-heal); full suite 239 / 239; ruff + mypy strict clean. |
+| 2026-05-02 | Story 4.3 done. `deathroll_core/balance/account_stats.py` adds `AccountStats` (frozen) + `fetch_account_stats(executor, *, discord_id) -> AccountStats | None` (single-row JOIN over core.users / core.balances / confirmed dw.deposit_tickets / confirmed dw.withdraw_tickets, all aggregates COALESCEd to 0). `deathroll_core/embeds/account.py` adds `account_summary_embed`, `no_balance_embed` (shared with Luck per spec §5.6), `help_embed` (with `HELP_TOPICS` ordered dict). `deathroll_deposit_withdraw/cogs/account.py` ships the real `/balance` and `/help` slash commands — both ephemeral, `/help` with autocomplete choices for the four topics. Unknown topics fall back to the list view rather than raising. `_resolve_how_to_deposit_mention` does best-effort name lookup until Story 10.x reads channel ids from `dw.global_config`. 17 new tests; full suite 228 / 228; ruff + mypy strict clean. |
+| 2026-05-02 | Story 4.2 done. Six cog skeletons created under `deathroll_deposit_withdraw/cogs/` (account, admin, cashier, deposit, ticket, withdraw); each exposes the `async def setup(bot)` contract. `EXTENSIONS` tuple populated; `setup_hook` now loads all six. `DwBot.on_ready` overridden — calls `bot.tree.sync(guild=discord.Object(id=settings.guild_id))` for instant per-guild sync; logs `user_id`, `guild_id`, `command_count`. 10 new tests (1 base + 6 parametrized cog-contract + 3 functional); full suite 211 / 211; ruff + mypy strict clean. |
+| 2026-05-02 | Story 4.1 done. `deathroll_core/config/__init__.py` adds `CoreSettings` + `DwSettings` (pydantic-settings v2; secrets typed as SecretStr; reads from `.env.shared` + `.env.dw` in dev). `deathroll_core/logging/__init__.py` adds `setup_logging(level, *, format)` with a structlog + stdlib pipeline that toggles between JSON (production) and ConsoleRenderer (local dev). `deathroll_deposit_withdraw/client.py` adds `DwBot` (commands.Bot subclass) + `build_bot(settings, *, pool_factory=None)`; the pool factory is injectable for tests. `deathroll_deposit_withdraw/healthcheck.py` rewritten — opens a 1-conn pool with 3-second timeout, runs `SELECT 1`, exits 0 only when the result is exactly 1; every failure path (missing DSN, factory raises, timeout, wrong value, exception) maps to exit 1. `deathroll_deposit_withdraw/__main__.py` rewritten — loads settings, configures logging, runs the bot. asyncpg added to mypy `ignore_missing_imports` (no py.typed marker upstream). 25 new tests; full unit suite 201 / 201; ruff + mypy strict clean. |
+| 2026-05-02 | Story 3.4 done. Epic 3 closed. `deathroll_deposit_withdraw/setup/channel_factory.py` implements `setup_or_reuse_channels(guild, *, cashier_role_id, admin_role_id, dry_run=False, persist=None) -> SetupReport`. Idempotent name+parent matching; spec §5.3 permission matrix encoded per channel and per role; `manage_threads` substituted for the spec's "View Private Threads" because discord.py 2.4.0 does not expose `view_private_threads` (folded into manage_threads upstream). Persistence decoupled via async callback; module is DB-agnostic. Channel naming uses spec-canonical (`#cashier-alerts`, `#how-to-deposit`); the live server's renamed equivalents (`#cashier-requests`, etc.) will be re-linked via `/admin set-channel <key>` once Story 10.x lands — flagged inline. 23 tests in `tests/unit/dw/test_channel_factory.py`; full unit suite 177 / 177 green; ruff + mypy strict clean. |
 
 ---
 
@@ -95,7 +95,7 @@
 
 | Path | Role |
 |---|---|
-| [`2026-04-29-goldrush-dw-v1-design.md`](./2026-04-29-goldrush-dw-v1-design.md) | The locked v1 design spec — the WHAT this plan implements |
+| [`2026-04-29-deathroll-dw-v1-design.md`](./2026-04-29-deathroll-dw-v1-design.md) | The locked v1 design spec — the WHAT this plan implements |
 
 ### Architecture decision records (ADRs)
 
@@ -141,15 +141,15 @@ ADRs documenting D/W-specific architectural decisions. Each is immutable except 
 
 | Credential | Local-dev location | Production location |
 |---|---|---|
-| D/W Discord bot token | `dwBotKeys.txt` on Aleix's local Desktop (gitignored, never committed) | `/opt/goldrush/secrets/.env.dw` on the VPS, mode 600, owned by `goldrush:goldrush` |
-| Postgres `goldrush_dw` password | `.env` if running locally | `/opt/goldrush/secrets/.env.shared` on the VPS |
+| D/W Discord bot token | `dwBotKeys.txt` on Aleix's local Desktop (gitignored, never committed) | `/opt/deathroll/secrets/.env.dw` on the VPS, mode 600, owned by `deathroll:deathroll` |
+| Postgres `deathroll_dw` password | `.env` if running locally | `/opt/deathroll/secrets/.env.shared` on the VPS |
 | `BUTTON_SIGNING_KEY` | `.env` | `.env.shared` |
 | `AUDIT_HASH_CHAIN_KEY` | `.env` | `.env.shared` |
-| GPG public key for backup encryption | n/a | `/opt/goldrush/secrets/backup-gpg-private.asc` on VPS; fingerprint also in Aleix's password manager |
+| GPG public key for backup encryption | n/a | `/opt/deathroll/secrets/backup-gpg-private.asc` on VPS; fingerprint also in Aleix's password manager |
 
 ### Public-facing repository
 
-[`https://github.com/MaleSyrupOG/GoldRush-Luck`](https://github.com/MaleSyrupOG/GoldRush-Luck) — the monorepo. Despite the name still containing "Luck" (legacy), it hosts all three bots and the shared `goldrush_core`.
+[`https://github.com/MaleSyrupOG/DeathRoll-Luck`](https://github.com/MaleSyrupOG/DeathRoll-Luck) — the monorepo. Despite the name still containing "Luck" (legacy), it hosts all three bots and the shared `deathroll_core`.
 
 ### Session logs
 
@@ -159,12 +159,12 @@ ADRs documenting D/W-specific architectural decisions. Each is immutable except 
 
 ### Sister-bot documentation
 
-Cross-bot integration tests, schema co-evolution, and shared `goldrush_core` modules mean the Luck bot's docs are useful context.
+Cross-bot integration tests, schema co-evolution, and shared `deathroll_core` modules mean the Luck bot's docs are useful context.
 
 | Path | Relation to D/W |
 |---|---|
-| [`./2026-04-29-goldrush-luck-v1-design.md`](./2026-04-29-goldrush-luck-v1-design.md) | Sister bot — shares DB tables `core.users`, `core.balances`, `core.audit_log` |
-| [`./2026-04-29-goldrush-luck-v1-implementation-plan.md`](./2026-04-29-goldrush-luck-v1-implementation-plan.md) | Sister plan — Luck Epics 1-4 are prerequisites for D/W work |
+| [`./2026-04-29-deathroll-luck-v1-design.md`](./2026-04-29-deathroll-luck-v1-design.md) | Sister bot — shares DB tables `core.users`, `core.balances`, `core.audit_log` |
+| [`./2026-04-29-deathroll-luck-v1-implementation-plan.md`](./2026-04-29-deathroll-luck-v1-implementation-plan.md) | Sister plan — Luck Epics 1-4 are prerequisites for D/W work |
 
 ---
 
@@ -172,7 +172,7 @@ Cross-bot integration tests, schema co-evolution, and shared `goldrush_core` mod
 
 The spec is _what_ the D/W bot does. This plan is _how_ and _in what order_ we build it. The plan is decomposed into **15 epics** containing concrete **stories** with explicit **acceptance criteria** (ACs).
 
-This plan **assumes Luck's foundation work is already done** — the monorepo skeleton, Postgres compose, `core` schemas, audit log with hash chain, base CI, and shared `goldrush_core` modules are inherited from Luck's plan. Where D/W needs additions to a shared component, the story makes that explicit.
+This plan **assumes Luck's foundation work is already done** — the monorepo skeleton, Postgres compose, `core` schemas, audit log with hash chain, base CI, and shared `deathroll_core` modules are inherited from Luck's plan. Where D/W needs additions to a shared component, the story makes that explicit.
 
 ### Conventions
 
@@ -211,16 +211,16 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ## EPIC 1 — Foundation extensions for D/W
 
-### Story 1.1 — Extend the monorepo skeleton with the `goldrush_deposit_withdraw` package
+### Story 1.1 — Extend the monorepo skeleton with the `deathroll_deposit_withdraw` package
 
 **Status:** Done (2026-05-01)
 
 **As Aleix I want** the D/W package shaped from day one **so that** every later PR adds code, not directories.
 
 **ACs:**
-- [x] `goldrush_deposit_withdraw/{tickets,cashiers,commands,views,setup}/__init__.py` exist.
-- [x] `goldrush_deposit_withdraw/__main__.py`, `client.py`, `healthcheck.py` placeholders exist.
-- [x] `python -c "import goldrush_deposit_withdraw"` succeeds.
+- [x] `deathroll_deposit_withdraw/{tickets,cashiers,commands,views,setup}/__init__.py` exist.
+- [x] `deathroll_deposit_withdraw/__main__.py`, `client.py`, `healthcheck.py` placeholders exist.
+- [x] `python -c "import deathroll_deposit_withdraw"` succeeds.
 - [x] `tests/{unit,integration,property,e2e}/dw/` directories exist with `__init__.py` and a smoke test that imports the package.
 - [x] `.gitignore` updated to exclude `dwBotKeys.txt`, `luckBotKeys.txt`, `*Keys.txt`, `*keys.txt`, `*.token`, `secrets/`, `.env`, `.env.*` (anywhere in the tree).
 - [x] `.gitignore` audited: `git check-ignore -v dwBotKeys.txt` reports it ignored.
@@ -252,8 +252,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 **As Aleix I want** D/W coverage gates enforced in CI **so that** the bot's quality stays at fintech-grade.
 
 **ACs:**
-- [x] `.github/workflows/ci.yml` adds: `mypy --strict goldrush_deposit_withdraw`.
-- [x] Coverage gates added: `goldrush_deposit_withdraw/tickets ≥ 95 %`, `goldrush_deposit_withdraw/cashiers ≥ 90 %`, `goldrush_deposit_withdraw/commands/admin_cog.py ≥ 90 %` (conditional on file existing), rest of `goldrush_deposit_withdraw ≥ 85 %`. Plus parallel gates for Luck (`goldrush_luck/games ≥ 90 %`, `goldrush_luck/admin ≥ 85 %`).
+- [x] `.github/workflows/ci.yml` adds: `mypy --strict deathroll_deposit_withdraw`.
+- [x] Coverage gates added: `deathroll_deposit_withdraw/tickets ≥ 95 %`, `deathroll_deposit_withdraw/cashiers ≥ 90 %`, `deathroll_deposit_withdraw/commands/admin_cog.py ≥ 90 %` (conditional on file existing), rest of `deathroll_deposit_withdraw ≥ 85 %`. Plus parallel gates for Luck (`deathroll_luck/games ≥ 90 %`, `deathroll_luck/admin ≥ 85 %`).
 - [x] CI fails if any gate is missed (each `--cov-fail-under` exits non-zero on miss; the workflow step propagates the failure).
 - [x] Cross-bot integration tests run on every PR (`tests/integration/cross_bot/`). Currently empty; the step succeeds vacuously and is wired to fail once tests land.
 
@@ -268,17 +268,17 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 2.1 — Migration: `dw` schema and grants
 
-**Status:** Done (2026-05-01) — applied to VPS Postgres in commit `31f826d` / `e3c91da`. Schema-level grants live in `ops/postgres/01-schemas-grants.sql` (init.sh). Per-table grants on `core.users`/`core.balances`/`core.audit_log` for `goldrush_dw` are added by migrations 0001 and 0002.
+**Status:** Done (2026-05-01) — applied to VPS Postgres in commit `31f826d` / `e3c91da`. Schema-level grants live in `ops/postgres/01-schemas-grants.sql` (init.sh). Per-table grants on `core.users`/`core.balances`/`core.audit_log` for `deathroll_dw` are added by migrations 0001 and 0002.
 
 **As Aleix I want** the `dw` schema with correct grants in place **so that** every later migration adds tables without DDL ceremony.
 
 **ACs:**
 - [ ] Alembic migration `dw_001_create_schema_and_grants.py` creates schema `dw`.
-- [ ] Grants per spec §3.1 applied for `goldrush_dw`, `goldrush_readonly`.
-- [ ] Adds `INSERT, UPDATE` on `core.users`, `core.balances` to `goldrush_dw`.
-- [ ] Adds `INSERT` on `core.audit_log` to `goldrush_dw`.
-- [ ] Test: connect as `goldrush_dw`, run `INSERT INTO core.users` — succeeds.
-- [ ] Test: connect as `goldrush_luck`, run `INSERT INTO core.users` — fails with permission denied.
+- [ ] Grants per spec §3.1 applied for `deathroll_dw`, `deathroll_readonly`.
+- [ ] Adds `INSERT, UPDATE` on `core.users`, `core.balances` to `deathroll_dw`.
+- [ ] Adds `INSERT` on `core.audit_log` to `deathroll_dw`.
+- [ ] Test: connect as `deathroll_dw`, run `INSERT INTO core.users` — succeeds.
+- [ ] Test: connect as `deathroll_luck`, run `INSERT INTO core.users` — fails with permission denied.
 
 **Dependencies:** Luck Epic 2 done
 **Effort:** S
@@ -296,7 +296,7 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 - [ ] All indexes created.
 - [ ] Terminal-state-immutable trigger on each table; integration test: a `confirmed` row cannot be updated to `claimed`.
 - [ ] Test: insert `claimed` row, update to `cancelled` — succeeds. Insert `confirmed` row, update to `claimed` — raises.
-- [ ] SQLAlchemy ORM models added in `goldrush_core/models/dw.py`.
+- [ ] SQLAlchemy ORM models added in `deathroll_core/models/dw.py`.
 
 **Dependencies:** Story 2.1
 **Effort:** M
@@ -349,17 +349,17 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 2.6 — SECURITY DEFINER deposit fns
 
-**Status:** Done (2026-05-01) — migration `0006_dw_deposit_fns`. Three functions on VPS, EXECUTE granted to `goldrush_dw` only. Smoke-tested locally with full deposit cycle.
+**Status:** Done (2026-05-01) — migration `0006_dw_deposit_fns`. Three functions on VPS, EXECUTE granted to `deathroll_dw` only. Smoke-tested locally with full deposit cycle.
 
 **As Aleix I want** `dw.create_deposit_ticket`, `dw.confirm_deposit`, `dw.cancel_deposit` **so that** every deposit-side gold movement is encoded in DB code, not application code.
 
 **ACs:**
-- [ ] Three functions created per spec §3.3, owned by `goldrush_admin`, `EXECUTE` granted to `goldrush_dw`.
+- [ ] Three functions created per spec §3.3, owned by `deathroll_admin`, `EXECUTE` granted to `deathroll_dw`.
 - [ ] `confirm_deposit` is idempotent on `core.users` insert (`ON CONFLICT DO NOTHING`).
 - [ ] `confirm_deposit` writes one `audit_log` row with `action='deposit_confirmed'`, signed amount, balance_before/after.
 - [ ] Test: `apply` then `confirm` for a brand-new user creates the user and credits balance correctly.
 - [ ] Test: only the cashier who claimed can call `confirm_deposit` (function checks `claimed_by == p_cashier_id`).
-- [ ] Test: connecting as `goldrush_dw` and trying `UPDATE core.balances SET balance=...` directly returns permission denied; only EXECUTE on the function works.
+- [ ] Test: connecting as `deathroll_dw` and trying `UPDATE core.balances SET balance=...` directly returns permission denied; only EXECUTE on the function works.
 
 **Dependencies:** Story 2.2, Story 2.5
 **Effort:** L
@@ -469,10 +469,10 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 3.1 — Balance manager: D/W extensions
 
-**Status:** Done (2026-05-01) — `goldrush_core/db.py`, `goldrush_core/balance/exceptions.py` (32 typed exception classes), `goldrush_core/balance/dw_manager.py` (8 wrappers). 32 unit tests cover every documented sentinel + fallback + specific-match-wins-over-generic ordering. Wrappers: `apply_deposit_ticket`, `confirm_deposit`, `cancel_deposit`, `apply_withdraw_ticket`, `confirm_withdraw`, `cancel_withdraw`, `treasury_sweep`, `treasury_withdraw_to_user`. Cashier / lifecycle / dispute wrappers will land in their own stories (3.x and 9.x).
+**Status:** Done (2026-05-01) — `deathroll_core/db.py`, `deathroll_core/balance/exceptions.py` (32 typed exception classes), `deathroll_core/balance/dw_manager.py` (8 wrappers). 32 unit tests cover every documented sentinel + fallback + specific-match-wins-over-generic ordering. Wrappers: `apply_deposit_ticket`, `confirm_deposit`, `cancel_deposit`, `apply_withdraw_ticket`, `confirm_withdraw`, `cancel_withdraw`, `treasury_sweep`, `treasury_withdraw_to_user`. Cashier / lifecycle / dispute wrappers will land in their own stories (3.x and 9.x).
 
 **ACs:**
-- [ ] `goldrush_core/balance/dw_manager.py` exposes typed wrappers around the SECURITY DEFINER fns.
+- [ ] `deathroll_core/balance/dw_manager.py` exposes typed wrappers around the SECURITY DEFINER fns.
 - [ ] Functions: `apply_deposit_ticket`, `confirm_deposit`, `cancel_deposit`, `apply_withdraw_ticket`, `confirm_withdraw`, `cancel_withdraw`, `treasury_sweep`, `treasury_withdraw_to_user`.
 - [ ] Each translates Postgres `RaiseError` into typed Python exceptions (`InsufficientBalance`, `RegionMismatch`, `WrongCashier`, `TicketAlreadyClaimed`, `InsufficientTreasury`, `UserBanned`).
 - [ ] Test: each exception type triggered by the corresponding DB error.
@@ -483,10 +483,10 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 
 ### Story 3.2 — Pydantic models for tickets and cashier characters
 
-**Status:** Done (2026-05-01) — `goldrush_core/models/dw_pydantic.py` (16 models: 3 modal-input + 9 domain-row + 4 literal aliases). 66 unit tests cover happy paths, hostile inputs (malformed amount with separators/suffixes/signs/zero, invalid region/faction/charname, oversized realm, boolean amount), normalisation (region case, faction case, hex color), and immutability of frozen models. Domain models constructed from dict payloads matching what asyncpg.Record returns.
+**Status:** Done (2026-05-01) — `deathroll_core/models/dw_pydantic.py` (16 models: 3 modal-input + 9 domain-row + 4 literal aliases). 66 unit tests cover happy paths, hostile inputs (malformed amount with separators/suffixes/signs/zero, invalid region/faction/charname, oversized realm, boolean amount), normalisation (region case, faction case, hex color), and immutability of frozen models. Domain models constructed from dict payloads matching what asyncpg.Record returns.
 
 **ACs:**
-- [ ] `goldrush_core/models/dw_pydantic.py` defines `DepositTicket`, `WithdrawTicket`, `CashierCharacter`, `CashierStatus`, `Dispute`, `DepositModalInput`, `WithdrawModalInput`, `EditDynamicEmbedInput` per spec §5.5.
+- [ ] `deathroll_core/models/dw_pydantic.py` defines `DepositTicket`, `WithdrawTicket`, `CashierCharacter`, `CashierStatus`, `Dispute`, `DepositModalInput`, `WithdrawModalInput`, `EditDynamicEmbedInput` per spec §5.5.
 - [ ] All input models enforce strict validation (region in {EU,NA}, faction in {Alliance,Horde}, charname regex, amount as exact integer, etc.).
 - [ ] Test: malformed input raises pydantic ValidationError.
 
@@ -499,8 +499,8 @@ Epics 5 and 6 can parallelise after Epic 4 is done. Epic 8 (background workers) 
 Status: Done (2026-05-02)
 
 **ACs:**
-- [x] `goldrush_core/embeds/dw_tickets.py` exposes the 14 builders listed in spec §5.6 (deposit ×4, withdraw ×4, cashier_alert, online_cashiers_live, cashier_stats, dispute_open, dispute_resolved, how_to_deposit_dynamic, treasury_balance) plus two helper builders (`awaiting_cashier_embed`, `wait_instructions_embed`) demanded by the visual contract in `reference_deposit_ticket_ux.md`.
-- [x] All themed with the GoldRush palette: HOUSE blue `#5B7CC9`, WIN green `#5DBE5A`, BUST red `#D8231A`, EMBER orange `#C8511C`, GOLD `#F2B22A` (Luck §6.3 + visual contract).
+- [x] `deathroll_core/embeds/dw_tickets.py` exposes the 14 builders listed in spec §5.6 (deposit ×4, withdraw ×4, cashier_alert, online_cashiers_live, cashier_stats, dispute_open, dispute_resolved, how_to_deposit_dynamic, treasury_balance) plus two helper builders (`awaiting_cashier_embed`, `wait_instructions_embed`) demanded by the visual contract in `reference_deposit_ticket_ux.md`.
+- [x] All themed with the DeathRoll palette: HOUSE blue `#5B7CC9`, WIN green `#5DBE5A`, BUST red `#D8231A`, EMBER orange `#C8511C`, GOLD `#F2B22A` (Luck §6.3 + visual contract).
 - [x] Snapshot-style tests for each embed: title, key fields, colour, timestamp/footer. Anti-phishing warning explicitly covered. Withdraw open shows amount/fee/delivered breakdown; withdraw cancel surfaces `REFUNDED`. Region `NA` is rendered as `(US)` per the visual contract.
 
 **Verification:** `tests/unit/core/test_dw_embeds.py` — 52 tests covering every builder + edge cases (empty cashier roster, null avg-claim-time, zero-amount safety, malformed fields_json fallback, NA→US label, dispute resolved vs rejected colour, etc.). Full unit suite passes 154 / 154.
@@ -516,7 +516,7 @@ Status: Done (2026-05-02)
 **As Aleix I want** the channel-creation logic isolated and testable **so that** the `/admin setup` command can be exercised in tests without a real Discord guild.
 
 **ACs:**
-- [x] `goldrush_deposit_withdraw/setup/channel_factory.py` exposes `setup_or_reuse_channels(guild, *, cashier_role_id, admin_role_id, dry_run=False, persist=None) -> SetupReport`.
+- [x] `deathroll_deposit_withdraw/setup/channel_factory.py` exposes `setup_or_reuse_channels(guild, *, cashier_role_id, admin_role_id, dry_run=False, persist=None) -> SetupReport`.
 - [x] Idempotent: matches by name + parent category. Re-running on a fully provisioned guild creates nothing (verified via `test_second_run_creates_nothing_when_state_unchanged`); partial state creates only the missing entities (`test_partial_state_creates_only_missing_channels`).
 - [x] Permission overwrites applied per spec §5.3 matrix. The spec's "View Private Threads" maps to discord.py's `manage_threads` flag (no `view_private_threads` flag exists in discord.py 2.4.0; documented inline). Verified for every role on every channel via dedicated tests for `cashier_alerts`, `disputes`, `how_to_deposit`, `deposit`, the `Cashier` category and the bot member.
 - [x] Persistence is decoupled — caller passes an async `persist` callback that receives `{channel_key: discord_id}`; the module never touches the DB. Skipped automatically on `dry_run`.
@@ -538,12 +538,12 @@ Status: Done (2026-05-02)
 Status: Done (2026-05-02)
 
 **ACs:**
-- [x] `goldrush_deposit_withdraw/__main__.py` builds the bot via `build_bot(settings)`, configures structlog with the requested format, runs `bot.start(token)` until shutdown, ensures the DB pool closes cleanly on exit.
-- [x] `client.py` defines the `DwBot` subclass; `setup_hook` opens the asyncpg pool from `settings.postgres_dsn` (the `goldrush_dw` role DSN injected via Compose) and iterates `EXTENSIONS` to load cogs (the tuple is empty in 4.1; populated in 4.2).
+- [x] `deathroll_deposit_withdraw/__main__.py` builds the bot via `build_bot(settings)`, configures structlog with the requested format, runs `bot.start(token)` until shutdown, ensures the DB pool closes cleanly on exit.
+- [x] `client.py` defines the `DwBot` subclass; `setup_hook` opens the asyncpg pool from `settings.postgres_dsn` (the `deathroll_dw` role DSN injected via Compose) and iterates `EXTENSIONS` to load cogs (the tuple is empty in 4.1; populated in 4.2).
 - [x] `healthcheck.py` opens a tiny pool (1 conn, 3-second timeout), runs `SELECT 1`, returns 0 on `result == 1`, 1 on any failure (timeout, exception, missing DSN, wrong return value). Pool closed in a `finally` so the script never leaks sockets.
-- [x] Docker HEALTHCHECK already points at `python -m goldrush_deposit_withdraw.healthcheck` (Story 12.4 baseline) — Story 4.1 makes that probe meaningful for the first time.
+- [x] Docker HEALTHCHECK already points at `python -m deathroll_deposit_withdraw.healthcheck` (Story 12.4 baseline) — Story 4.1 makes that probe meaningful for the first time.
 
-Companion modules: `goldrush_core/config/__init__.py` (CoreSettings + DwSettings, secrets typed as `SecretStr`), `goldrush_core/logging/__init__.py` (structlog + stdlib logging setup with json/console toggle).
+Companion modules: `deathroll_core/config/__init__.py` (CoreSettings + DwSettings, secrets typed as `SecretStr`), `deathroll_core/logging/__init__.py` (structlog + stdlib logging setup with json/console toggle).
 
 **Verification:** `tests/unit/core/test_settings.py` (9 tests), `tests/unit/dw/test_healthcheck.py` (8 tests), `tests/unit/dw/test_client.py` (8 tests). Full unit suite 201 / 201 green; ruff + mypy strict clean (asyncpg added to mypy `ignore_missing_imports` since the package ships without a py.typed marker).
 
@@ -556,7 +556,7 @@ Companion modules: `goldrush_core/config/__init__.py` (CoreSettings + DwSettings
 Status: Done (2026-05-02)
 
 **ACs:**
-- [x] `EXTENSIONS` populated with the six canonical cog import paths under `goldrush_deposit_withdraw.cogs.*` (account, admin, cashier, deposit, ticket, withdraw). `setup_hook` iterates and `await self.load_extension(ext)` for each. Each cog module exposes the `async def setup(bot)` contract discord.py expects.
+- [x] `EXTENSIONS` populated with the six canonical cog import paths under `deathroll_deposit_withdraw.cogs.*` (account, admin, cashier, deposit, ticket, withdraw). `setup_hook` iterates and `await self.load_extension(ext)` for each. Each cog module exposes the `async def setup(bot)` contract discord.py expects.
 - [x] `on_ready` overridden on `DwBot`; calls `bot.tree.sync(guild=discord.Object(id=settings.guild_id))` for instant per-guild sync.
 - [x] Logs include user_id + guild_id + synced command_count so a regression in cog loading or command registration is visible at boot.
 
@@ -578,8 +578,8 @@ Status: Done (2026-05-02)
 - [x] `/help` accepts an optional `topic` argument with autocomplete choices (`deposit`, `withdraw`, `fairness`, `support`); without a topic it lists every topic. Unknown topics fall back to the topic list rather than raising.
 
 **Companion code:**
-- `goldrush_core/balance/account_stats.py` — frozen `AccountStats` dataclass + async `fetch_account_stats` query.
-- `goldrush_core/embeds/account.py` — `account_summary_embed`, `no_balance_embed`, `help_embed`, `HELP_TOPICS` (dict ordered by canonical sequence).
+- `deathroll_core/balance/account_stats.py` — frozen `AccountStats` dataclass + async `fetch_account_stats` query.
+- `deathroll_core/embeds/account.py` — `account_summary_embed`, `no_balance_embed`, `help_embed`, `HELP_TOPICS` (dict ordered by canonical sequence).
 
 **Verification:** 17 new tests across `tests/unit/core/test_account_stats.py` (4), `tests/unit/core/test_account_embeds.py` (8 incl. parametrized topic test), `tests/unit/dw/test_account_cog.py` (2). Full unit suite 228 / 228 green; ruff + mypy strict clean.
 
@@ -611,9 +611,9 @@ Status: Done (2026-05-02)
 Status: Done (2026-05-02)
 
 **ACs:**
-- [x] `goldrush_core/balance/cashier_roster.py` adds `fetch_online_roster(executor) -> RosterSnapshot` (online cashiers grouped by region, on-break list, offline count). Joins `dw.cashier_status` with `dw.cashier_characters` so a cashier with chars in EU + NA appears in both region buckets.
+- [x] `deathroll_core/balance/cashier_roster.py` adds `fetch_online_roster(executor) -> RosterSnapshot` (online cashiers grouped by region, on-break list, offline count). Joins `dw.cashier_status` with `dw.cashier_characters` so a cashier with chars in EU + NA appears in both region buckets.
 - [x] `online_cashiers_live_embed` refactored to take a `RosterSnapshot` and render: one field per region (sorted), an "On break" field if non-empty, footer with `Offline cashiers: N`.
-- [x] `goldrush_deposit_withdraw/cashiers/live_updater.py` ships `tick(pool, bot, channel_id)` (single iteration with insert / post / edit / repost-on-NotFound branches) plus `OnlineCashiersUpdater` (cancellable asyncio loop, idempotent `start()`, awaitable `stop()`).
+- [x] `deathroll_deposit_withdraw/cashiers/live_updater.py` ships `tick(pool, bot, channel_id)` (single iteration with insert / post / edit / repost-on-NotFound branches) plus `OnlineCashiersUpdater` (cancellable asyncio loop, idempotent `start()`, awaitable `stop()`).
 - [x] `DwBot.on_ready` resolves the channel id from `dw.global_config.channel_id_online_cashiers` and starts the updater (skipped pre-`/admin setup`); `close_pool` stops the updater on shutdown.
 - [x] Test (with two mock cashiers, one EU + one on break NA) renders both in the correct sections; offline count appears in the footer.
 
@@ -632,8 +632,8 @@ Status: Done (2026-05-02)
 Status: Done (2026-05-02; paired with 5.2 / 6.1 / 6.2)
 
 **ACs:**
-- [x] `/deposit` slash command registered in `goldrush_deposit_withdraw.cogs.deposit.DepositCog`. Channel binding enforced inline (reads `dw.global_config.channel_id_deposit` at invocation time so re-binding via `/admin set-channel` propagates without restart).
-- [x] On invocation, opens `DepositModal` (5 fields: char_name, realm, region, faction, amount) — defined in `goldrush_deposit_withdraw/views/modals.py`.
+- [x] `/deposit` slash command registered in `deathroll_deposit_withdraw.cogs.deposit.DepositCog`. Channel binding enforced inline (reads `dw.global_config.channel_id_deposit` at invocation time so re-binding via `/admin set-channel` propagates without restart).
+- [x] On invocation, opens `DepositModal` (5 fields: char_name, realm, region, faction, amount) — defined in `deathroll_deposit_withdraw/views/modals.py`.
 - [x] Modal submit validates via `DepositModalInput` pydantic model (Story 3.2). ValidationError surfaces as an ephemeral list of "field: message" lines so users see exactly what to fix.
 - [x] Banned user → `DepositOutcome.UserBanned` → ephemeral "You are blacklisted from creating deposit tickets..." with a pointer to dispute path.
 - [x] Rate limit: 1 ticket per user per 60 s, enforced before the thread is created so a tight loop can't litter empty threads.
@@ -665,7 +665,7 @@ Status: Done (2026-05-02; paired with 5.1 / 6.1 / 6.2)
 Status: Done (2026-05-02)
 
 **ACs:**
-- [x] `goldrush_deposit_withdraw/cashiers/alert.py::post_cashier_alert(...)` posts the embed in `#cashier-alerts` (channel id resolved at call time from `dw.global_config.channel_id_cashier_alerts`); the message ``content`` is the literal `@cashier` mention so the role gets pinged. Same poster is reused by both deposit and withdraw cogs.
+- [x] `deathroll_deposit_withdraw/cashiers/alert.py::post_cashier_alert(...)` posts the embed in `#cashier-alerts` (channel id resolved at call time from `dw.global_config.channel_id_cashier_alerts`); the message ``content`` is the literal `@cashier` mention so the role gets pinged. Same poster is reused by both deposit and withdraw cogs.
 - [x] `cashier_alert_embed` extended with a ``compatible_cashiers`` argument; the embed surfaces a "Compatible cashiers" field listing matching online mentions or a "_none online for this region/faction_" placeholder so the field's presence is consistent across alerts.
 - [x] Test `test_post_alert_includes_compatible_cashier_for_eu_horde_ticket` verifies that with one EU Horde online cashier and an EU Horde ticket, the embed lists that cashier; complementary tests cover the no-match placeholder, both ticket types, missing-channel-id skip, and missing-channel-cache skip.
 
@@ -868,8 +868,8 @@ Status: Done (2026-05-03)
 Status: Done (2026-05-02; landed during Story 4.5)
 
 **ACs:**
-- [x] `OnlineCashiersUpdater` (in `goldrush_deposit_withdraw/cashiers/live_updater.py`) runs every 30 s.
-- [x] Reads online roster via `goldrush_core.balance.cashier_roster.fetch_online_roster`; renders via `online_cashiers_live_embed`.
+- [x] `OnlineCashiersUpdater` (in `deathroll_deposit_withdraw/cashiers/live_updater.py`) runs every 30 s.
+- [x] Reads online roster via `deathroll_core.balance.cashier_roster.fetch_online_roster`; renders via `online_cashiers_live_embed`.
 - [x] Edits the persisted message in `#online-cashiers`; on `discord.NotFound`, reposts and persists the new message id in `dw.dynamic_embeds[embed_key='online_cashiers']`.
 - [x] Idempotent across reconnects (`start()` no-op when running); cancellable shutdown via `await stop()`.
 
@@ -1091,8 +1091,8 @@ Status: Done (2026-05-03)
 Status: Done (2026-05-03)
 
 **ACs:**
-- [x] `goldrush_deposit_withdraw/metrics.py` defines all 10 metric families from spec §7.3 on a custom `CollectorRegistry`. Type choice documented inline: DB-derived totals are Gauges (not Counters) because deploys would reset a true Counter, but the DB still holds the cumulative — Gauges of "current cumulative count" are more honest. Histograms (`ticket_claim_duration_s`, `ticket_confirm_duration_s`) keep Histogram type; populated via `observe()` in the ticket cog at confirm time.
-- [x] HTTP server on port 9101, started from `DwBot.on_ready` via `start_metrics_server(port=9101)`. The port is reachable on `goldrush_net` (the bot's own docker network) — the operator opts into external scraping via the new `compose.observability.yml` overlay (publishes on 127.0.0.1:9101 by default; an alt path attaches to a foreign observability docker network if the operator edits the overlay).
+- [x] `deathroll_deposit_withdraw/metrics.py` defines all 10 metric families from spec §7.3 on a custom `CollectorRegistry`. Type choice documented inline: DB-derived totals are Gauges (not Counters) because deploys would reset a true Counter, but the DB still holds the cumulative — Gauges of "current cumulative count" are more honest. Histograms (`ticket_claim_duration_s`, `ticket_confirm_duration_s`) keep Histogram type; populated via `observe()` in the ticket cog at confirm time.
+- [x] HTTP server on port 9101, started from `DwBot.on_ready` via `start_metrics_server(port=9101)`. The port is reachable on `deathroll_net` (the bot's own docker network) — the operator opts into external scraping via the new `compose.observability.yml` overlay (publishes on 127.0.0.1:9101 by default; an alt path attaches to a foreign observability docker network if the operator edits the overlay).
 - [x] `MetricsRefresherWorker` (subclasses Story 8.1's `PeriodicWorker`) refreshes every 30 s by calling `refresh_from_db(pool)` which runs the per-metric SELECT + .set() calls. Per-metric `try`/`except` so a single bad query doesn't poison the rest.
 
 **Verification:** `tests/unit/dw/test_metrics.py` (7 tests: registry shape, no global pollution, histogram observe semantics, refresh_from_db treasury / status / empty paths). Suite 448 → 455.
@@ -1106,10 +1106,10 @@ Status: Done (2026-05-03)
 Status: Done (2026-05-03)
 
 **ACs:**
-- [x] `ops/observability/grafana-dashboards/goldrush-dw.json` ships 9 panels covering every spec metric: tickets/min by status (deposits + withdraws separated, deriv() over 5m), volume processed by region (deposit + withdraw stacked), treasury balance over time, cashiers online by region, fee revenue trend, claim → confirm duration P50/P95 (deposits), confirm SDF latency P50/P95 (both ticket types), dispute rate per cashier (top-10 table).
+- [x] `ops/observability/grafana-dashboards/deathroll-dw.json` ships 9 panels covering every spec metric: tickets/min by status (deposits + withdraws separated, deriv() over 5m), volume processed by region (deposit + withdraw stacked), treasury balance over time, cashiers online by region, fee revenue trend, claim → confirm duration P50/P95 (deposits), confirm SDF latency P50/P95 (both ticket types), dispute rate per cashier (top-10 table).
 - [x] Imports cleanly into Grafana 11+ (schemaVersion=39); uses a `$datasource` template var so the dashboard ports across environments without manual edits.
 
-**Verification:** `tests/unit/dw/test_grafana_dashboard.py` (4 tests: JSON loads, title says GoldRush, every spec metric family is referenced in some panel's PromQL expr, every target uses Prometheus datasource type). Suite 455 → 459.
+**Verification:** `tests/unit/dw/test_grafana_dashboard.py` (4 tests: JSON loads, title says DeathRoll, every spec metric family is referenced in some panel's PromQL expr, every target uses Prometheus datasource type). Suite 455 → 459.
 
 **Dependencies:** Story 11.1
 **Effort:** L
@@ -1120,9 +1120,9 @@ Status: Done (2026-05-03)
 Status: Done (2026-05-03)
 
 **ACs:**
-- [x] `ops/observability/alerts/goldrush-dw.yml` ships all 5 alerts from spec §7.3: `GoldRushDWStuckTicket`, `GoldRushNoCashiersOnline`, `GoldRushTreasuryDrop` (severity: critical), `GoldRushHighCancellationRate`, `GoldRushUnusualCashierActivity`. Each carries `severity` + `project=goldrush-dw` labels and `summary` + `description` annotations for Alertmanager templating.
+- [x] `ops/observability/alerts/deathroll-dw.yml` ships all 5 alerts from spec §7.3: `DeathRollDWStuckTicket`, `DeathRollNoCashiersOnline`, `DeathRollTreasuryDrop` (severity: critical), `DeathRollHighCancellationRate`, `DeathRollUnusualCashierActivity`. Each carries `severity` + `project=deathroll-dw` labels and `summary` + `description` annotations for Alertmanager templating.
 - [x] Discord webhook routing: `ops/observability/alertmanager-discord.yml` is a partial snippet (receiver + route entries) the operator merges into their existing `alertmanager.yml`. Uses Alertmanager 0.26+'s built-in `discord_configs:` block reading the webhook URL from a mounted secret file. Inline setup notes guide the operator through creating the staff `#alerts` channel webhook.
-- [x] Test alert path: `tests/unit/dw/test_alert_rules.py` validates the YAML structurally (parses, all 5 alerts present, every rule has severity + summary, every expr references at least one known `goldrush_*` metric — catches PromQL typos).
+- [x] Test alert path: `tests/unit/dw/test_alert_rules.py` validates the YAML structurally (parses, all 5 alerts present, every rule has severity + summary, every expr references at least one known `deathroll_*` metric — catches PromQL typos).
 
 **Note on VPS changes:** the alert rules + Discord routing config are repo-only artifacts. No VPS changes happen automatically; the operator copies the files onto their Prometheus / Alertmanager hosts and reloads. Decoupled deliberately so the bot deploy doesn't touch foreign monitoring stacks.
 
@@ -1149,20 +1149,20 @@ Status: Done (2026-05-03)
 **Effort:** M
 **Spec refs:** D/W §2.3
 
-### Story 12.2 — Compose service `goldrush-deposit-withdraw`
+### Story 12.2 — Compose service `deathroll-deposit-withdraw`
 
 **Status:** Done (2026-05-01)
 
 **ACs:**
 - [x] `ops/docker/compose.yml` adds the service per spec §2.3 (Postgres + D/W; Luck service stub left out until Luck resumes).
-- [x] No `ports:` mapping (only joins `goldrush_net`).
+- [x] No `ports:` mapping (only joins `deathroll_net`).
 - [x] Healthcheck configured (the placeholder healthcheck.py exits 0; real DB-aware healthcheck arrives in Epic 4).
 - [x] `docker compose up -d` from a clean state succeeds locally — verified during this story (Postgres + schemas/roles/grants instantiated correctly via `00-init-roles.sh` and `01-schemas-grants.sql`).
 
 **Dependencies:** Story 12.1
 **Effort:** S
 **Spec refs:** D/W §2.3
-**Notes:** `init.sql` was split into `00-init-roles.sh` (bash, reads env-var passwords) + `01-schemas-grants.sql` (pure SQL) so Postgres' `/docker-entrypoint-initdb.d/` runs them in the right order with proper variable interpolation. `compose.yml` parameterises `env_file` paths via `${ENV_DIR:-/opt/goldrush/secrets}` so local dev can point elsewhere.
+**Notes:** `init.sql` was split into `00-init-roles.sh` (bash, reads env-var passwords) + `01-schemas-grants.sql` (pure SQL) so Postgres' `/docker-entrypoint-initdb.d/` runs them in the right order with proper variable interpolation. `compose.yml` parameterises `env_file` paths via `${ENV_DIR:-/opt/deathroll/secrets}` so local dev can point elsewhere.
 
 ### Story 12.3 — VPS `.env.dw` setup procedure (EXPLICIT)
 
@@ -1177,11 +1177,11 @@ Status: Done (2026-05-03)
 # === EXECUTE AS root ON THE VPS ===
 
 # 1. Confirm prerequisites
-ssh sdr-agentic 'whoami && ls -la /opt/goldrush/secrets/'
+ssh sdr-agentic 'whoami && ls -la /opt/deathroll/secrets/'
 # expected: root, secrets/ exists with .env.shared
 
 # 2. Create .env.dw with restricted permissions
-sudo -u goldrush -- bash -c 'umask 077 && cat > /opt/goldrush/secrets/.env.dw <<EOF
+sudo -u deathroll -- bash -c 'umask 077 && cat > /opt/deathroll/secrets/.env.dw <<EOF
 DISCORD_TOKEN_DW=PASTE_YOUR_DW_BOT_TOKEN_HERE
 GUILD_ID=PASTE_YOUR_GUILD_ID_HERE
 LOG_LEVEL=info
@@ -1189,25 +1189,25 @@ LOG_FORMAT=json
 EOF'
 
 # 3. Verify ownership and perms
-ls -la /opt/goldrush/secrets/.env.dw
-# expected: -rw------- 1 goldrush goldrush ... .env.dw
+ls -la /opt/deathroll/secrets/.env.dw
+# expected: -rw------- 1 deathroll deathroll ... .env.dw
 
 # 4. Edit the file and replace the placeholders
-sudo -u goldrush nano /opt/goldrush/secrets/.env.dw
+sudo -u deathroll nano /opt/deathroll/secrets/.env.dw
 # replace PASTE_YOUR_DW_BOT_TOKEN_HERE with the token from your local dwBotKeys.txt
 # replace PASTE_YOUR_GUILD_ID_HERE with your Discord server ID
 # save (Ctrl+O Enter) and exit (Ctrl+X)
 
 # 5. Re-verify perms (some editors break perms on save)
-ls -la /opt/goldrush/secrets/.env.dw
-# expected: -rw------- 1 goldrush goldrush
+ls -la /opt/deathroll/secrets/.env.dw
+# expected: -rw------- 1 deathroll deathroll
 
 # If perms look wrong, fix them:
-chmod 600 /opt/goldrush/secrets/.env.dw
-chown goldrush:goldrush /opt/goldrush/secrets/.env.dw
+chmod 600 /opt/deathroll/secrets/.env.dw
+chown deathroll:deathroll /opt/deathroll/secrets/.env.dw
 
 # 6. Sanity check (without printing the secret) — confirms placeholders are gone
-sudo -u goldrush grep -c 'PASTE_' /opt/goldrush/secrets/.env.dw
+sudo -u deathroll grep -c 'PASTE_' /opt/deathroll/secrets/.env.dw
 # expected: 0
 ```
 
@@ -1228,30 +1228,30 @@ sudo -u goldrush grep -c 'PASTE_' /opt/goldrush/secrets/.env.dw
 - [ ] `docs/operations.md` D/W section has a literal command list:
 
 ```bash
-# === EXECUTE AS goldrush ON THE VPS ===
-cd /opt/goldrush/repo
+# === EXECUTE AS deathroll ON THE VPS ===
+cd /opt/deathroll/repo
 
 # 1. Pull the latest code
 git pull origin main
 
 # 2. Build the D/W image
-docker compose -f ops/docker/compose.yml --env-file /opt/goldrush/secrets/.env.shared build goldrush-deposit-withdraw
+docker compose -f ops/docker/compose.yml --env-file /opt/deathroll/secrets/.env.shared build deathroll-deposit-withdraw
 
 # 3. Run any pending Alembic migrations (shared with Luck)
-docker compose -f ops/docker/compose.yml exec goldrush-luck alembic upgrade head
+docker compose -f ops/docker/compose.yml exec deathroll-luck alembic upgrade head
 # (alembic runs as the admin role, applies dw_* migrations)
 
 # 4. Start the D/W service
-docker compose -f ops/docker/compose.yml --env-file /opt/goldrush/secrets/.env.shared up -d goldrush-deposit-withdraw
+docker compose -f ops/docker/compose.yml --env-file /opt/deathroll/secrets/.env.shared up -d deathroll-deposit-withdraw
 
 # 5. Tail logs until "ready"
-docker compose -f ops/docker/compose.yml logs -f goldrush-deposit-withdraw | grep ready
+docker compose -f ops/docker/compose.yml logs -f deathroll-deposit-withdraw | grep ready
 
 # 6. In Discord, in the server, run as @admin:
 #       /admin setup
 #    (preview shows what will be created; click Confirm; ~30 seconds)
 
-# 7. In Server Settings → Integrations → GoldRush Deposit/Withdraw:
+# 7. In Server Settings → Integrations → DeathRoll Deposit/Withdraw:
 #    - For each /admin command: add role override "@admin = Allow"
 #    - For each /cashier command: add role override "@cashier = Allow"
 #    (this is the per-server visibility config; one-time setup)
@@ -1370,7 +1370,7 @@ Status: Done (2026-05-03)
 
 **ACs:**
 - [x] `tests/integration/dw/test_lifecycle_state_machine.py` — 16 tests over the deposit + withdraw lifecycles. Valid transitions verified (open→claim→claimed, open→cancel→cancelled, claimed→release→open, claimed→confirm→confirmed, claimed→cancel→cancelled). Invalid transitions verified to raise (open→confirm → TicketNotClaimed; open→release → TicketNotClaimed; confirmed→cancel → TicketAlreadyTerminal; cancelled→confirm → TicketNotClaimed; claimed→claim → TicketAlreadyClaimed). Withdraw extras: balance lock on open + refund on cancel round-trips correctly.
-- [x] Append-only triggers: even goldrush_admin (via the admin_pool fixture) cannot UPDATE or DELETE core.audit_log rows — both raise "audit_log is append-only" from the BEFORE UPDATE / DELETE triggers.
+- [x] Append-only triggers: even deathroll_admin (via the admin_pool fixture) cannot UPDATE or DELETE core.audit_log rows — both raise "audit_log is append-only" from the BEFORE UPDATE / DELETE triggers.
 
 **Dependencies:** Story 2.2
 **Effort:** M
@@ -1451,7 +1451,7 @@ Status: Deferred — Luck is paused
 
 **ACs:**
 - Full loop (deposit on D/W → coinflip on Luck → withdraw on D/W) requires both bots' SDFs in place. Luck is paused at the spec-v1.1 review stage; the Story 14.8 tests can land alongside Luck's resume.
-- Permission tests (`goldrush_luck` cannot `INSERT core.users` or `UPDATE core.balances`) are PARTIALLY exercised today — the integration fixture creates the `goldrush_luck` role with the schemas+grants SQL and tests against `goldrush_dw`'s allowlist. A dedicated cross-role permission test will land with Story 14.8 when Luck resumes.
+- Permission tests (`deathroll_luck` cannot `INSERT core.users` or `UPDATE core.balances`) are PARTIALLY exercised today — the integration fixture creates the `deathroll_luck` role with the schemas+grants SQL and tests against `deathroll_dw`'s allowlist. A dedicated cross-role permission test will land with Story 14.8 when Luck resumes.
 - Hash-chain integrity across mixed-bot ops is covered for the D/W side already via Story 8.6's `core.verify_audit_chain` SDF and the integration test `test_audit_chain_verifier_is_idempotent` in Story 14.6.
 
 **Dependencies:** Stories 2.6, 2.7, plus Luck Stories 2.x
@@ -1518,7 +1518,7 @@ Status: Code complete (2026-05-03; operator completes the runtime ACs)
   - Push the `dw-v1.0.0` tag (`git tag -a dw-v1.0.0 -m "..."` + `git push origin dw-v1.0.0`).
   - `/admin-setup` executed in the production guild.
   - Discord Integrations UI configured for `@admin` / `@cashier` role visibility on every admin/cashier slash command.
-  - 48-hour observation window post-tag — watch `goldrush-dw` logs for unplanned restarts, `audit_chain_break` alerts, or worker error spikes.
+  - 48-hour observation window post-tag — watch `deathroll-dw` logs for unplanned restarts, `audit_chain_break` alerts, or worker error spikes.
   - First real deposit-withdraw cycle completed cleanly in production.
 
 **Dependencies:** Story 15.3

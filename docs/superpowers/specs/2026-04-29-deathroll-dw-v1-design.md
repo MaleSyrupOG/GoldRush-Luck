@@ -1,19 +1,19 @@
-# GoldRush Deposit/Withdraw v1 — Design Specification
+# DeathRoll Deposit/Withdraw v1 — Design Specification
 
 | Field | Value |
 |---|---|
 | **Document version** | 1.0 |
 | **Date** | 2026-04-29 |
 | **Author** | Aleix |
-| **Repository** | <https://github.com/MaleSyrupOG/GoldRush-Luck> (monorepo) |
+| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll-Luck> (monorepo) |
 | **Status** | Locked — ready for implementation planning |
-| **Companion specs** | `2026-04-29-goldrush-luck-v1-design.md` (sister bot, currently paused) |
+| **Companion specs** | `2026-04-29-deathroll-luck-v1-design.md` (sister bot, currently paused) |
 
 ---
 
 ## 0. Executive summary
 
-GoldRush Deposit/Withdraw (D/W) is the **economic frontier** of the GoldRush platform. It is the only system component permitted to create users in `core.users`, credit balances during deposits, debit balances during withdrawals, and move gold between players' accounts and the operator-controlled treasury. Every gold movement that is not the result of a game outcome flows through this bot.
+DeathRoll Deposit/Withdraw (D/W) is the **economic frontier** of the DeathRoll platform. It is the only system component permitted to create users in `core.users`, credit balances during deposits, debit balances during withdrawals, and move gold between players' accounts and the operator-controlled treasury. Every gold movement that is not the result of a game outcome flows through this bot.
 
 The bot mediates between two worlds:
 
@@ -39,7 +39,7 @@ The design priorities, in order, are: **balance integrity** (no balance ever bec
 9. `/admin setup` command that auto-creates the canonical channel structure with correct per-role permissions on first install.
 10. Editable `#how-to-deposit` and `#how-to-withdraw` welcome embeds via admin commands.
 11. Full security parity with Luck (12 pillars), with extra defences appropriate to the economic frontier role.
-12. Integration with the existing observability stack (Loki, Prometheus, Grafana, Alertmanager) using the `goldrush_dw` job label.
+12. Integration with the existing observability stack (Loki, Prometheus, Grafana, Alertmanager) using the `deathroll_dw` job label.
 13. Documentation in `docs/` covering architecture, security, ticket flows, runbook, ADRs, and operational guides.
 
 ### 1.2. Non-goals (v1)
@@ -64,7 +64,7 @@ The design priorities, in order, are: **balance integrity** (no balance ever bec
 - 100 simultaneous deposit and withdraw operations from distinct users complete without deadlock or race-induced corruption.
 - Property test confirms invariant `SUM(user balances) + treasury_balance + admin_swept_total` equals total ever deposited, across thousands of randomised operations.
 - `/admin setup` produces the full channel structure idempotently on a fresh test guild.
-- The bot's DB role `goldrush_dw` cannot mint gold beyond the SECURITY DEFINER functions: integration test attempts `UPDATE core.balances SET balance = ...` and asserts permission denied.
+- The bot's DB role `deathroll_dw` cannot mint gold beyond the SECURITY DEFINER functions: integration test attempts `UPDATE core.balances SET balance = ...` and asserts permission denied.
 - Audit-log hash chain remains intact across all D/W operations; `audit_verify.py` passes after a full smoke-test run.
 
 ---
@@ -73,11 +73,11 @@ The design priorities, in order, are: **balance integrity** (no balance ever bec
 
 ### 2.1. Placement in the monorepo
 
-D/W is a sibling Python package alongside Luck. Both consume `goldrush_core` for shared logic (balance, audit, ratelimit, embeds, security, models).
+D/W is a sibling Python package alongside Luck. Both consume `deathroll_core` for shared logic (balance, audit, ratelimit, embeds, security, models).
 
 ```
-goldrush/
-├── goldrush_core/                     # shared (already specified in Luck design)
+deathroll/
+├── deathroll_core/                     # shared (already specified in Luck design)
 │   ├── balance/                       # + helpers for deposit/withdraw flows
 │   ├── audit/
 │   ├── ratelimit/
@@ -86,8 +86,8 @@ goldrush/
 │   ├── security/
 │   └── models/                        # + SQLAlchemy models for dw tables
 │
-├── goldrush_luck/                     # sister bot (paused)
-├── goldrush_deposit_withdraw/         # ← this bot
+├── deathroll_luck/                     # sister bot (paused)
+├── deathroll_deposit_withdraw/         # ← this bot
 │   ├── __main__.py
 │   ├── client.py
 │   ├── healthcheck.py
@@ -111,18 +111,18 @@ goldrush/
 │   ├── views/                         # modals, buttons
 │   └── setup/                         # /admin setup channel auto-creation
 │       └── channel_factory.py
-└── goldrush_poker/                    # placeholder
+└── deathroll_poker/                    # placeholder
 ```
 
 ### 2.2. Process and permission isolation
 
 | Concern | Luck | D/W |
 |---|---|---|
-| Discord application | `GoldRush Luck` | `GoldRush Deposit/Withdraw` |
+| Discord application | `DeathRoll Luck` | `DeathRoll Deposit/Withdraw` |
 | Discord token | `DISCORD_TOKEN_LUCK` | `DISCORD_TOKEN_DW` |
 | Container UID | 1001 | 1002 |
-| Container name | `goldrush-luck` | `goldrush-dw` |
-| DB role | `goldrush_luck` | `goldrush_dw` |
+| Container name | `deathroll-luck` | `deathroll-dw` |
+| DB role | `deathroll_luck` | `deathroll_dw` |
 | `core.users` access | SELECT only | INSERT, UPDATE |
 | `core.balances` access | SELECT (writes only via SECURITY DEFINER fns) | SELECT, UPDATE (only via SECURITY DEFINER fns) |
 | `dw.*` access | none | SELECT, INSERT, UPDATE |
@@ -137,19 +137,19 @@ A compromise of one bot does not give arbitrary access to the other's domain. Th
 
 ```yaml
 services:
-  goldrush-deposit-withdraw:
+  deathroll-deposit-withdraw:
     build:
       context: ../..
       dockerfile: ops/docker/Dockerfile.dw
-    image: goldrush-dw:latest
-    container_name: goldrush-dw
+    image: deathroll-dw:latest
+    container_name: deathroll-dw
     restart: unless-stopped
-    networks: [goldrush_net]
+    networks: [deathroll_net]
     env_file:
-      - /opt/goldrush/secrets/.env.shared
-      - /opt/goldrush/secrets/.env.dw
+      - /opt/deathroll/secrets/.env.shared
+      - /opt/deathroll/secrets/.env.dw
     environment:
-      POSTGRES_DSN: postgresql://goldrush_dw:${PG_DW_PASSWORD}@postgres:5432/goldrush
+      POSTGRES_DSN: postgresql://deathroll_dw:${PG_DW_PASSWORD}@postgres:5432/deathroll
     user: "1002:1002"
     read_only: true
     tmpfs:
@@ -161,7 +161,7 @@ services:
     mem_limit: 384m
     mem_reservation: 192m
     healthcheck:
-      test: ["CMD", "python", "-m", "goldrush_deposit_withdraw.healthcheck"]
+      test: ["CMD", "python", "-m", "deathroll_deposit_withdraw.healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -171,7 +171,7 @@ services:
       options: {max-size: "10m", max-file: "5"}
     labels:
       logging: "promtail"
-      logging_jobname: "goldrush-dw"
+      logging_jobname: "deathroll-dw"
     depends_on:
       postgres:
         condition: service_healthy
@@ -188,26 +188,26 @@ The full set of `core.*` tables (`users`, `balances`, `audit_log` with hash chai
 ```sql
 CREATE SCHEMA dw;
 
-GRANT USAGE ON SCHEMA dw TO goldrush_dw;
-GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA dw TO goldrush_dw;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA dw TO goldrush_dw;
+GRANT USAGE ON SCHEMA dw TO deathroll_dw;
+GRANT SELECT, INSERT, UPDATE ON ALL TABLES IN SCHEMA dw TO deathroll_dw;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA dw TO deathroll_dw;
 ALTER DEFAULT PRIVILEGES IN SCHEMA dw
-    GRANT SELECT, INSERT, UPDATE ON TABLES TO goldrush_dw;
+    GRANT SELECT, INSERT, UPDATE ON TABLES TO deathroll_dw;
 ALTER DEFAULT PRIVILEGES IN SCHEMA dw
-    GRANT USAGE, SELECT ON SEQUENCES TO goldrush_dw;
+    GRANT USAGE, SELECT ON SEQUENCES TO deathroll_dw;
 
 -- read-only role gets SELECT for Grafana / debugging
-GRANT USAGE ON SCHEMA dw TO goldrush_readonly;
-GRANT SELECT ON ALL TABLES IN SCHEMA dw TO goldrush_readonly;
+GRANT USAGE ON SCHEMA dw TO deathroll_readonly;
+GRANT SELECT ON ALL TABLES IN SCHEMA dw TO deathroll_readonly;
 
 -- D/W gets writes on core.users and core.balances
-GRANT INSERT, UPDATE ON core.users TO goldrush_dw;
-GRANT INSERT, UPDATE ON core.balances TO goldrush_dw;
-GRANT INSERT ON core.audit_log TO goldrush_dw;
+GRANT INSERT, UPDATE ON core.users TO deathroll_dw;
+GRANT INSERT, UPDATE ON core.balances TO deathroll_dw;
+GRANT INSERT ON core.audit_log TO deathroll_dw;
 
 -- Luck cannot create users
-REVOKE INSERT ON core.users FROM goldrush_luck;
-REVOKE UPDATE ON core.balances FROM goldrush_luck;  -- enforced for clarity, even if the original GRANT never included it
+REVOKE INSERT ON core.users FROM deathroll_luck;
+REVOKE UPDATE ON core.balances FROM deathroll_luck;  -- enforced for clarity, even if the original GRANT never included it
 ```
 
 The system row that represents the operator-controlled treasury:
@@ -432,7 +432,7 @@ INSERT INTO dw.global_config (key, value_int, updated_by) VALUES
 
 ### 3.3. SECURITY DEFINER functions — the economic frontier
 
-All money-moving paths go through `SECURITY DEFINER` functions owned by `goldrush_admin`. The bot's `goldrush_dw` role only has `EXECUTE` on these.
+All money-moving paths go through `SECURITY DEFINER` functions owned by `deathroll_admin`. The bot's `deathroll_dw` role only has `EXECUTE` on these.
 
 | Function | Purpose | Atomic side effects |
 |---|---|---|
@@ -457,7 +457,7 @@ All money-moving paths go through `SECURITY DEFINER` functions owned by `goldrus
 Every function ends with:
 ```sql
 REVOKE ALL ON FUNCTION dw.<fn> FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION dw.<fn> TO goldrush_dw;
+GRANT EXECUTE ON FUNCTION dw.<fn> TO deathroll_dw;
 ```
 
 A SQL injection on the bot cannot escalate to direct `UPDATE core.balances`, only to `EXECUTE` of these functions, all of which encode the integrity rules.
@@ -710,7 +710,7 @@ TreasurySweepConfirmModal:    type "SWEEP", re-type amount
 
 ### 5.6. Embed builders
 
-Themed with the GoldRush palette (Win green, Bust red, Gold, Ember, House blue) inherited from Luck spec §6.3. Builders specific to D/W:
+Themed with the DeathRoll palette (Win green, Bust red, Gold, Ember, House blue) inherited from Luck spec §6.3. Builders specific to D/W:
 
 ```
 deposit_ticket_open_embed
@@ -733,7 +733,7 @@ no_balance_embed                       (shared with Luck — for new users)
 
 ### 5.7. Bot startup
 
-1. Connect DB pool with `goldrush_dw` role.
+1. Connect DB pool with `deathroll_dw` role.
 2. Load extensions (cogs).
 3. Sync command tree to `GUILD_ID` (instant).
 4. Ensure system row + treasury row exist.
@@ -813,18 +813,18 @@ None. D/W operates entirely on slash command interactions. Cashier-disconnect de
 
 ### 7.1. Compose stack additions
 
-The compose stack from Luck §7.3 already defines `postgres` and `goldrush-luck`. Add the `goldrush-deposit-withdraw` service per §2.3.
+The compose stack from Luck §7.3 already defines `postgres` and `deathroll-luck`. Add the `deathroll-deposit-withdraw` service per §2.3.
 
 ### 7.2. VPS setup additions
 
 Beyond the Luck §7.2 setup:
 
-1. Generate `.env.dw` in `/opt/goldrush/secrets/` (Discord token, GUILD_ID, log config) with mode 600 owned by `goldrush:goldrush`.
-2. Build the D/W image: `docker compose build goldrush-deposit-withdraw`.
-3. Run migrations (creates `dw.*` tables and SECURITY DEFINER fns): `docker compose exec goldrush-luck alembic upgrade head` (Alembic is shared with Luck).
-4. Start the D/W service: `docker compose up -d goldrush-deposit-withdraw`.
-5. Verify the bot is online: `docker compose logs -f goldrush-deposit-withdraw | grep ready`.
-6. In Discord, configure command visibility: enable `/admin *` for `@admin` role and `/cashier *` for `@cashier` role via Server Settings → Integrations → GoldRush Deposit/Withdraw.
+1. Generate `.env.dw` in `/opt/deathroll/secrets/` (Discord token, GUILD_ID, log config) with mode 600 owned by `deathroll:deathroll`.
+2. Build the D/W image: `docker compose build deathroll-deposit-withdraw`.
+3. Run migrations (creates `dw.*` tables and SECURITY DEFINER fns): `docker compose exec deathroll-luck alembic upgrade head` (Alembic is shared with Luck).
+4. Start the D/W service: `docker compose up -d deathroll-deposit-withdraw`.
+5. Verify the bot is online: `docker compose logs -f deathroll-deposit-withdraw | grep ready`.
+6. In Discord, configure command visibility: enable `/admin *` for `@admin` role and `/cashier *` for `@cashier` role via Server Settings → Integrations → DeathRoll Deposit/Withdraw.
 7. Run `/admin setup` once to auto-create the `Banking` and `Cashier` categories with correct permissions.
 
 ### 7.3. Observability additions
@@ -832,27 +832,27 @@ Beyond the Luck §7.2 setup:
 D/W adds Prometheus metrics:
 
 ```
-goldrush_deposit_tickets_total{status}
-goldrush_withdraw_tickets_total{status}
-goldrush_deposit_volume_g_total{region}
-goldrush_withdraw_volume_g_total{region}
-goldrush_treasury_balance_g
-goldrush_cashiers_online{region}
-goldrush_ticket_claim_duration_s{ticket_type}
-goldrush_ticket_confirm_duration_s{ticket_type}
-goldrush_cashier_dispute_rate{cashier_id}
-goldrush_fee_revenue_g_total
+deathroll_deposit_tickets_total{status}
+deathroll_withdraw_tickets_total{status}
+deathroll_deposit_volume_g_total{region}
+deathroll_withdraw_volume_g_total{region}
+deathroll_treasury_balance_g
+deathroll_cashiers_online{region}
+deathroll_ticket_claim_duration_s{ticket_type}
+deathroll_ticket_confirm_duration_s{ticket_type}
+deathroll_cashier_dispute_rate{cashier_id}
+deathroll_fee_revenue_g_total
 ```
 
 Alertmanager rules added to the existing config:
 
 | Alert | Condition |
 |---|---|
-| GoldRushDWStuckTicket | a ticket is open > 2h |
-| GoldRushNoCashiersOnline | tickets opening but zero online cashiers for 10+ min |
-| GoldRushTreasuryDrop | treasury drops > 1M G in 1h |
-| GoldRushHighCancellationRate | cancellation rate > 20 % in 1h |
-| GoldRushUnusualCashierActivity | cashier confirm rate spikes |
+| DeathRollDWStuckTicket | a ticket is open > 2h |
+| DeathRollNoCashiersOnline | tickets opening but zero online cashiers for 10+ min |
+| DeathRollTreasuryDrop | treasury drops > 1M G in 1h |
+| DeathRollHighCancellationRate | cancellation rate > 20 % in 1h |
+| DeathRollUnusualCashierActivity | cashier confirm rate spikes |
 
 Notifications via Discord webhook to a private staff `#alerts` channel.
 
@@ -905,12 +905,12 @@ Roughly +150 unit, +50 integration, +10 property, +5 e2e tests on top of Luck's 
 
 | Module | Minimum |
 |---|---|
-| `goldrush_core/balance/` | 95 % |
-| `goldrush_core/audit/` | 95 % |
-| `goldrush_deposit_withdraw/tickets/` | 95 % |
-| `goldrush_deposit_withdraw/cashiers/` | 90 % |
-| `goldrush_deposit_withdraw/commands/admin_cog.py` | 90 % |
-| `goldrush_deposit_withdraw/commands/*` (rest) | 85 % |
+| `deathroll_core/balance/` | 95 % |
+| `deathroll_core/audit/` | 95 % |
+| `deathroll_deposit_withdraw/tickets/` | 95 % |
+| `deathroll_deposit_withdraw/cashiers/` | 90 % |
+| `deathroll_deposit_withdraw/commands/admin_cog.py` | 90 % |
+| `deathroll_deposit_withdraw/commands/*` (rest) | 85 % |
 | Global monorepo | 85 % |
 
 ### 8.4. Cross-bot integration tests
@@ -954,10 +954,10 @@ docs/
 │   └── 0017-admin-setup-channel-creation.md
 │
 └── superpowers/specs/
-    ├── 2026-04-29-goldrush-luck-v1-design.md
-    ├── 2026-04-29-goldrush-luck-v1-implementation-plan.md
-    ├── 2026-04-29-goldrush-dw-v1-design.md           ← this file
-    └── 2026-04-29-goldrush-dw-v1-implementation-plan.md  ← to be written
+    ├── 2026-04-29-deathroll-luck-v1-design.md
+    ├── 2026-04-29-deathroll-luck-v1-implementation-plan.md
+    ├── 2026-04-29-deathroll-dw-v1-design.md           ← this file
+    └── 2026-04-29-deathroll-dw-v1-implementation-plan.md  ← to be written
 ```
 
 `docs/security.md` extended with the D/W-specific anti-fraud table.
@@ -1038,6 +1038,6 @@ docs/
 
 ## 13. Sign-off
 
-This document is the source of truth for GoldRush Deposit/Withdraw v1 architecture and behaviour. The companion implementation plan (`2026-04-29-goldrush-dw-v1-implementation-plan.md`) decomposes this spec into ordered epics and stories. Any deviation from this spec during implementation requires either (a) a new ADR superseding the relevant decision or (b) a revision of this document with version bump.
+This document is the source of truth for DeathRoll Deposit/Withdraw v1 architecture and behaviour. The companion implementation plan (`2026-04-29-deathroll-dw-v1-implementation-plan.md`) decomposes this spec into ordered epics and stories. Any deviation from this spec during implementation requires either (a) a new ADR superseding the relevant decision or (b) a revision of this document with version bump.
 
 — Aleix, 2026-04-29

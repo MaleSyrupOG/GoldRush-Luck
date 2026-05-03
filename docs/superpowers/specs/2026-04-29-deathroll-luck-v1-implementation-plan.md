@@ -1,13 +1,13 @@
-# GoldRush Luck v1 — Implementation Plan (Epics, Stories, Acceptance Criteria)
+# DeathRoll Luck v1 — Implementation Plan (Epics, Stories, Acceptance Criteria)
 
 | Field | Value |
 |---|---|
 | **Document version** | 1.0 |
 | **Date** | 2026-04-29 |
 | **Author** | Aleix |
-| **Repository** | <https://github.com/MaleSyrupOG/GoldRush-Luck> |
+| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll-Luck> |
 | **Status** | Active — drives implementation work |
-| **Source of truth for design** | `2026-04-29-goldrush-luck-v1-design.md` (this plan implements that spec) |
+| **Source of truth for design** | `2026-04-29-deathroll-luck-v1-design.md` (this plan implements that spec) |
 
 ---
 
@@ -52,10 +52,10 @@ Set up the monorepo, Python toolchain, CI, and documentation skeleton so every s
 
 **ACs:**
 - [ ] Local repo initialised at the project root with `main` as default branch.
-- [ ] First commit contains: `README.md`, `.gitignore`, `LICENSE`, the empty top-level directories of the monorepo (`goldrush_core/`, `goldrush_luck/`, `goldrush_poker/`, `goldrush_deposit_withdraw/`, `ops/`, `docs/`, `tests/`, `.github/`).
+- [ ] First commit contains: `README.md`, `.gitignore`, `LICENSE`, the empty top-level directories of the monorepo (`deathroll_core/`, `deathroll_luck/`, `deathroll_poker/`, `deathroll_deposit_withdraw/`, `ops/`, `docs/`, `tests/`, `.github/`).
 - [ ] Commit message contains no reference to Claude, Anthropic, AI, or auto-generation.
 - [ ] `git log --format=%B` for the first commit is reviewed and clean.
-- [ ] Remote `origin` set to `https://github.com/MaleSyrupOG/GoldRush-Luck.git`.
+- [ ] Remote `origin` set to `https://github.com/MaleSyrupOG/DeathRoll-Luck.git`.
 - [ ] `main` pushed to remote.
 - [ ] `.gitignore` excludes `.env*`, `__pycache__/`, `.venv/`, `*.pyc`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`, `htmlcov/`, `dist/`, `build/`, `node_modules/`, `.DS_Store`.
 
@@ -85,8 +85,8 @@ Set up the monorepo, Python toolchain, CI, and documentation skeleton so every s
 
 **ACs:**
 - [ ] `.github/workflows/ci.yml` runs on `pull_request` to `main` and `push` to `main`.
-- [ ] Steps in order: checkout, setup-uv, `uv sync --frozen`, `ruff check`, `ruff format --check`, `mypy --strict goldrush_core goldrush_luck`, `pip-audit --strict`, `pytest tests/unit`, `pytest tests/integration` (with Postgres service), `pytest tests/property`, coverage gates per module.
-- [ ] Coverage gates enforce `≥ 95 %` on `goldrush_core/balance|fairness|audit`, `≥ 90 %` on `goldrush_core/security` and `goldrush_luck/games/*`, `≥ 85 %` on `goldrush_luck/admin`, `≥ 85 %` global.
+- [ ] Steps in order: checkout, setup-uv, `uv sync --frozen`, `ruff check`, `ruff format --check`, `mypy --strict deathroll_core deathroll_luck`, `pip-audit --strict`, `pytest tests/unit`, `pytest tests/integration` (with Postgres service), `pytest tests/property`, coverage gates per module.
+- [ ] Coverage gates enforce `≥ 95 %` on `deathroll_core/balance|fairness|audit`, `≥ 90 %` on `deathroll_core/security` and `deathroll_luck/games/*`, `≥ 85 %` on `deathroll_luck/admin`, `≥ 85 %` global.
 - [ ] CI fails if any step fails.
 - [ ] Documentation lint job warns (advisory, non-blocking) when code paths change without docs touched.
 
@@ -99,10 +99,10 @@ Set up the monorepo, Python toolchain, CI, and documentation skeleton so every s
 **As Aleix I want** every package to exist as importable modules from day one **so that** PRs add code rather than create directories.
 
 **ACs:**
-- [ ] `goldrush_core/{balance,fairness,audit,ratelimit,config,embeds,security,models}/__init__.py` exist.
-- [ ] `goldrush_luck/{games,raffle,leaderboard,admin,account,fairness,views}/__init__.py` exist.
-- [ ] `goldrush_poker/README.md` and `goldrush_deposit_withdraw/README.md` exist with a one-line "reserved for vN.N".
-- [ ] `python -c "import goldrush_core, goldrush_luck"` succeeds.
+- [ ] `deathroll_core/{balance,fairness,audit,ratelimit,config,embeds,security,models}/__init__.py` exist.
+- [ ] `deathroll_luck/{games,raffle,leaderboard,admin,account,fairness,views}/__init__.py` exist.
+- [ ] `deathroll_poker/README.md` and `deathroll_deposit_withdraw/README.md` exist with a one-line "reserved for vN.N".
+- [ ] `python -c "import deathroll_core, deathroll_luck"` succeeds.
 - [ ] `tests/{unit,integration,property,e2e}/__init__.py` exist.
 - [ ] `tests/conftest.py` placeholder created.
 
@@ -135,13 +135,13 @@ Stand up Postgres with schemas, roles, grants, audit log, and the SECURITY DEFIN
 
 ### Story 2.1 — Postgres compose service
 
-**As Aleix I want** an isolated Postgres container reachable only from `goldrush_net` **so that** no public exposure exists from day one.
+**As Aleix I want** an isolated Postgres container reachable only from `deathroll_net` **so that** no public exposure exists from day one.
 
 **ACs:**
-- [ ] `ops/docker/compose.yml` defines `goldrush-postgres` service using `postgres:16-alpine`.
+- [ ] `ops/docker/compose.yml` defines `deathroll-postgres` service using `postgres:16-alpine`.
 - [ ] Service has no `ports:` mapping (internal only).
-- [ ] Volume `goldrush_pgdata` named and mounted at `/var/lib/postgresql/data`.
-- [ ] Dedicated bridge network `goldrush_net` declared with subnet `172.30.0.0/24`.
+- [ ] Volume `deathroll_pgdata` named and mounted at `/var/lib/postgresql/data`.
+- [ ] Dedicated bridge network `deathroll_net` declared with subnet `172.30.0.0/24`.
 - [ ] Service uses `cap_drop: [ALL]` plus the minimum `cap_add` Postgres needs (CHOWN, SETUID, SETGID, FOWNER, DAC_OVERRIDE).
 - [ ] `security_opt: [no-new-privileges:true]` set.
 - [ ] Healthcheck via `pg_isready` configured.
@@ -157,12 +157,12 @@ Stand up Postgres with schemas, roles, grants, audit log, and the SECURITY DEFIN
 
 **ACs:**
 - [ ] `ops/postgres/init.sql` creates schemas: `core`, `fairness`, `luck`, `poker`.
-- [ ] Creates roles: `goldrush_luck`, `goldrush_dw`, `goldrush_poker`, `goldrush_readonly`.
-- [ ] Grants per spec §3.1: `goldrush_luck` has SELECT on `core.users` + `core.balances`, INSERT on `core.audit_log`, RW on `fairness.*` and `luck.*`. **No UPDATE/DELETE on `core.balances`**.
-- [ ] `goldrush_dw` has INSERT/UPDATE on `core.users` + `core.balances`, INSERT on `core.audit_log`.
-- [ ] `goldrush_readonly` has SELECT on all schemas.
+- [ ] Creates roles: `deathroll_luck`, `deathroll_dw`, `deathroll_poker`, `deathroll_readonly`.
+- [ ] Grants per spec §3.1: `deathroll_luck` has SELECT on `core.users` + `core.balances`, INSERT on `core.audit_log`, RW on `fairness.*` and `luck.*`. **No UPDATE/DELETE on `core.balances`**.
+- [ ] `deathroll_dw` has INSERT/UPDATE on `core.users` + `core.balances`, INSERT on `core.audit_log`.
+- [ ] `deathroll_readonly` has SELECT on all schemas.
 - [ ] `ALTER DEFAULT PRIVILEGES` ensures future tables auto-inherit grants.
-- [ ] Integration test connects as `goldrush_luck` and proves `UPDATE core.balances` raises `permission denied`.
+- [ ] Integration test connects as `deathroll_luck` and proves `UPDATE core.balances` raises `permission denied`.
 
 **Dependencies:** Story 2.1
 **Effort:** M
@@ -192,7 +192,7 @@ Stand up Postgres with schemas, roles, grants, audit log, and the SECURITY DEFIN
 - [ ] Migration creates `core.balances` with `CHECK (balance >= 0)`, `CHECK (locked_balance >= 0)`, `CHECK (total_wagered >= 0)`, `CHECK (total_won >= 0)`.
 - [ ] Foreign key `core.balances.discord_id → core.users.discord_id ON DELETE RESTRICT`.
 - [ ] Unit test attempts to UPDATE balance to a negative value and asserts Postgres rejects it.
-- [ ] SQLAlchemy ORM models in `goldrush_core/models/core.py`.
+- [ ] SQLAlchemy ORM models in `deathroll_core/models/core.py`.
 
 **Dependencies:** Story 2.3
 **Effort:** M
@@ -217,13 +217,13 @@ Stand up Postgres with schemas, roles, grants, audit log, and the SECURITY DEFIN
 
 ### Story 2.6 — Fairness schemas
 
-**As Aleix I want** seed storage and history ready before any game is built **so that** `goldrush_core/fairness/` has its DB layer.
+**As Aleix I want** seed storage and history ready before any game is built **so that** `deathroll_core/fairness/` has its DB layer.
 
 **ACs:**
 - [ ] Migration creates `fairness.user_seeds` and `fairness.history` per spec §3.3.
 - [ ] `fairness.history` has the same append-only triggers as `core.audit_log`.
 - [ ] Indexes on `fairness.history (discord_id, rotated_at DESC)`.
-- [ ] SQLAlchemy ORM models in `goldrush_core/models/fairness.py`.
+- [ ] SQLAlchemy ORM models in `deathroll_core/models/fairness.py`.
 
 **Dependencies:** Story 2.4
 **Effort:** S
@@ -239,7 +239,7 @@ Stand up Postgres with schemas, roles, grants, audit log, and the SECURITY DEFIN
 - [ ] All indexes from spec §3.3 in place.
 - [ ] `luck.bets.idempotency_key` UNIQUE per `discord_id` (composite UNIQUE).
 - [ ] Append-only trigger on `luck.raffle_draws`.
-- [ ] SQLAlchemy ORM models in `goldrush_core/models/luck.py`.
+- [ ] SQLAlchemy ORM models in `deathroll_core/models/luck.py`.
 
 **Dependencies:** Story 2.6
 **Effort:** L
@@ -258,8 +258,8 @@ Stand up Postgres with schemas, roles, grants, audit log, and the SECURITY DEFIN
 - [ ] `fairness.rotate_user_seed(discord_id, rotated_by)` moves current seed to history, generates new seed, resets nonce.
 - [ ] `fairness.next_nonce(discord_id)` increments and returns.
 - [ ] `luck.grant_raffle_tickets(discord_id, bet_amount)` inserts tickets per the threshold.
-- [ ] `REVOKE ALL ... FROM PUBLIC; GRANT EXECUTE TO goldrush_luck;` applied to each function.
-- [ ] Integration test connects as `goldrush_luck`, calls `apply_bet`, validates correct DB state.
+- [ ] `REVOKE ALL ... FROM PUBLIC; GRANT EXECUTE TO deathroll_luck;` applied to each function.
+- [ ] Integration test connects as `deathroll_luck`, calls `apply_bet`, validates correct DB state.
 - [ ] Concurrency test: 100 parallel `apply_bet` calls for the same user with limited balance — exact number succeed, balance never < 0.
 - [ ] Idempotency test: same key called twice returns the same `bet_id`, no double charge.
 
@@ -300,7 +300,7 @@ Implement the trust core: HMAC engine, seed lifecycle, per-game decoders, and th
 **As Aleix I want** a small, audit-friendly module that computes the canonical HMAC **so that** every game shares one source of truth.
 
 **ACs:**
-- [ ] `goldrush_core/fairness/engine.py` exports `compute(server_seed: bytes, client_seed: str, nonce: int) -> bytes` returning 64 bytes.
+- [ ] `deathroll_core/fairness/engine.py` exports `compute(server_seed: bytes, client_seed: str, nonce: int) -> bytes` returning 64 bytes.
 - [ ] Message format is exactly `f"{client_seed}:{nonce}".encode()`.
 - [ ] Unit test passes 10 known vectors `(server_seed, client_seed, nonce, expected_hex)`.
 - [ ] Property test: same inputs always yield same output (no hidden state).
@@ -315,7 +315,7 @@ Implement the trust core: HMAC engine, seed lifecycle, per-game decoders, and th
 **As Aleix I want** seed state per user with commit/reveal **so that** fairness can be both verified and operationally rotated.
 
 **ACs:**
-- [ ] `goldrush_core/fairness/seeds.py` exposes: `ensure_seeds(discord_id)`, `get_public_state(discord_id)`, `set_client_seed(discord_id, new)`, `rotate(discord_id, rotated_by)`.
+- [ ] `deathroll_core/fairness/seeds.py` exposes: `ensure_seeds(discord_id)`, `get_public_state(discord_id)`, `set_client_seed(discord_id, new)`, `rotate(discord_id, rotated_by)`.
 - [ ] `ensure_seeds` is idempotent: first call creates state with `secrets.token_bytes(32)`, subsequent calls noop.
 - [ ] `get_public_state` returns `(server_seed_hash, client_seed, nonce)` — never the raw seed.
 - [ ] `set_client_seed` validates input (regex `^[A-Za-z0-9_\-]{1,64}$`); does NOT reset nonce.
@@ -333,7 +333,7 @@ Implement the trust core: HMAC engine, seed lifecycle, per-game decoders, and th
 **As Aleix I want** game-specific decoding functions that take HMAC bytes and return outcomes **so that** each game's randomness logic is concentrated and auditable.
 
 **ACs:**
-- [ ] `goldrush_core/fairness/decoders.py` exposes one decoder per game, each strictly pure (no I/O, no global state).
+- [ ] `deathroll_core/fairness/decoders.py` exposes one decoder per game, each strictly pure (no I/O, no global state).
 - [ ] `decode_coinflip(out: bytes) -> Literal["heads","tails"]` per spec §4.4.
 - [ ] `decode_dice(out: bytes) -> float` returns value in `[0.00, 99.99]`.
 - [ ] `decode_99x(out: bytes) -> int` returns value in `[1, 100]`.
@@ -355,7 +355,7 @@ Implement the trust core: HMAC engine, seed lifecycle, per-game decoders, and th
 **As Aleix I want** a single async API the games call **so that** outcome generation, nonce increment, and audit happen atomically.
 
 **ACs:**
-- [ ] `goldrush_core/fairness/api.py` exposes `request_outcome_bytes(discord_id, byte_count, game_context) -> FairnessTicket`.
+- [ ] `deathroll_core/fairness/api.py` exposes `request_outcome_bytes(discord_id, byte_count, game_context) -> FairnessTicket`.
 - [ ] `FairnessTicket` is a frozen pydantic model with `hmac_bytes`, `server_seed_hash`, `client_seed`, `nonce`.
 - [ ] Internally calls `fairness.next_nonce` SECURITY DEFINER fn, then `compute()`.
 - [ ] Concurrency test: 100 parallel calls for same user → nonces 0..99 each used exactly once, no duplicates, no skips.
@@ -377,7 +377,7 @@ Implement the trust core: HMAC engine, seed lifecycle, per-game decoders, and th
 - [ ] `docs/verifier/EXAMPLES.md` walks through one worked example per game.
 - [ ] `docs/verifier/test_vectors.json` ships ≥ 100 known triples with expected outcomes (covers every game).
 - [ ] CI cross-check: a test runs both verifiers against `test_vectors.json` and asserts identical results.
-- [ ] CI cross-check: a test runs both verifiers against 1,000 random vectors and asserts they match the bot's `goldrush_core/fairness/decoders.py` byte-for-byte.
+- [ ] CI cross-check: a test runs both verifiers against 1,000 random vectors and asserts they match the bot's `deathroll_core/fairness/decoders.py` byte-for-byte.
 
 **Dependencies:** Story 3.3
 **Effort:** L
@@ -408,7 +408,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** a thin Python wrapper around the SECURITY DEFINER fns **so that** game code reads naturally and errors surface as typed exceptions.
 
 **ACs:**
-- [ ] `goldrush_core/balance/manager.py` exposes `transactional_bet(...)`, `resolve_bet(...)`, `refund_bet(...)`, `cashout_mines(...)`.
+- [ ] `deathroll_core/balance/manager.py` exposes `transactional_bet(...)`, `resolve_bet(...)`, `refund_bet(...)`, `cashout_mines(...)`.
 - [ ] Translates Postgres `RaiseError` strings into typed exceptions: `InsufficientBalance`, `UserNotRegistered`, `DuplicateIdempotency`, `GamePaused`, `BetOutOfRange`.
 - [ ] `DuplicateIdempotency` is treated as a benign retry: returns the existing bet result.
 - [ ] Retries on `SerializationError` with exponential backoff (`0.05 * 2^attempt`, max 3).
@@ -424,7 +424,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** a single convenience for emitting audit rows **so that** every code path uses consistent fields and never forgets the chain.
 
 **ACs:**
-- [ ] `goldrush_core/audit/logger.py` exposes `log(actor_type, actor_id, target_id, action, ...)`.
+- [ ] `deathroll_core/audit/logger.py` exposes `log(actor_type, actor_id, target_id, action, ...)`.
 - [ ] Uses an INSERT into `core.audit_log`; the trigger fills `prev_hash` and `row_hash`.
 - [ ] All economic mutations in §4.1 already write audit rows via the SECURITY DEFINER fn — this helper is for non-economic events (admin actions, auth failures, seed rotations, …).
 - [ ] Test: `log_failed_authz(member_id, command_name, missing_role)` writes a row with `action='admin_authz_failed'`.
@@ -438,7 +438,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** a uniform rate-limit primitive **so that** every command can throttle abuse.
 
 **ACs:**
-- [ ] `goldrush_core/ratelimit/check.py` exposes `check_or_raise(discord_id, scope, max_per_60s)`.
+- [ ] `deathroll_core/ratelimit/check.py` exposes `check_or_raise(discord_id, scope, max_per_60s)`.
 - [ ] Calls `luck.consume_rate_token` SECURITY DEFINER fn.
 - [ ] Raises `RateLimited(scope, retry_after_seconds)` when exceeded.
 - [ ] Background task in the bot purges entries older than 1 hour.
@@ -454,7 +454,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** game configuration loaded from DB and cached in memory **so that** every game lookup is fast and consistent across the bot.
 
 **ACs:**
-- [ ] `goldrush_core/config/games.py` exposes `get(game_name) -> GameConfig` and `refresh()`.
+- [ ] `deathroll_core/config/games.py` exposes `get(game_name) -> GameConfig` and `refresh()`.
 - [ ] In-memory cache invalidates every 60 s (background task) or on explicit `refresh()`.
 - [ ] `GameConfig` is a frozen pydantic model.
 - [ ] When admin changes config via `/admin set-bet-limits` etc., the in-process cache is invalidated immediately.
@@ -469,7 +469,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** game→channel mapping cached **so that** the channel restriction decorator runs without a DB hit per command.
 
 **ACs:**
-- [ ] `goldrush_core/config/channels.py` exposes `get_channel_id(game_name) -> int`.
+- [ ] `deathroll_core/config/channels.py` exposes `get_channel_id(game_name) -> int`.
 - [ ] In-memory cache; refresh strategy identical to Story 4.4.
 - [ ] Test: cache miss falls through to DB.
 
@@ -482,7 +482,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** a single function that derives the idempotency key per interaction **so that** the convention is enforced.
 
 **ACs:**
-- [ ] `goldrush_core/security/idempotency.py` exposes `from_interaction(interaction)` returning `f"discord:{interaction.id}"`.
+- [ ] `deathroll_core/security/idempotency.py` exposes `from_interaction(interaction)` returning `f"discord:{interaction.id}"`.
 - [ ] `from_repeat_button(payload)` returns `f"repeat:{payload['orig']}:{payload['ts']}:{payload['u']}"`.
 - [ ] Test: deterministic for the same input, distinct for different inputs.
 
@@ -495,7 +495,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** every button's `custom_id` HMAC-signed and TTL-bounded **so that** clicks cannot be spoofed or replayed indefinitely.
 
 **ACs:**
-- [ ] `goldrush_core/security/buttons.py` exposes `sign_custom_id(payload, ttl=600)` and `verify_custom_id(custom_id) -> dict | None`.
+- [ ] `deathroll_core/security/buttons.py` exposes `sign_custom_id(payload, ttl=600)` and `verify_custom_id(custom_id) -> dict | None`.
 - [ ] Signed format `v1.<base64url(payload+exp)>.<base64url(hmac_sha256(...))>` with 16-char truncated signature (Discord 100-char limit).
 - [ ] `verify_custom_id` returns `None` on bad version, bad signature, or expired payload.
 - [ ] Test: tampered payload returns None.
@@ -512,7 +512,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** a decorator that gates commands by role **so that** every admin command is one line away from authz.
 
 **ACs:**
-- [ ] `goldrush_core/security/roles.py` exposes `@require_role("admin")`.
+- [ ] `deathroll_core/security/roles.py` exposes `@require_role("admin")`.
 - [ ] On failure, sends an ephemeral embed and writes `audit_log` row `action='admin_authz_failed'`.
 - [ ] Reads role IDs from a config table or env var; cached.
 - [ ] Test: non-admin invocation produces denial + audit row.
@@ -527,7 +527,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** `@require_channel(game_name)` **so that** game commands only operate in their bound channel.
 
 **ACs:**
-- [ ] `goldrush_core/security/channels.py` exposes `@require_channel(game_name)`.
+- [ ] `deathroll_core/security/channels.py` exposes `@require_channel(game_name)`.
 - [ ] On mismatch, sends ephemeral embed redirecting to the correct channel.
 - [ ] Reads from Story 4.5 cache.
 - [ ] Test: command in wrong channel returns ephemeral redirect, no game side effects.
@@ -541,10 +541,10 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** a library of themed embed builders **so that** every game's UI is visually consistent and centrally tunable.
 
 **ACs:**
-- [ ] `goldrush_core/embeds/colors.py` exports the palette constants from spec §6.3.
-- [ ] `goldrush_core/embeds/result.py` builds the canonical bet-result embed with all required fields.
-- [ ] `goldrush_core/embeds/errors.py` provides: `no_balance_embed`, `insufficient_balance_embed`, `rate_limited_embed`, `game_paused_embed`, `wrong_channel_embed`, `error_embed(correlation_id)`, `bet_expired_embed`, `bet_out_of_range_embed`.
-- [ ] `goldrush_core/embeds/welcome.py` builds welcome embeds for `#fairness` and per-game channels.
+- [ ] `deathroll_core/embeds/colors.py` exports the palette constants from spec §6.3.
+- [ ] `deathroll_core/embeds/result.py` builds the canonical bet-result embed with all required fields.
+- [ ] `deathroll_core/embeds/errors.py` provides: `no_balance_embed`, `insufficient_balance_embed`, `rate_limited_embed`, `game_paused_embed`, `wrong_channel_embed`, `error_embed(correlation_id)`, `bet_expired_embed`, `bet_out_of_range_embed`.
+- [ ] `deathroll_core/embeds/welcome.py` builds welcome embeds for `#fairness` and per-game channels.
 - [ ] Snapshot tests verify embed structure (title, fields, colour, footer).
 
 **Dependencies:** Story 1.4
@@ -556,7 +556,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** structured logging in JSON with secret redaction **so that** logs never leak tokens or seeds.
 
 **ACs:**
-- [ ] `goldrush_core/logging/setup.py` configures structlog with timestamp, log level, logger name, contextvars, and a `redact_secrets` processor.
+- [ ] `deathroll_core/logging/setup.py` configures structlog with timestamp, log level, logger name, contextvars, and a `redact_secrets` processor.
 - [ ] `redact_secrets` replaces values whose key contains `token|password|secret|server_seed|api_key|dsn` with `***REDACTED***`.
 - [ ] Test: logging an event with `server_seed=b'\x01\x02'` produces output without those bytes.
 - [ ] Test: logging `password='hunter2'` produces redacted output.
@@ -571,7 +571,7 @@ Implement the framework-agnostic primitives that every Discord-layer feature con
 **As Aleix I want** a single typed settings object loaded from env vars **so that** config errors fail fast at startup.
 
 **ACs:**
-- [ ] `goldrush_core/config/settings.py` exposes a `Settings` pydantic-settings class.
+- [ ] `deathroll_core/config/settings.py` exposes a `Settings` pydantic-settings class.
 - [ ] Required: `DISCORD_TOKEN_LUCK`, `POSTGRES_DSN`, `BUTTON_SIGNING_KEY`, `AUDIT_HASH_CHAIN_KEY`, `GUILD_ID`, `LOG_LEVEL`, `LOG_FORMAT`.
 - [ ] All sensitive fields use `SecretStr`.
 - [ ] On import, validates length and format (e.g. `DISCORD_TOKEN_LUCK` length > 50, `POSTGRES_DSN.startswith("postgresql://")`).
@@ -593,11 +593,11 @@ Bring the bot online, register slash commands, ship the account/fairness cogs.
 **As Aleix I want** the bot to start, connect, and expose a healthcheck **so that** Docker can monitor it and we can iterate on cogs.
 
 **ACs:**
-- [ ] `goldrush_luck/__main__.py` builds the bot, logs "ready", and runs forever.
-- [ ] `goldrush_luck/client.py` defines a `Bot` subclass with `setup_hook` that connects DB pool and loads extensions.
-- [ ] `goldrush_luck/healthcheck.py` opens a DB pool, runs `SELECT 1`, exits 0 on success / 1 on failure.
+- [ ] `deathroll_luck/__main__.py` builds the bot, logs "ready", and runs forever.
+- [ ] `deathroll_luck/client.py` defines a `Bot` subclass with `setup_hook` that connects DB pool and loads extensions.
+- [ ] `deathroll_luck/healthcheck.py` opens a DB pool, runs `SELECT 1`, exits 0 on success / 1 on failure.
 - [ ] Docker `HEALTHCHECK` uses this script.
-- [ ] Smoke test: `python -m goldrush_luck.healthcheck` exits 0 against a healthy Postgres.
+- [ ] Smoke test: `python -m deathroll_luck.healthcheck` exits 0 against a healthy Postgres.
 
 **Dependencies:** Epic 4 done
 **Effort:** M
@@ -673,7 +673,7 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 **As Aleix I want** abstract `Game` and `MultiRoundGame` classes **so that** every game implements the same lifecycle and tests parametrise across all of them.
 
 **ACs:**
-- [ ] `goldrush_luck/games/_base.py` defines `Game`, `MultiRoundGame`, `Selection`, `Outcome`, `Resolved`, `SessionState`, `Action`, `ActionResult` per spec §4.6.
+- [ ] `deathroll_luck/games/_base.py` defines `Game`, `MultiRoundGame`, `Selection`, `Outcome`, `Resolved`, `SessionState`, `Action`, `ActionResult` per spec §4.6.
 - [ ] Pydantic models for type safety.
 - [ ] `GAMES_REGISTRY: dict[str, type[Game]]` is the canonical lookup.
 - [ ] Adding a new game requires only creating the file + registering.
@@ -687,7 +687,7 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 **As a user I want** to play `/coinflip bet side` **so that** I can wager on a fair 50/50.
 
 **ACs:**
-- [ ] `goldrush_luck/games/coinflip.py` implements `Coinflip(Game)`.
+- [ ] `deathroll_luck/games/coinflip.py` implements `Coinflip(Game)`.
 - [ ] `required_bytes = 1`.
 - [ ] Decoder: `out[0] & 1 == 0 → heads`.
 - [ ] Payout `1.90x` on win, 0 on loss.
@@ -774,10 +774,10 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 **As Aleix I want** all 52 card faces as PNGs in the design system style **so that** Blackjack renders crisply.
 
 **ACs:**
-- [ ] `goldrush_luck/assets/cards/<rank><suit>.png` exists for all 52 cards (e.g. `AS.png`, `TH.png`, `KD.png`).
-- [ ] Card backs at `goldrush_luck/assets/cards/back.png`.
-- [ ] Style consistent with the GoldRush palette (dark + gold accents).
-- [ ] Helper `goldrush_luck/games/blackjack/render.py` composites a hand into a single PNG via Pillow, returns a `discord.File`.
+- [ ] `deathroll_luck/assets/cards/<rank><suit>.png` exists for all 52 cards (e.g. `AS.png`, `TH.png`, `KD.png`).
+- [ ] Card backs at `deathroll_luck/assets/cards/back.png`.
+- [ ] Style consistent with the DeathRoll palette (dark + gold accents).
+- [ ] Helper `deathroll_luck/games/blackjack/render.py` composites a hand into a single PNG via Pillow, returns a `discord.File`.
 
 **Dependencies:** Epic 1 done
 **Effort:** L
@@ -868,7 +868,7 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 **As Aleix I want** a service that tracks the active monthly raffle period **so that** tickets and pool know where to land.
 
 **ACs:**
-- [ ] `goldrush_luck/raffle/periods.py` exposes `get_active_period()`, `roll_over_if_needed()`.
+- [ ] `deathroll_luck/raffle/periods.py` exposes `get_active_period()`, `roll_over_if_needed()`.
 - [ ] On startup and every hour via background task, `roll_over_if_needed` ensures the current month has an `active` row in `luck.raffle_periods`. If the previous one ended, it's marked `drawing`.
 - [ ] Period label format `YYYY-MM`.
 - [ ] Idempotent: running twice does not create duplicates.
@@ -1044,7 +1044,7 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 **As an admin I want** consistent magic-word confirmations on dangerous actions **so that** misclicks don't fire them.
 
 **ACs:**
-- [ ] `goldrush_core/security/modals.py` exposes `ConfirmDangerousActionModal(label, magic_word, on_confirm)`.
+- [ ] `deathroll_core/security/modals.py` exposes `ConfirmDangerousActionModal(label, magic_word, on_confirm)`.
 - [ ] Reused by Stories 11.2, 11.3.
 - [ ] Test: mismatched word cancels with ephemeral message; correct word fires `on_confirm`.
 
@@ -1061,9 +1061,9 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 **As Aleix I want** the bot to expose key metrics **so that** Grafana shows a live operational view.
 
 **ACs:**
-- [ ] `goldrush_luck/metrics.py` defines `bets_total`, `bet_amount_g` (histogram), `balance_total_g`, `provably_fair_rotations`, `command_errors_total`, `command_latency_ms` (histogram).
-- [ ] Metrics exposed via `prometheus_client` HTTP server on port 9100, bound to `0.0.0.0` inside `goldrush_net`.
-- [ ] Test: `curl http://goldrush-luck:9100/metrics` from another container in the network returns the expected lines.
+- [ ] `deathroll_luck/metrics.py` defines `bets_total`, `bet_amount_g` (histogram), `balance_total_g`, `provably_fair_rotations`, `command_errors_total`, `command_latency_ms` (histogram).
+- [ ] Metrics exposed via `prometheus_client` HTTP server on port 9100, bound to `0.0.0.0` inside `deathroll_net`.
+- [ ] Test: `curl http://deathroll-luck:9100/metrics` from another container in the network returns the expected lines.
 
 **Dependencies:** Story 5.1
 **Effort:** M
@@ -1074,8 +1074,8 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 **As Aleix I want** logs ingested by the existing Loki **so that** queries are unified.
 
 **ACs:**
-- [ ] Compose service has `labels: {logging: "promtail", logging_jobname: "goldrush-luck"}`.
-- [ ] Verify in Grafana → Loki that `{job="goldrush-luck"}` returns events.
+- [ ] Compose service has `labels: {logging: "promtail", logging_jobname: "deathroll-luck"}`.
+- [ ] Verify in Grafana → Loki that `{job="deathroll-luck"}` returns events.
 - [ ] Logs include `correlation_id`, `user_id`, `command_name` where applicable.
 
 **Dependencies:** Story 12.1, Story 4.11
@@ -1087,7 +1087,7 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 **As Aleix I want** a default dashboard **so that** I can monitor at a glance.
 
 **ACs:**
-- [ ] `ops/observability/grafana-dashboards/goldrush-luck.json` defines panels: bets per minute (split by game and status), volume wagered (G/h), top-10 active users 24 h, balance distribution histogram, fairness rotations / hour, command error rate, restart events, Postgres connections / locks / slow queries / table sizes.
+- [ ] `ops/observability/grafana-dashboards/deathroll-luck.json` defines panels: bets per minute (split by game and status), volume wagered (G/h), top-10 active users 24 h, balance distribution histogram, fairness rotations / hour, command error rate, restart events, Postgres connections / locks / slow queries / table sizes.
 - [ ] Dashboard imports cleanly into the existing Grafana.
 
 **Dependencies:** Story 12.1
@@ -1099,7 +1099,7 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 **As Aleix I want** alerts on critical conditions **so that** I am notified before users notice.
 
 **ACs:**
-- [ ] Rules: `GoldRushLuckDown`, `GoldRushPostgresDown`, `GoldRushBalanceNegativeAttempt`, `GoldRushHighErrorRate`, `GoldRushUnusualWagering`.
+- [ ] Rules: `DeathRollLuckDown`, `DeathRollPostgresDown`, `DeathRollBalanceNegativeAttempt`, `DeathRollHighErrorRate`, `DeathRollUnusualWagering`.
 - [ ] Notifications via webhook to a private staff channel `#alerts`.
 - [ ] Test alert: trigger a fake `up == 0` and verify webhook delivered.
 
@@ -1137,7 +1137,7 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 ### Story 13.3 — VPS one-time setup script
 
 **ACs:**
-- [ ] `ops/scripts/vps_first_setup.sh` (run as root) creates the `goldrush` user, directory layout (`/opt/goldrush/{repo,secrets,backups,logs,scripts}` with correct perms), generates the GPG key, generates random passwords into `.env.shared`, prints the GPG fingerprint.
+- [ ] `ops/scripts/vps_first_setup.sh` (run as root) creates the `deathroll` user, directory layout (`/opt/deathroll/{repo,secrets,backups,logs,scripts}` with correct perms), generates the GPG key, generates random passwords into `.env.shared`, prints the GPG fingerprint.
 - [ ] Script is idempotent: re-running does not regenerate secrets.
 - [ ] Documented step-by-step in `docs/operations.md`.
 
@@ -1148,12 +1148,12 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 ### Story 13.4 — Backup script + cron
 
 **ACs:**
-- [ ] `ops/scripts/backup.sh` performs `pg_dump -Fc | gpg -e` to `/opt/goldrush/backups/daily/`.
+- [ ] `ops/scripts/backup.sh` performs `pg_dump -Fc | gpg -e` to `/opt/deathroll/backups/daily/`.
 - [ ] On day 1 of month, also copies to `monthly/`.
 - [ ] Verifies backup size > 1000 bytes and GPG header.
 - [ ] Prunes daily older than 30 days, monthly older than 12 months.
 - [ ] Optional rsync to Storage Box if SSH key present.
-- [ ] `/etc/cron.d/goldrush-backup` runs at 03:00 UTC daily.
+- [ ] `/etc/cron.d/deathroll-backup` runs at 03:00 UTC daily.
 - [ ] Restore drill documented in `docs/backup-restore.md`.
 
 **Dependencies:** Story 13.3
@@ -1174,7 +1174,7 @@ Implement Coinflip, Dice, 99x, Hot/Cold, Mines via the shared game contract.
 ### Story 13.6 — Deploy procedure + runbook
 
 **ACs:**
-- [ ] `ops/scripts/deploy.sh` performs `git pull && docker compose up -d --build goldrush-luck` with safety checks (clean working tree, healthy container after).
+- [ ] `ops/scripts/deploy.sh` performs `git pull && docker compose up -d --build deathroll-luck` with safety checks (clean working tree, healthy container after).
 - [ ] Schema-migration deploy procedure documented in `docs/operations.md`.
 - [ ] `docs/runbook.md` covers: bot down, Postgres slow, suspected exploit, seed leak, balance anomaly, Discord token leak, VPS compromise.
 

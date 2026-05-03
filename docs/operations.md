@@ -1,11 +1,11 @@
-# Operations — GoldRush platform
+# Operations — DeathRoll platform
 
 > Status: living document. Ground truth for VPS setup, deploy, secrets handling, and routine operational tasks. Every command in this file is **literal** and intended to be copy-pasted.
 
 ## Conventions
 
 - **VPS host:** `91.98.234.106` (Hetzner). Hostname: `infinity-boost-srvr`.
-- **SSH for admin work** (setup, deploy, backup, restore, anything that touches `/opt/goldrush/`):
+- **SSH for admin work** (setup, deploy, backup, restore, anything that touches `/opt/deathroll/`):
   ```bash
   ssh -i ~/.ssh/id_ed25519 root@91.98.234.106
   ```
@@ -15,9 +15,9 @@
   ssh sdr-agentic
   ```
   This is the existing config alias for unprivileged user `sdr`.
-- **Project root on VPS:** `/opt/goldrush/`.
-- **Operational user on VPS:** `goldrush` (system user, member of `docker` group). Created by `vps_first_setup.sh`.
-- **Repository:** `https://github.com/MaleSyrupOG/GoldRush-Luck.git` (the monorepo for all three bots).
+- **Project root on VPS:** `/opt/deathroll/`.
+- **Operational user on VPS:** `deathroll` (system user, member of `docker` group). Created by `vps_first_setup.sh`.
+- **Repository:** `https://github.com/MaleSyrupOG/DeathRoll-Luck.git` (the monorepo for all three bots).
 
 ---
 
@@ -55,7 +55,7 @@ set -e
 apt-get update -qq && apt-get install -y -qq git gpg
 cd /tmp
 curl -fsSL -o vps_first_setup.sh \
-    https://raw.githubusercontent.com/MaleSyrupOG/GoldRush-Luck/main/ops/scripts/vps_first_setup.sh
+    https://raw.githubusercontent.com/MaleSyrupOG/DeathRoll-Luck/main/ops/scripts/vps_first_setup.sh
 chmod +x vps_first_setup.sh
 ./vps_first_setup.sh
 REMOTE
@@ -68,7 +68,7 @@ ssh -i ~/.ssh/id_ed25519 root@91.98.234.106
 # (now on the VPS as root)
 apt-get update && apt-get install -y git gpg
 cd /tmp
-curl -LO https://raw.githubusercontent.com/MaleSyrupOG/GoldRush-Luck/main/ops/scripts/vps_first_setup.sh
+curl -LO https://raw.githubusercontent.com/MaleSyrupOG/DeathRoll-Luck/main/ops/scripts/vps_first_setup.sh
 chmod +x vps_first_setup.sh
 ./vps_first_setup.sh
 ```
@@ -77,24 +77,24 @@ The script prints a step-by-step transcript (`[1/8]`, `[2/8]`, …). When it fin
 
 ### 1.3. Edit the placeholder Discord token
 
-The setup script staged `/opt/goldrush/secrets/.env.dw` with `PASTE_*` placeholders. You must replace them with the real values from your local `dwBotKeys.txt`:
+The setup script staged `/opt/deathroll/secrets/.env.dw` with `PASTE_*` placeholders. You must replace them with the real values from your local `dwBotKeys.txt`:
 
 ```bash
 ssh -i ~/.ssh/id_ed25519 root@91.98.234.106
-sudo -u goldrush nano /opt/goldrush/secrets/.env.dw
+sudo -u deathroll nano /opt/deathroll/secrets/.env.dw
 ```
 
 In the editor:
 
 - Replace `PASTE_YOUR_DW_BOT_TOKEN_HERE` with the bot token from your local `dwBotKeys.txt`.
-- Replace `PASTE_YOUR_DISCORD_GUILD_ID_HERE` with the GoldRush Discord server (guild) ID.
+- Replace `PASTE_YOUR_DISCORD_GUILD_ID_HERE` with the DeathRoll Discord server (guild) ID.
 
 Save (`Ctrl+O`, Enter) and exit (`Ctrl+X`).
 
 Then verify both placeholders are gone:
 
 ```bash
-sudo -u goldrush grep -c PASTE_ /opt/goldrush/secrets/.env.dw
+sudo -u deathroll grep -c PASTE_ /opt/deathroll/secrets/.env.dw
 # expected output: 0
 ```
 
@@ -103,15 +103,15 @@ If the count is anything other than `0`, you missed a placeholder; re-edit.
 ### 1.4. Re-verify perms (some editors break perms on save)
 
 ```bash
-ls -la /opt/goldrush/secrets/.env.dw
-# expected: -rw------- 1 goldrush goldrush ... .env.dw
+ls -la /opt/deathroll/secrets/.env.dw
+# expected: -rw------- 1 deathroll deathroll ... .env.dw
 ```
 
 If the perms are wrong, fix them:
 
 ```bash
-chmod 600 /opt/goldrush/secrets/.env.dw
-chown goldrush:goldrush /opt/goldrush/secrets/.env.dw
+chmod 600 /opt/deathroll/secrets/.env.dw
+chown deathroll:deathroll /opt/deathroll/secrets/.env.dw
 ```
 
 ### 1.5. Save the GPG fingerprint OFF the VPS
@@ -124,11 +124,11 @@ Fingerprint: AAAA1111BBBB2222CCCC3333DDDD4444EEEE5555
 
 **Copy this fingerprint into your password manager (1Password, Bitwarden, KeePassXC, or a hardware-secured note).** If the VPS ever dies or the GPG key needs to be reinstalled, you will need this fingerprint to identify and authenticate the key on the new VPS.
 
-The public key is also saved to `/opt/goldrush/secrets/backup-gpg-public.asc` if you want a copy:
+The public key is also saved to `/opt/deathroll/secrets/backup-gpg-public.asc` if you want a copy:
 
 ```bash
-scp -i ~/.ssh/id_ed25519 root@91.98.234.106:/opt/goldrush/secrets/backup-gpg-public.asc \
-    ~/Documents/goldrush-backup-pubkey.asc
+scp -i ~/.ssh/id_ed25519 root@91.98.234.106:/opt/deathroll/secrets/backup-gpg-public.asc \
+    ~/Documents/deathroll-backup-pubkey.asc
 ```
 
 ---
@@ -139,12 +139,12 @@ Once the VPS setup is done and `.env.dw` has real values, deploy the bot.
 
 ```bash
 ssh -i ~/.ssh/id_ed25519 root@91.98.234.106
-cd /opt/goldrush/repo
-sudo -u goldrush git pull origin main
+cd /opt/deathroll/repo
+sudo -u deathroll git pull origin main
 
 # Build images and start the stack
-sudo -u goldrush docker compose \
-    --env-file /opt/goldrush/secrets/.env.shared \
+sudo -u deathroll docker compose \
+    --env-file /opt/deathroll/secrets/.env.shared \
     -f ops/docker/compose.yml up -d --build
 ```
 
@@ -153,37 +153,37 @@ The first build takes 2–4 minutes (downloading the Python 3.12 base, building 
 ### 2.1. Verify Postgres is up and healthy
 
 ```bash
-sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml ps
-# expected: goldrush-postgres State=running, Health=healthy
-sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml exec postgres \
-    pg_isready -U goldrush_admin -d goldrush
+sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml ps
+# expected: deathroll-postgres State=running, Health=healthy
+sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml exec postgres \
+    pg_isready -U deathroll_admin -d deathroll
 # expected: accepting connections
 ```
 
 ### 2.2. Verify schemas and roles
 
 ```bash
-sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml exec postgres \
-    psql -U goldrush_admin -d goldrush -c "
+sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml exec postgres \
+    psql -U deathroll_admin -d deathroll -c "
     SELECT schema_name FROM information_schema.schemata
     WHERE schema_name IN ('core','fairness','luck','dw','poker') ORDER BY 1;"
 # expected: 5 rows
 ```
 
 ```bash
-sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml exec postgres \
-    psql -U goldrush_admin -d goldrush -c "
-    SELECT rolname FROM pg_roles WHERE rolname LIKE 'goldrush_%' ORDER BY 1;"
-# expected: goldrush_admin, goldrush_dw, goldrush_luck, goldrush_readonly
-# (goldrush_poker is intentionally absent until we enable it)
+sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml exec postgres \
+    psql -U deathroll_admin -d deathroll -c "
+    SELECT rolname FROM pg_roles WHERE rolname LIKE 'deathroll_%' ORDER BY 1;"
+# expected: deathroll_admin, deathroll_dw, deathroll_luck, deathroll_readonly
+# (deathroll_poker is intentionally absent until we enable it)
 ```
 
 ### 2.3. Verify the D/W bot container is running
 
 ```bash
-sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml logs --tail=20 goldrush-deposit-withdraw
-# expected: "[goldrush_deposit_withdraw] placeholder process running; ..."
-sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml ps goldrush-deposit-withdraw
+sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml logs --tail=20 deathroll-deposit-withdraw
+# expected: "[deathroll_deposit_withdraw] placeholder process running; ..."
+sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml ps deathroll-deposit-withdraw
 # expected: State=running, Health=healthy
 ```
 
@@ -197,14 +197,14 @@ Most deploys land via `git pull` + rebuild:
 
 ```bash
 ssh -i ~/.ssh/id_ed25519 root@91.98.234.106
-cd /opt/goldrush/repo
-sudo -u goldrush git pull origin main
+cd /opt/deathroll/repo
+sudo -u deathroll git pull origin main
 
-sudo -u goldrush docker compose \
-    --env-file /opt/goldrush/secrets/.env.shared \
-    -f ops/docker/compose.yml up -d --build goldrush-deposit-withdraw
+sudo -u deathroll docker compose \
+    --env-file /opt/deathroll/secrets/.env.shared \
+    -f ops/docker/compose.yml up -d --build deathroll-deposit-withdraw
 
-sudo -u goldrush docker compose -f ops/docker/compose.yml logs --tail=50 -f goldrush-deposit-withdraw
+sudo -u deathroll docker compose -f ops/docker/compose.yml logs --tail=50 -f deathroll-deposit-withdraw
 ```
 
 Downtime: ~5 seconds (container restart).
@@ -215,29 +215,29 @@ When a PR adds an Alembic migration:
 
 ```bash
 ssh -i ~/.ssh/id_ed25519 root@91.98.234.106
-cd /opt/goldrush/repo
-sudo -u goldrush git pull origin main
+cd /opt/deathroll/repo
+sudo -u deathroll git pull origin main
 
 # 1. Take a backup BEFORE migrating
-/opt/goldrush/repo/ops/scripts/backup.sh
+/opt/deathroll/repo/ops/scripts/backup.sh
 
 # 2. Preview the migration as raw SQL (safety check)
-sudo -u goldrush docker compose -f ops/docker/compose.yml exec goldrush-deposit-withdraw \
+sudo -u deathroll docker compose -f ops/docker/compose.yml exec deathroll-deposit-withdraw \
     alembic -c ops/alembic/alembic.ini upgrade head --sql > /tmp/migration_preview.sql
 less /tmp/migration_preview.sql
 # (review carefully before continuing)
 
 # 3. Stop the bot so it doesn't read partial schema during the migration
-sudo -u goldrush docker compose -f ops/docker/compose.yml stop goldrush-deposit-withdraw
+sudo -u deathroll docker compose -f ops/docker/compose.yml stop deathroll-deposit-withdraw
 
 # 4. Run the migration as a one-shot
-sudo -u goldrush docker compose -f ops/docker/compose.yml run --rm goldrush-deposit-withdraw \
+sudo -u deathroll docker compose -f ops/docker/compose.yml run --rm deathroll-deposit-withdraw \
     alembic -c ops/alembic/alembic.ini upgrade head
 
 # 5. Build and restart the bot
-sudo -u goldrush docker compose \
-    --env-file /opt/goldrush/secrets/.env.shared \
-    -f ops/docker/compose.yml up -d --build goldrush-deposit-withdraw
+sudo -u deathroll docker compose \
+    --env-file /opt/deathroll/secrets/.env.shared \
+    -f ops/docker/compose.yml up -d --build deathroll-deposit-withdraw
 ```
 
 Downtime: 30 s to a few minutes depending on migration size.
@@ -247,18 +247,18 @@ Downtime: 30 s to a few minutes depending on migration size.
 If something is wrong after a deploy:
 
 ```bash
-cd /opt/goldrush/repo
-sudo -u goldrush git log --oneline -10            # find the previous good SHA
-sudo -u goldrush git checkout <previous-good-sha>
-sudo -u goldrush docker compose \
-    --env-file /opt/goldrush/secrets/.env.shared \
-    -f ops/docker/compose.yml up -d --build goldrush-deposit-withdraw
+cd /opt/deathroll/repo
+sudo -u deathroll git log --oneline -10            # find the previous good SHA
+sudo -u deathroll git checkout <previous-good-sha>
+sudo -u deathroll docker compose \
+    --env-file /opt/deathroll/secrets/.env.shared \
+    -f ops/docker/compose.yml up -d --build deathroll-deposit-withdraw
 ```
 
 If the rollback also requires reversing a schema migration:
 
 ```bash
-sudo -u goldrush docker compose -f ops/docker/compose.yml exec goldrush-deposit-withdraw \
+sudo -u deathroll docker compose -f ops/docker/compose.yml exec deathroll-deposit-withdraw \
     alembic -c ops/alembic/alembic.ini downgrade -1
 ```
 
@@ -270,7 +270,7 @@ If the rollback is impossible because data has been written that doesn't fit the
 
 After the bot is online, the server owner must enable the visibility of the privileged slash commands per role. This is a Discord-side config that the bot cannot do for you.
 
-Go to the GoldRush server → `Server Settings` → `Integrations` → `GoldRush Deposit/Withdraw` → `Manage`.
+Go to the DeathRoll server → `Server Settings` → `Integrations` → `DeathRoll Deposit/Withdraw` → `Manage`.
 
 For each command starting with `/admin`, click it and add an override:
 
@@ -292,8 +292,8 @@ The setup script does NOT install the cron entry automatically. To enable daily 
 
 ```bash
 ssh -i ~/.ssh/id_ed25519 root@91.98.234.106
-sudo cp /opt/goldrush/repo/ops/scripts/goldrush-backup.cron /etc/cron.d/goldrush-backup
-sudo chmod 644 /etc/cron.d/goldrush-backup
+sudo cp /opt/deathroll/repo/ops/scripts/deathroll-backup.cron /etc/cron.d/deathroll-backup
+sudo chmod 644 /etc/cron.d/deathroll-backup
 sudo systemctl reload cron 2>/dev/null || sudo service cron reload
 ```
 
@@ -301,8 +301,8 @@ Verify the backup runs:
 
 ```bash
 # trigger an immediate backup as a smoke test
-/opt/goldrush/repo/ops/scripts/backup.sh
-ls -la /opt/goldrush/backups/daily/
+/opt/deathroll/repo/ops/scripts/backup.sh
+ls -la /opt/deathroll/backups/daily/
 # expected: at least one .dump.gpg file with a recent timestamp
 ```
 
@@ -315,11 +315,11 @@ Restore drill: see `docs/backup-restore.md`.
 ```bash
 # tail the D/W bot
 ssh -i ~/.ssh/id_ed25519 root@91.98.234.106 \
-    'sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml logs -f goldrush-deposit-withdraw'
+    'sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml logs -f deathroll-deposit-withdraw'
 
 # Postgres
 ssh -i ~/.ssh/id_ed25519 root@91.98.234.106 \
-    'sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml logs -f postgres'
+    'sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml logs -f postgres'
 
 # Loki / Grafana / Alertmanager: shared with the existing sdr-agentic stack;
 # see docs/observability.md for dashboards (built incrementally).
@@ -331,15 +331,15 @@ ssh -i ~/.ssh/id_ed25519 root@91.98.234.106 \
 
 ```bash
 # stop everything (Postgres + D/W)
-sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml down
+sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml down
 
 # stop only the D/W bot, keep Postgres up
-sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml stop goldrush-deposit-withdraw
+sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml stop deathroll-deposit-withdraw
 
 # start everything again
-sudo -u goldrush docker compose \
-    --env-file /opt/goldrush/secrets/.env.shared \
-    -f /opt/goldrush/repo/ops/docker/compose.yml up -d
+sudo -u deathroll docker compose \
+    --env-file /opt/deathroll/secrets/.env.shared \
+    -f /opt/deathroll/repo/ops/docker/compose.yml up -d
 ```
 
 ### 7.1. Wipe the local database (TEST/DRILL ONLY)
@@ -347,10 +347,10 @@ sudo -u goldrush docker compose \
 > Never on production. This destroys all data. Used for restore drills.
 
 ```bash
-sudo -u goldrush docker compose -f /opt/goldrush/repo/ops/docker/compose.yml down -v
+sudo -u deathroll docker compose -f /opt/deathroll/repo/ops/docker/compose.yml down -v
 ```
 
-The `-v` flag removes the `goldrush_pgdata` volume.
+The `-v` flag removes the `deathroll_pgdata` volume.
 
 ---
 
@@ -362,7 +362,7 @@ For dev work on Aleix's Windows machine, use a separate local secrets directory 
 # from repo root, create local dev secrets
 mkdir -p .local-dev/secrets
 cat > .local-dev/secrets/.env.shared <<'EOF'
-PG_ADMIN_USER=goldrush_admin
+PG_ADMIN_USER=deathroll_admin
 PG_ADMIN_PASSWORD=local_dev_admin
 PG_LUCK_PASSWORD=local_dev_luck
 PG_DW_PASSWORD=local_dev_dw

@@ -1,21 +1,21 @@
-# GoldRush
+# DeathRoll
 
 A Discord-hosted casino platform settling in World of Warcraft Gold (`G`). Three bots share a single PostgreSQL database and a common security and audit foundation:
 
-- **GoldRush Luck** — provably-fair casino games (paused while collaborator finalises Round 2 scope).
-- **GoldRush Deposit/Withdraw** — the economic frontier; the only component that can credit or debit user balances outside game outcomes.
-- **GoldRush Poker** — dedicated poker bot (future).
+- **DeathRoll Luck** — provably-fair casino games (paused while collaborator finalises Round 2 scope).
+- **DeathRoll Deposit/Withdraw** — the economic frontier; the only component that can credit or debit user balances outside game outcomes.
+- **DeathRoll Poker** — dedicated poker bot (future).
 
-This is a monorepo. Each bot is an independent Python process with its own Discord application, token, and DB role; all three share `goldrush_core/` for balance, audit, fairness, security helpers, embed builders, and ORM models.
+This is a monorepo. Each bot is an independent Python process with its own Discord application, token, and DB role; all three share `deathroll_core/` for balance, audit, fairness, security helpers, embed builders, and ORM models.
 
 ## Repository structure
 
 ```
-goldrush/
-├── goldrush_core/                     # shared business logic (framework-agnostic)
-├── goldrush_luck/                     # casino games bot
-├── goldrush_deposit_withdraw/         # banking bot (economic frontier)
-├── goldrush_poker/                    # placeholder for the future poker bot
+deathroll/
+├── deathroll_core/                     # shared business logic (framework-agnostic)
+├── deathroll_luck/                     # casino games bot
+├── deathroll_deposit_withdraw/         # banking bot (economic frontier)
+├── deathroll_poker/                    # placeholder for the future poker bot
 ├── ops/                               # docker, alembic, scripts, observability
 ├── docs/                              # specifications, runbook, ADRs, security
 │   └── superpowers/specs/             # design specs and implementation plans
@@ -25,7 +25,7 @@ goldrush/
 
 ## Source of truth
 
-- **Designs**: `docs/superpowers/specs/2026-04-29-goldrush-luck-v1-design.md`, `docs/superpowers/specs/2026-04-29-goldrush-dw-v1-design.md`.
+- **Designs**: `docs/superpowers/specs/2026-04-29-deathroll-luck-v1-design.md`, `docs/superpowers/specs/2026-04-29-deathroll-dw-v1-design.md`.
 - **Implementation plans (with progress trackers)**: corresponding `*-implementation-plan.md` files.
 - **Operational runbook**: `docs/runbook.md` (built incrementally).
 - **Architecture decisions**: `docs/adr/` (each major decision is an immutable ADR).

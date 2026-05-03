@@ -1,4 +1,4 @@
-# GoldRush — changelog
+# DeathRoll — changelog
 
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 SemVer per bot. The D/W bot's tags are prefixed `dw-`; Luck and
@@ -53,7 +53,7 @@ ready. Aleix is the sole author; built over the 5-day window
   `#cashier-onboarding` auto-seeded by the welcome reconciler;
   edit-in-place via the `set-*-guide` admin commands.
 - **Audit log immutability** — `core.audit_log` rows are
-  append-only at the trigger level; even `goldrush_admin` cannot
+  append-only at the trigger level; even `deathroll_admin` cannot
   UPDATE/DELETE. Hash chain verified periodically + on demand.
 
 ### Slash command total
@@ -92,14 +92,14 @@ the tag lands.
 Tag command (operator action — not auto-tagged by this commit):
 
 ```
-git tag -a dw-v1.0.0 -m "GoldRush Deposit/Withdraw v1.0.0"
+git tag -a dw-v1.0.0 -m "DeathRoll Deposit/Withdraw v1.0.0"
 git push origin dw-v1.0.0
 ```
 
 ### Repository
 
-- GitHub: github.com/MaleSyrupOG/GoldRush-Luck
-- VPS: Hetzner sdr-agentic, container `goldrush-dw`
+- GitHub: github.com/MaleSyrupOG/DeathRoll-Luck
+- VPS: Hetzner sdr-agentic, container `deathroll-dw`
 
 ### Known accepted risks
 

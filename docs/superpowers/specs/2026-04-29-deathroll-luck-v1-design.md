@@ -1,11 +1,11 @@
-# GoldRush Luck v1 — Design Specification
+# DeathRoll Luck v1 — Design Specification
 
 | Field | Value |
 |---|---|
 | **Document version** | 1.1 |
 | **Date** | 2026-04-29 |
 | **Author** | Aleix |
-| **Repository** | <https://github.com/MaleSyrupOG/GoldRush-Luck> |
+| **Repository** | <https://github.com/MaleSyrupOG/DeathRoll-Luck> |
 | **Status** | Locked — all decisions including economics are final |
 | **Supersedes** | v1.0 (2026-04-29 morning, before collaborator response) |
 
@@ -13,11 +13,11 @@
 
 ## 0. Executive summary
 
-GoldRush Luck is a Discord bot that runs a fully provably-fair casino on World of Warcraft Gold (denoted **G**). It is the first of three bots that together make up the GoldRush platform, sharing a single PostgreSQL database:
+DeathRoll Luck is a Discord bot that runs a fully provably-fair casino on World of Warcraft Gold (denoted **G**). It is the first of three bots that together make up the DeathRoll platform, sharing a single PostgreSQL database:
 
-- **GoldRush Luck** (this spec) — the games bot.
-- **GoldRush Poker** — dedicated poker bot (future, separate spec).
-- **GoldRush Deposit/Withdraw** — handles all in-game gold movement; the only system component allowed to mint or destroy balance (future, separate spec).
+- **DeathRoll Luck** (this spec) — the games bot.
+- **DeathRoll Poker** — dedicated poker bot (future, separate spec).
+- **DeathRoll Deposit/Withdraw** — handles all in-game gold movement; the only system component allowed to mint or destroy balance (future, separate spec).
 
 Luck v1 ships with nine games, a monthly raffle, a per-user Provably Fair system based on HMAC-SHA512 with seed commit/reveal, an open-source verifier, a leaderboard, role-based admin commands, and fintech-grade security guarantees.
 
@@ -67,12 +67,12 @@ The design prioritises three properties, in order: **integrity** (no gold is eve
 
 ```
 LAYER 3 — BOTS (Discord runtime, one Python process per bot)
-  goldrush_luck     goldrush_poker     goldrush_deposit_withdraw
+  deathroll_luck     deathroll_poker     deathroll_deposit_withdraw
        │                  │                       │
        └──────────────────┴───────────────────────┘
                             │
 LAYER 2 — CORE (shared business logic, framework-agnostic)
-  goldrush_core/
+  deathroll_core/
     ├── balance/       wallets, transactions, locks
     ├── fairness/      provably fair (HMAC-SHA512)
     ├── audit/         append-only audit log
@@ -83,19 +83,19 @@ LAYER 2 — CORE (shared business logic, framework-agnostic)
     └── models/        SQLAlchemy ORM models
                             │
 LAYER 1 — INFRASTRUCTURE
-  PostgreSQL 16   Docker network goldrush_net   /opt/goldrush/ filesystem
+  PostgreSQL 16   Docker network deathroll_net   /opt/deathroll/ filesystem
 ```
 
 **Invariants of the layering:**
 
-- `goldrush_core` does not import discord.py. Pure business logic. Testable without mocking Discord.
+- `deathroll_core` does not import discord.py. Pure business logic. Testable without mocking Discord.
 - Each bot is a separate process with its own Discord token and its own DB role.
 - All bots share one Postgres database but operate in different schemas with role-restricted grants.
 
 ### 2.2. Monorepo layout
 
 ```
-goldrush/
+deathroll/
 ├── README.md
 ├── pyproject.toml                # workspace + ruff/mypy/black config
 ├── uv.lock                       # locked, hash-verified dependencies
@@ -103,7 +103,7 @@ goldrush/
 ├── .gitignore
 ├── Makefile                      # test, lint, run-dev, etc.
 │
-├── goldrush_core/
+├── deathroll_core/
 │   ├── balance/
 │   ├── fairness/
 │   ├── audit/
@@ -114,7 +114,7 @@ goldrush/
 │   ├── models/
 │   └── db.py
 │
-├── goldrush_luck/
+├── deathroll_luck/
 │   ├── __main__.py
 │   ├── client.py
 │   ├── healthcheck.py
@@ -136,10 +136,10 @@ goldrush/
 │   ├── fairness/
 │   └── views/
 │
-├── goldrush_poker/                # placeholder for future bot
+├── deathroll_poker/                # placeholder for future bot
 │   └── README.md
 │
-├── goldrush_deposit_withdraw/     # placeholder for future bot
+├── deathroll_deposit_withdraw/     # placeholder for future bot
 │   └── README.md
 │
 ├── ops/
@@ -203,7 +203,7 @@ goldrush/
 
 ### 3.1. Schemas and DB roles
 
-One PostgreSQL 16 instance, one database (`goldrush`), four schemas, five DB roles.
+One PostgreSQL 16 instance, one database (`deathroll`), four schemas, five DB roles.
 
 | Schema | Purpose |
 |---|---|
@@ -216,11 +216,11 @@ One PostgreSQL 16 instance, one database (`goldrush`), four schemas, five DB rol
 
 | DB role | Login | Schema access |
 |---|---|---|
-| `goldrush_admin` | yes | OWNER on all schemas. Used only by Alembic migrations and operations. |
-| `goldrush_luck` | yes | RW on `luck.*` and `fairness.*`; read-only on `core.users`/`core.balances`; INSERT-only on `core.audit_log`. **No UPDATE or DELETE on `core.balances`.** Money movement happens only through `SECURITY DEFINER` functions. |
-| `goldrush_dw` | yes | RW on `core.users` and `core.balances`; INSERT on `core.audit_log`. The only role permitted to create users or alter balances outside of game settlement. |
-| `goldrush_poker` | yes | symmetric to `goldrush_luck`, scoped to `poker.*` (future). |
-| `goldrush_readonly` | yes | SELECT on all schemas. Used by Grafana, ad-hoc debugging via SSH tunnel. |
+| `deathroll_admin` | yes | OWNER on all schemas. Used only by Alembic migrations and operations. |
+| `deathroll_luck` | yes | RW on `luck.*` and `fairness.*`; read-only on `core.users`/`core.balances`; INSERT-only on `core.audit_log`. **No UPDATE or DELETE on `core.balances`.** Money movement happens only through `SECURITY DEFINER` functions. |
+| `deathroll_dw` | yes | RW on `core.users` and `core.balances`; INSERT on `core.audit_log`. The only role permitted to create users or alter balances outside of game settlement. |
+| `deathroll_poker` | yes | symmetric to `deathroll_luck`, scoped to `poker.*` (future). |
+| `deathroll_readonly` | yes | SELECT on all schemas. Used by Grafana, ad-hoc debugging via SSH tunnel. |
 
 ### 3.2. Entity-relationship diagram (high level)
 
@@ -255,7 +255,7 @@ CREATE TABLE core.users (
 );
 ```
 
-INSERT only by `goldrush_dw` on first deposit confirmation. Luck never creates users.
+INSERT only by `deathroll_dw` on first deposit confirmation. Luck never creates users.
 
 #### `core.balances`
 
@@ -516,7 +516,7 @@ CREATE TABLE luck.leaderboard_snapshot (
 
 ### 3.4. Stored procedures (the economic boundary)
 
-Every money movement passes through a `SECURITY DEFINER` function owned by `goldrush_admin`. The bot's DB role only has `EXECUTE` on these functions, not `UPDATE` or `DELETE` on `core.balances`.
+Every money movement passes through a `SECURITY DEFINER` function owned by `deathroll_admin`. The bot's DB role only has `EXECUTE` on these functions, not `UPDATE` or `DELETE` on `core.balances`.
 
 Functions:
 
@@ -532,7 +532,7 @@ After migrations:
 
 ```sql
 REVOKE ALL ON FUNCTION luck.apply_bet(...) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION luck.apply_bet(...) TO goldrush_luck;
+GRANT EXECUTE ON FUNCTION luck.apply_bet(...) TO deathroll_luck;
 -- analogous for every economic function
 ```
 
@@ -540,11 +540,11 @@ A SQL injection on the bot cannot escalate to arbitrary `UPDATE core.balances` b
 
 ### 3.5. Migrations
 
-Alembic with one shared history at `ops/alembic/versions/`. Migration files prefixed by schema area: `core_*`, `fairness_*`, `luck_*`. Every migration provides a working `downgrade()`. Migrations run as `goldrush_admin`, not as the bot.
+Alembic with one shared history at `ops/alembic/versions/`. Migration files prefixed by schema area: `core_*`, `fairness_*`, `luck_*`. Every migration provides a working `downgrade()`. Migrations run as `deathroll_admin`, not as the bot.
 
 ### 3.6. Backups and retention
 
-- Daily `pg_dump -Fc`, GPG-encrypted, written to `/opt/goldrush/backups/`.
+- Daily `pg_dump -Fc`, GPG-encrypted, written to `/opt/deathroll/backups/`.
 - 30 daily backups + 12 monthly backups retained.
 - Optional offsite mirror via `rsync` to a Hetzner Storage Box (recommended; ~3 €/month for 1 TB).
 - GPG public-key fingerprint also stored outside the VPS (1Password / hardware token) so backups remain decryptable if the VPS dies.
@@ -599,7 +599,7 @@ User runs /rotateseed:
 
 ### 4.3. Operational rules
 
-- `server_seed` raw never appears in logs, embeds, error messages, or any code path outside `goldrush_core/fairness/`.
+- `server_seed` raw never appears in logs, embeds, error messages, or any code path outside `deathroll_core/fairness/`.
 - A unit test asserts `repr()` and `json.dumps()` of `UserSeed` redacts the raw seed.
 - A lint-style `ruff` rule prohibits expressions of the form `log.X(... server_seed ...)`.
 - An `/admin force-rotate-seed` and `/admin force-rotate-all` command exist for incident response.
@@ -632,11 +632,11 @@ For Mines, Blackjack, Staking Duel, and the Raffle, **all randomness is pre-comp
 - `EXAMPLES.md` — step-by-step worked examples for every game.
 - `test_vectors.json` — 100 known triples `(server_seed, client_seed, nonce, game) → expected_outcome` used by both the bot's CI and the verifier's CI.
 
-CI runs both verifiers against the same vectors and against 1,000 random vectors and asserts they match the bot's `goldrush_core/fairness/` decoding byte-for-byte.
+CI runs both verifiers against the same vectors and against 1,000 random vectors and asserts they match the bot's `deathroll_core/fairness/` decoding byte-for-byte.
 
 ### 4.6. Game module contract
 
-Every game implements the abstract base class `goldrush_luck.games._base.Game`:
+Every game implements the abstract base class `deathroll_luck.games._base.Game`:
 
 ```python
 class Game(ABC):
@@ -664,7 +664,7 @@ class Game(ABC):
 
 Multi-round games extend `MultiRoundGame` adding `initial_state`, `apply_action`, `can_cashout`, `cashout`.
 
-Adding a new game = single file in `goldrush_luck/games/` + registration in `__init__.py` + a row in `luck.game_config`. No core changes.
+Adding a new game = single file in `deathroll_luck/games/` + registration in `__init__.py` + a row in `luck.game_config`. No core changes.
 
 ---
 
@@ -674,7 +674,7 @@ Adding a new game = single file in `goldrush_luck/games/` + registration in `__i
 
 Detailed in `docs/security.md`; summarised here.
 
-1. **Secrets management** — `.env` mode 600 owned by `goldrush:goldrush`, env-injected into containers, never logged.
+1. **Secrets management** — `.env` mode 600 owned by `deathroll:deathroll`, env-injected into containers, never logged.
 2. **DB transactions** — every money operation uses `SELECT … FOR UPDATE` row locks and runs inside `SECURITY DEFINER` functions; balance has a `CHECK (balance >= 0)` constraint.
 3. **Provably Fair** — HMAC-SHA512 with strict commit/reveal cycle; revealed seeds preserved in append-only history.
 4. **Anti-abuse** — per-user, per-game rate limits; max bet caps; admin-tunable.
@@ -719,7 +719,7 @@ A `@require_channel(game_name)` decorator checks `interaction.channel_id` agains
 Three layers, all enforced:
 
 1. **Discord registration:** admin commands declared with `@app_commands.default_permissions()` (= `Permissions(0)`) so they are hidden from autocomplete by default.
-2. **Discord integration UI:** the server owner enables the admin commands for the `@admin` role under *Server Settings → Integrations → GoldRush Luck*. One-time setup, documented in `docs/operations.md`.
+2. **Discord integration UI:** the server owner enables the admin commands for the `@admin` role under *Server Settings → Integrations → DeathRoll Luck*. One-time setup, documented in `docs/operations.md`.
 3. **Runtime decorator:** every admin command runs through `@require_role("admin")`; failed authorisation attempts are written to `audit_log`.
 
 User-facing commands (`/coinflip`, etc.) carry no `default_member_permissions`, so they are visible to everyone.
@@ -824,7 +824,7 @@ sequenceDiagram
 
 ### 6.3. Embed system
 
-Colour palette (from `goldrush-design-system.html`):
+Colour palette (from `deathroll-design-system.html`):
 
 | Token | Hex | Use |
 |---|---|---|
@@ -836,7 +836,7 @@ Colour palette (from `goldrush-design-system.html`):
 | HOUSE | `#5B7CC9` | system / house badge |
 | JACKPOT | `#FFD800` | rare big-win highlight |
 
-Shared embed builders live in `goldrush_core/embeds/`:
+Shared embed builders live in `deathroll_core/embeds/`:
 
 - `result_embed(bet, resolved, last_outcomes, game_emoji, image?)` — the canonical game-result embed.
 - `no_balance_embed`, `insufficient_balance_embed`, `rate_limited_embed`, `game_paused_embed`, `wrong_channel_embed`, `error_embed`, `bet_expired_embed`, `welcome_fairness_embed`, `welcome_game_embed`.
@@ -846,7 +846,7 @@ Every embed includes a Provably Fair footer with `server_seed_hash` (truncated),
 ### 6.4. Multi-round UX
 
 - **Mines** — 5×5 grid of buttons (closed = `❓`, revealed = `💎`, mine on resolve = `💣`) plus a centred *Cash Out* button showing the live multiplier. All randomness pre-computed at `apply_bet`. Session expires after 10 min of inactivity → automatic cashout at current multiplier.
-- **Blackjack** — buttons `Hit` / `Stand` / `Double` (split deferred to v1.1). Deck pre-shuffled at `apply_bet`. Cards rendered as a PNG via Pillow over pre-rendered card assets in `goldrush_luck/assets/cards/`. Session expires after 5 min → auto-stand.
+- **Blackjack** — buttons `Hit` / `Stand` / `Double` (split deferred to v1.1). Deck pre-shuffled at `apply_bet`. Cards rendered as a PNG via Pillow over pre-rendered card assets in `deathroll_luck/assets/cards/`. Session expires after 5 min → auto-stand.
 - **Staking Duel** — non-interactive; the bot animates rounds by editing the embed every ~1.5 s. All HP/damage rolls pre-computed.
 
 ### 6.5. Bot startup
@@ -880,15 +880,15 @@ On startup the bot ensures pinned welcome embeds exist in `#fairness` and in eve
 ### 7.1. VPS environment
 
 - Host: Hetzner VPS aliased `sdr-agentic`, Ubuntu, 8 vCPU, 15 GiB RAM, 301 GiB disk.
-- Existing Docker projects (sdr-agentic, infinityboostapp, keystoneforge, oblivion-demo, reverse-proxy) remain untouched. GoldRush is fully isolated.
+- Existing Docker projects (sdr-agentic, infinityboostapp, keystoneforge, oblivion-demo, reverse-proxy) remain untouched. DeathRoll is fully isolated.
 
 ### 7.2. One-time setup (run as root via SSH)
 
-1. Create dedicated user `goldrush` with home `/opt/goldrush` and group membership in `docker`.
-2. Create `/opt/goldrush/{repo,secrets,backups,logs,scripts}` with perms 750/700.
-3. Clone the public repo into `/opt/goldrush/repo`.
-4. Generate strong random secrets into `/opt/goldrush/secrets/.env.shared` (PG passwords, `BUTTON_SIGNING_KEY`, `AUDIT_HASH_CHAIN_KEY`).
-5. Manually edit `/opt/goldrush/secrets/.env.luck` to insert the Discord token and `GUILD_ID`.
+1. Create dedicated user `deathroll` with home `/opt/deathroll` and group membership in `docker`.
+2. Create `/opt/deathroll/{repo,secrets,backups,logs,scripts}` with perms 750/700.
+3. Clone the public repo into `/opt/deathroll/repo`.
+4. Generate strong random secrets into `/opt/deathroll/secrets/.env.shared` (PG passwords, `BUTTON_SIGNING_KEY`, `AUDIT_HASH_CHAIN_KEY`).
+5. Manually edit `/opt/deathroll/secrets/.env.luck` to insert the Discord token and `GUILD_ID`.
 6. Generate a GPG key pair on the VPS for backup encryption; record fingerprint outside the VPS.
 7. Confirm UFW/iptables rules unchanged.
 
@@ -898,15 +898,15 @@ Detailed shell commands are in `docs/operations.md`.
 
 `ops/docker/compose.yml` defines two services:
 
-- `goldrush-postgres` — `postgres:16-alpine`, internal-only, healthcheck, hardened capabilities, init.sql mounts schemas/roles/grants on first run.
-- `goldrush-luck` — read-only root FS, tmpfs `/tmp`, `cap_drop: ALL`, `no-new-privileges`, `pids_limit: 256`, `mem_limit: 512m`, runs as UID 1001, depends on Postgres healthy.
+- `deathroll-postgres` — `postgres:16-alpine`, internal-only, healthcheck, hardened capabilities, init.sql mounts schemas/roles/grants on first run.
+- `deathroll-luck` — read-only root FS, tmpfs `/tmp`, `cap_drop: ALL`, `no-new-privileges`, `pids_limit: 256`, `mem_limit: 512m`, runs as UID 1001, depends on Postgres healthy.
 
-Network `goldrush_net` is a dedicated bridge with subnet `172.30.0.0/24`. No host port bindings on either service. Outbound to Discord works via the default bridge route.
+Network `deathroll_net` is a dedicated bridge with subnet `172.30.0.0/24`. No host port bindings on either service. Outbound to Discord works via the default bridge route.
 
 ### 7.4. Initial deployment
 
-1. `docker compose up -d --build` from `/opt/goldrush/repo`.
-2. Wait for `goldrush-postgres` healthy.
+1. `docker compose up -d --build` from `/opt/deathroll/repo`.
+2. Wait for `deathroll-postgres` healthy.
 3. Run `alembic upgrade head` inside the bot container to create tables, triggers, SECURITY DEFINER functions.
 4. Seed `luck.game_config` with default values.
 5. Seed `luck.channel_binding` from a JSON file containing the channel IDs.
@@ -915,7 +915,7 @@ Network `goldrush_net` is a dedicated bridge with subnet `172.30.0.0/24`. No hos
 
 ### 7.5. Subsequent deployments
 
-- **Hot reload** (text/embed changes only): `git pull && docker compose up -d --build goldrush-luck`. Downtime ~5 s.
+- **Hot reload** (text/embed changes only): `git pull && docker compose up -d --build deathroll-luck`. Downtime ~5 s.
 - **Schema migration**: backup → preview migration with `alembic upgrade head --sql` → stop bot → run migration → start new bot. Downtime up to 2 min.
 - **Rollback**: `git checkout <previous-sha> && docker compose up -d --build`; if migration must roll back, `alembic downgrade -1`; if data is incompatible, restore from backup.
 
@@ -923,15 +923,15 @@ CI/CD is GitHub Actions for **lint, type, test, audit, coverage** only. Deploy i
 
 ### 7.6. Backup and restore
 
-- `ops/scripts/backup.sh` runs at 03:00 UTC daily via `/etc/cron.d/goldrush-backup` (root cron). Output: encrypted dump in `/opt/goldrush/backups/daily/`. On the 1st of each month, also copied to `monthly/`. Retention: 30 daily + 12 monthly.
+- `ops/scripts/backup.sh` runs at 03:00 UTC daily via `/etc/cron.d/deathroll-backup` (root cron). Output: encrypted dump in `/opt/deathroll/backups/daily/`. On the 1st of each month, also copied to `monthly/`. Retention: 30 daily + 12 monthly.
 - Optional `rsync` to a Hetzner Storage Box if SSH key is configured.
 - Restore procedure documented in `docs/backup-restore.md`. Drill quarterly.
 
 ### 7.7. Observability
 
 - Logs: container json-file driver → ingested by the existing `sdr-agentic-promtail` → Loki.
-- Metrics: bot exposes Prometheus `/metrics` on port 9100 inside `goldrush_net`. Existing Prometheus scrapes from `goldrush-luck:9100` after adding the network to its config.
-- Dashboards: `ops/observability/grafana-dashboards/goldrush-luck.json` — bets per minute, total volume, balances histogram, error rate, fairness rotations, restart events, DB stats.
+- Metrics: bot exposes Prometheus `/metrics` on port 9100 inside `deathroll_net`. Existing Prometheus scrapes from `deathroll-luck:9100` after adding the network to its config.
+- Dashboards: `ops/observability/grafana-dashboards/deathroll-luck.json` — bets per minute, total volume, balances histogram, error rate, fairness rotations, restart events, DB stats.
 - Alertmanager rules: bot down, Postgres down, balance-negative attempts (CHECK rejections), high error rate, unusual wager rate. Notifications to a staff `#alerts` Discord webhook.
 
 ### 7.8. Disaster recovery
@@ -960,12 +960,12 @@ DR drill semi-annually on a fresh VPS.
 
 | Module | Minimum |
 |---|---|
-| `goldrush_core/balance/` | 95 % |
-| `goldrush_core/fairness/` | 95 % |
-| `goldrush_core/audit/` | 95 % |
-| `goldrush_core/security/` | 90 % |
-| `goldrush_luck/games/*` | 90 % |
-| `goldrush_luck/admin/` | 85 % |
+| `deathroll_core/balance/` | 95 % |
+| `deathroll_core/fairness/` | 95 % |
+| `deathroll_core/audit/` | 95 % |
+| `deathroll_core/security/` | 90 % |
+| `deathroll_luck/games/*` | 90 % |
+| `deathroll_luck/admin/` | 85 % |
 | Global | 85 % |
 
 Enforced in CI; PR that drops a critical module below threshold fails.
@@ -974,7 +974,7 @@ Enforced in CI; PR that drops a critical module below threshold fails.
 
 - **Concurrent bets**: 100 parallel bets per user; final balance is exact, never negative.
 - **Idempotency**: the same key returns the same bet; different keys create separate bets.
-- **Permission boundary**: connect as `goldrush_luck` and try `UPDATE core.balances` directly → Postgres rejects.
+- **Permission boundary**: connect as `deathroll_luck` and try `UPDATE core.balances` directly → Postgres rejects.
 - **Fairness vectors**: 100 hand-crafted `(server_seed, client_seed, nonce) → expected_outcome` triples; both `verify.py` and `verify.js` produce identical results to the bot.
 - **Server seed redaction**: `repr(seeds)`, `json.dumps(seeds)` cannot leak the raw seed; lint rule blocks logging it.
 - **Audit-log immutability**: `UPDATE`/`DELETE` raise; hash chain breaks if a row is altered out-of-band; `audit_verify.py` detects it.
@@ -987,7 +987,7 @@ Enforced in CI; PR that drops a critical module below threshold fails.
 `.github/workflows/ci.yml` on every PR:
 
 1. `ruff check` + `ruff format --check`
-2. `mypy --strict goldrush_core goldrush_luck`
+2. `mypy --strict deathroll_core deathroll_luck`
 3. `pip-audit --strict`
 4. `pytest tests/unit`
 5. `pytest tests/integration` (with Postgres service container)
@@ -1045,7 +1045,7 @@ docs/
 │   └── raffle.md
 │
 ├── superpowers/specs/
-│   └── 2026-04-29-goldrush-luck-v1-design.md   # this file
+│   └── 2026-04-29-deathroll-luck-v1-design.md   # this file
 │
 ├── verifier/
 │   ├── README.md
@@ -1070,7 +1070,7 @@ Maintenance rules:
 
 ## 10. Locked economic decisions
 
-These were the seven open items in `docs/GoldRush_Luck_v1_Economics_Proposal.pdf`. The collaborator answered on 2026-04-29 and Aleix locked the final design. All values below are now part of the v1 contract.
+These were the seven open items in `docs/DeathRoll_Luck_v1_Economics_Proposal.pdf`. The collaborator answered on 2026-04-29 and Aleix locked the final design. All values below are now part of the v1 contract.
 
 1. **House edges per game** — uniform **5 %** (`house_edge_bps = 500`) across all games. For parametric games the edge is baked into payout multipliers (Coinflip 1.90x, 99x 95x, Hot/Cold 1.90x H/C and 14.25x Rainbow, Mines combinatorial × 0.95, Dice Duel 1.90x, Staking Duel 1.90x, Dice dynamic). For Blackjack and Roulette the standard rules are preserved and the gap is closed via an upfront `commission_bps` taken at `apply_bet` (Blackjack 450 bps, Roulette 236 bps), persisted in `luck.game_config.extra_config`.
 2. **Raffle ticket threshold** — **1 ticket per 100 G wagered** (`raffle_ticket_threshold_g = 100`).
@@ -1097,7 +1097,7 @@ These were the seven open items in `docs/GoldRush_Luck_v1_Economics_Proposal.pdf
 | **Nonce** | Monotonic per-user counter incremented on each game outcome request. |
 | **House edge** | Statistical advantage of the house over a player, expressed in basis points (`bps`); 100 bps = 1 %. |
 | **Idempotency key** | Deterministic identifier per logical operation; prevents double charging. |
-| **SECURITY DEFINER** | Postgres function attribute making the function run as its owner (here `goldrush_admin`); used for the economic boundary. |
+| **SECURITY DEFINER** | Postgres function attribute making the function run as its owner (here `deathroll_admin`); used for the economic boundary. |
 | **Append-only** | A table where `UPDATE` and `DELETE` are forbidden (enforced by trigger). |
 | **Hash chain** | Each audit row's hash incorporates the previous row's hash, allowing tamper detection. |
 | **Provably Fair** | The HMAC-SHA512 commit/reveal scheme described in §4. |
@@ -1108,7 +1108,7 @@ These were the seven open items in `docs/GoldRush_Luck_v1_Economics_Proposal.pdf
 
 | Decision | Locked in §  | Rationale memo |
 |---|---|---|
-| Monorepo with shared `goldrush_core` | §2.2 | Avoids drift between bots; atomic migrations. |
+| Monorepo with shared `deathroll_core` | §2.2 | Avoids drift between bots; atomic migrations. |
 | PostgreSQL 16 over SQLite/MongoDB | §3 | ACID, concurrent multi-bot writes, mature tooling. |
 | Per-bot DB roles + SECURITY DEFINER | §3.4 | Defence in depth; SQL-injection cannot mint gold. |
 | HMAC-SHA512 with `client_seed:nonce` | §4.1 | Industry-standard provably-fair construction. |
@@ -1133,6 +1133,6 @@ These were the seven open items in `docs/GoldRush_Luck_v1_Economics_Proposal.pdf
 
 ## 13. Sign-off
 
-This document is the source of truth for GoldRush Luck v1 architecture and behaviour. Implementation plans (writing-plans skill output) decompose this spec into ordered phases. Any deviation from this spec during implementation requires either (a) a new ADR superseding the relevant decision or (b) a revision of this document with version bump.
+This document is the source of truth for DeathRoll Luck v1 architecture and behaviour. Implementation plans (writing-plans skill output) decompose this spec into ordered phases. Any deviation from this spec during implementation requires either (a) a new ADR superseding the relevant decision or (b) a revision of this document with version bump.
 
 — Aleix, 2026-04-29
