@@ -16,7 +16,7 @@ from typing import Any
 
 import asyncpg
 import pytest
-from goldrush_deposit_withdraw.workers.cashier_idle import tick
+from deathroll_deposit_withdraw.workers.cashier_idle import tick
 
 
 class _FakePool:

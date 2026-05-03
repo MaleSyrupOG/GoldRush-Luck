@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_deposit_withdraw.cashiers.live_updater` (Story 4.5).
+"""Unit tests for `deathroll_deposit_withdraw.cashiers.live_updater` (Story 4.5).
 
 The updater edits the live ``#online-cashiers`` embed every 30 s.
 Tests target three layers:
@@ -20,8 +20,8 @@ from typing import Any
 
 import discord
 import pytest
-from goldrush_core.balance.cashier_roster import RosterEntry, RosterSnapshot
-from goldrush_deposit_withdraw.cashiers.live_updater import (
+from deathroll_core.balance.cashier_roster import RosterEntry, RosterSnapshot
+from deathroll_deposit_withdraw.cashiers.live_updater import (
     OnlineCashiersUpdater,
     tick,
 )
@@ -241,7 +241,7 @@ async def test_updater_start_is_idempotent() -> None:
 def test_snapshot_round_trip_into_embed() -> None:
     """Construct a RosterSnapshot, render via the embed builder, assert
     the EU and NA sections both list their respective cashiers."""
-    from goldrush_core.embeds.dw_tickets import online_cashiers_live_embed
+    from deathroll_core.embeds.dw_tickets import online_cashiers_live_embed
 
     snap = RosterSnapshot(
         online_by_region={

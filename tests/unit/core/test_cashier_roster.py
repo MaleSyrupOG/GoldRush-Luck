@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.balance.cashier_roster`.
+"""Unit tests for `deathroll_core.balance.cashier_roster`.
 
 Returns the live snapshot the online-cashiers embed (and the
 matchmaking worker downstream) reads. Three buckets:
@@ -20,7 +20,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from goldrush_core.balance.cashier_roster import (
+from deathroll_core.balance.cashier_roster import (
     RosterEntry,
     RosterSnapshot,
     fetch_online_roster,

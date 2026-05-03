@@ -33,7 +33,7 @@ from dataclasses import dataclass
 
 import asyncpg
 import pytest
-from goldrush_core.balance.dw_manager import (
+from deathroll_core.balance.dw_manager import (
     apply_deposit_ticket,
     apply_withdraw_ticket,
     cancel_deposit,

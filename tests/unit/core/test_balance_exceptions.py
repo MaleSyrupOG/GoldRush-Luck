@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.balance.exceptions.translate_pg_error`.
+"""Unit tests for `deathroll_core.balance.exceptions.translate_pg_error`.
 
 The translation table maps SECURITY DEFINER sentinels to typed Python
 exception classes. These tests assert that every sentinel raised by the
@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from goldrush_core.balance.exceptions import (
+from deathroll_core.balance.exceptions import (
     AmountMustBePositive,
     AmountOutOfRange,
     BalanceError,
@@ -60,7 +60,7 @@ class _FakePgError(Exception):
 # Each row is (sentinel-as-it-appears-in-the-migration, expected_class).
 # The order mirrors the migrations 0001-0012; new sentinels added to
 # any future migration MUST be appended here AND to the table in
-# ``goldrush_core/balance/exceptions.py`` in the same PR.
+# ``deathroll_core/balance/exceptions.py`` in the same PR.
 SENTINEL_CASES = [
     ("amount_out_of_range (got 50, expected 200 to 200000)", AmountOutOfRange),
     ("invalid_region (FR)", InvalidRegion),

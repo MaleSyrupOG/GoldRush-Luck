@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.discord_helpers.role_binding`.
+"""Unit tests for `deathroll_core.discord_helpers.role_binding`.
 
 The helper resolves a role id from ``dw.global_config`` (set by
 ``/admin-setup``) so the bot can render real role mentions
@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from goldrush_core.discord_helpers.role_binding import (
+from deathroll_core.discord_helpers.role_binding import (
     CANONICAL_ROLE_KEYS,
     resolve_role_id,
     role_mention,

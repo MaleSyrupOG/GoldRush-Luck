@@ -11,7 +11,7 @@ import asyncio
 
 import discord
 from discord.ext import commands
-from goldrush_deposit_withdraw.cogs.cashier import CashierCog
+from deathroll_deposit_withdraw.cogs.cashier import CashierCog
 
 
 def _build_bot() -> commands.Bot:

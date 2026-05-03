@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_deposit_withdraw.welcome` (Story 4.4).
+"""Unit tests for `deathroll_deposit_withdraw.welcome` (Story 4.4).
 
 The reconciler must:
 
@@ -20,7 +20,7 @@ from typing import Any
 
 import discord
 import pytest
-from goldrush_deposit_withdraw.welcome import (
+from deathroll_deposit_withdraw.welcome import (
     DEFAULT_WELCOMES,
     ReconcileOutcome,
     WelcomeDefault,

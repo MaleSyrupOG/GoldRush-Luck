@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_deposit_withdraw.setup.channel_factory`.
+"""Unit tests for `deathroll_deposit_withdraw.setup.channel_factory`.
 
 The factory provisions the canonical D/W category + channel layout
 (per spec §5.3) idempotently. It must:
@@ -26,7 +26,7 @@ from typing import Any
 
 import discord
 import pytest
-from goldrush_deposit_withdraw.setup.channel_factory import (
+from deathroll_deposit_withdraw.setup.channel_factory import (
     CATEGORY_SPECS,
     CHANNEL_SPECS,
     CategoryOutcome,

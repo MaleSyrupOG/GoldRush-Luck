@@ -16,7 +16,7 @@ from typing import Any
 
 import pytest
 
-from goldrush_deposit_withdraw.workers.stats_aggregator import tick
+from deathroll_deposit_withdraw.workers.stats_aggregator import tick
 
 
 class _FakePool:

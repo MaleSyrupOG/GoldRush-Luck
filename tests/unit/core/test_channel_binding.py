@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.discord_helpers.channel_binding`.
+"""Unit tests for `deathroll_core.discord_helpers.channel_binding`.
 
 The helper resolves a channel id from ``dw.global_config`` for a
 canonical key (``deposit``, ``withdraw``, ``cashier_alerts``, etc).
@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from goldrush_core.discord_helpers.channel_binding import resolve_channel_id
+from deathroll_core.discord_helpers.channel_binding import resolve_channel_id
 
 
 class _FakePool:

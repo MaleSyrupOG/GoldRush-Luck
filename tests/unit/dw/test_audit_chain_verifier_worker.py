@@ -19,7 +19,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from goldrush_deposit_withdraw.workers.audit_chain_verifier import tick
+from deathroll_deposit_withdraw.workers.audit_chain_verifier import tick
 
 
 class _FakePool:

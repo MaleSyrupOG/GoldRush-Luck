@@ -21,7 +21,7 @@ dsn = os.environ.get("POSTGRES_DSN_ADMIN")
 if dsn:
     config.set_main_option("sqlalchemy.url", dsn)
 
-# target_metadata will be wired up when ORM models exist (see goldrush_core/models/*).
+# target_metadata will be wired up when ORM models exist (see deathroll_core/models/*).
 target_metadata = None
 
 

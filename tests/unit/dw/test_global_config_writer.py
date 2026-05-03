@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_deposit_withdraw.setup.global_config_writer`.
+"""Unit tests for `deathroll_deposit_withdraw.setup.global_config_writer`.
 
 The writer persists the channel id map produced by
 ``setup_or_reuse_channels`` into ``dw.global_config`` rows keyed
@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from goldrush_deposit_withdraw.setup.global_config_writer import (
+from deathroll_deposit_withdraw.setup.global_config_writer import (
     persist_channel_ids,
 )
 

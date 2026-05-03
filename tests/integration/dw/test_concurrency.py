@@ -23,8 +23,8 @@ import asyncio
 
 import asyncpg
 import pytest
-from goldrush_core.balance import exceptions as exc
-from goldrush_core.balance.dw_manager import (
+from deathroll_core.balance import exceptions as exc
+from deathroll_core.balance.dw_manager import (
     apply_deposit_ticket,
     apply_withdraw_ticket,
     cancel_deposit,

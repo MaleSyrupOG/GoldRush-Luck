@@ -1,4 +1,4 @@
-"""Tests for ``goldrush_deposit_withdraw.metrics`` (Story 11.1).
+"""Tests for ``deathroll_deposit_withdraw.metrics`` (Story 11.1).
 
 The metrics module owns a CUSTOM ``prometheus_client.CollectorRegistry``
 (not the default global) so the test suite scrapes a known set of
@@ -6,16 +6,16 @@ metric families without polluting other prometheus consumers.
 
 Spec §7.3 lists 10 metric families:
 
-  goldrush_deposit_tickets_total{status}
-  goldrush_withdraw_tickets_total{status}
-  goldrush_deposit_volume_g_total{region}
-  goldrush_withdraw_volume_g_total{region}
-  goldrush_treasury_balance_g
-  goldrush_cashiers_online{region}
-  goldrush_ticket_claim_duration_s{ticket_type}
-  goldrush_ticket_confirm_duration_s{ticket_type}
-  goldrush_cashier_dispute_rate{cashier_id}
-  goldrush_fee_revenue_g_total
+  deathroll_deposit_tickets_total{status}
+  deathroll_withdraw_tickets_total{status}
+  deathroll_deposit_volume_g_total{region}
+  deathroll_withdraw_volume_g_total{region}
+  deathroll_treasury_balance_g
+  deathroll_cashiers_online{region}
+  deathroll_ticket_claim_duration_s{ticket_type}
+  deathroll_ticket_confirm_duration_s{ticket_type}
+  deathroll_cashier_dispute_rate{cashier_id}
+  deathroll_fee_revenue_g_total
 
 Type choices documented in metrics.py: counters with absolute totals
 read from the DB are emitted as Gauges (because Prometheus Counter
@@ -29,7 +29,7 @@ from __future__ import annotations
 
 import prometheus_client
 import pytest
-from goldrush_deposit_withdraw.metrics import (
+from deathroll_deposit_withdraw.metrics import (
     REGISTRY,
     record_claim_duration,
     record_confirm_duration,
@@ -42,16 +42,16 @@ from goldrush_deposit_withdraw.metrics import (
 
 
 _EXPECTED_FAMILIES = {
-    "goldrush_deposit_tickets",
-    "goldrush_withdraw_tickets",
-    "goldrush_deposit_volume_g",
-    "goldrush_withdraw_volume_g",
-    "goldrush_treasury_balance_g",
-    "goldrush_cashiers_online",
-    "goldrush_ticket_claim_duration_s",
-    "goldrush_ticket_confirm_duration_s",
-    "goldrush_cashier_dispute_rate",
-    "goldrush_fee_revenue_g",
+    "deathroll_deposit_tickets",
+    "deathroll_withdraw_tickets",
+    "deathroll_deposit_volume_g",
+    "deathroll_withdraw_volume_g",
+    "deathroll_treasury_balance_g",
+    "deathroll_cashiers_online",
+    "deathroll_ticket_claim_duration_s",
+    "deathroll_ticket_confirm_duration_s",
+    "deathroll_cashier_dispute_rate",
+    "deathroll_fee_revenue_g",
 }
 
 
@@ -81,11 +81,11 @@ def test_registry_has_no_default_globals() -> None:
 def test_record_claim_duration_increments_histogram() -> None:
     """Observing the claim->confirm gap bumps the histogram bucket."""
     before = _scrape_histogram_count(
-        "goldrush_ticket_claim_duration_s", ticket_type="deposit"
+        "deathroll_ticket_claim_duration_s", ticket_type="deposit"
     )
     record_claim_duration(ticket_type="deposit", seconds=12.5)
     after = _scrape_histogram_count(
-        "goldrush_ticket_claim_duration_s", ticket_type="deposit"
+        "deathroll_ticket_claim_duration_s", ticket_type="deposit"
     )
     assert after == before + 1
 
@@ -94,7 +94,7 @@ def test_record_confirm_duration_uses_ticket_type_label() -> None:
     record_confirm_duration(ticket_type="withdraw", seconds=0.87)
     rendered = prometheus_client.generate_latest(REGISTRY).decode("utf-8")
     # ticket_type="withdraw" appears in the label set with at least one obs.
-    assert 'goldrush_ticket_confirm_duration_s_count{ticket_type="withdraw"}' in rendered
+    assert 'deathroll_ticket_confirm_duration_s_count{ticket_type="withdraw"}' in rendered
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +138,7 @@ async def test_refresh_from_db_sets_treasury_balance() -> None:
     # value is present without pinning the exact format.
     treasury_lines = [
         line for line in rendered.splitlines()
-        if line.startswith("goldrush_treasury_balance_g ")
+        if line.startswith("deathroll_treasury_balance_g ")
     ]
     assert treasury_lines, "treasury gauge missing from scrape"
     # Parse the trailing number — accepts "1.234567e+06" or "1234567.0".
@@ -162,9 +162,9 @@ async def test_refresh_from_db_sets_ticket_status_counts() -> None:
     await refresh_from_db(pool=pool)  # type: ignore[arg-type]
 
     rendered = prometheus_client.generate_latest(REGISTRY).decode("utf-8")
-    assert 'goldrush_deposit_tickets{status="open"} 3.0' in rendered
-    assert 'goldrush_deposit_tickets{status="confirmed"} 17.0' in rendered
-    assert 'goldrush_withdraw_tickets{status="cancelled"} 2.0' in rendered
+    assert 'deathroll_deposit_tickets{status="open"} 3.0' in rendered
+    assert 'deathroll_deposit_tickets{status="confirmed"} 17.0' in rendered
+    assert 'deathroll_withdraw_tickets{status="cancelled"} 2.0' in rendered
 
 
 @pytest.mark.asyncio

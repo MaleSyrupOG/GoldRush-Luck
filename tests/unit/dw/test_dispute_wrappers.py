@@ -2,7 +2,7 @@
 
 The wrappers in ``dw_manager`` translate Postgres ``RaiseError``
 sentinels into the typed exceptions in
-``goldrush_core.balance.exceptions``. These tests cover the three
+``deathroll_core.balance.exceptions``. These tests cover the three
 dispute paths: ``open_dispute``, ``resolve_dispute``, and the new
 ``reject_dispute`` (Story 9.1 SQL fn introduced in migration
 ``20260503_0013_dw_dispute_reject_fn``).
@@ -18,12 +18,12 @@ from typing import Any
 
 import asyncpg
 import pytest
-from goldrush_core.balance.dw_manager import (
+from deathroll_core.balance.dw_manager import (
     open_dispute,
     reject_dispute,
     resolve_dispute,
 )
-from goldrush_core.balance.exceptions import (
+from deathroll_core.balance.exceptions import (
     DisputeAlreadyTerminal,
     DisputeNotFound,
     InvalidAction,

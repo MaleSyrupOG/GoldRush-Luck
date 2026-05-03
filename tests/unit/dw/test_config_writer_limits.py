@@ -3,7 +3,7 @@
 Story 10.2 wraps a few ``dw.global_config`` UPSERTs (deposit limits,
 withdraw limits, withdraw fee) in slash commands. The shared writer
 ``persist_config_int`` lives in
-``goldrush_deposit_withdraw.setup.global_config_writer`` so it can
+``deathroll_deposit_withdraw.setup.global_config_writer`` so it can
 be reused for any future int-typed config key.
 """
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from goldrush_deposit_withdraw.setup.global_config_writer import persist_config_int
+from deathroll_deposit_withdraw.setup.global_config_writer import persist_config_int
 
 
 class _FakePool:

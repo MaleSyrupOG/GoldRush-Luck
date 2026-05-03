@@ -2,9 +2,9 @@
 
 A session-scoped Postgres container, populated once with:
 
-1. The four per-bot roles (``goldrush_admin`` already exists from the
-   container init; we add ``goldrush_dw``, ``goldrush_luck``,
-   ``goldrush_poker``, ``goldrush_readonly``).
+1. The four per-bot roles (``deathroll_admin`` already exists from the
+   container init; we add ``deathroll_dw``, ``deathroll_luck``,
+   ``deathroll_poker``, ``deathroll_readonly``).
 2. ``ops/postgres/01-schemas-grants.sql`` — schema creation + privilege
    matrix that the alembic migrations rely on.
 3. ``app.audit_chain_key`` set as a database GUC so
@@ -62,7 +62,7 @@ _CHAIN_KEY = secrets.token_hex(32)
 # fresh per session and only ever travel via DSNs to the same container.
 _DW_PW = secrets.token_urlsafe(20)
 _LUCK_PW = secrets.token_urlsafe(20)
-# Production compose lets ``goldrush_poker`` be skipped (the bot is on
+# Production compose lets ``deathroll_poker`` be skipped (the bot is on
 # hold) but the schemas+grants SQL references it unconditionally — so
 # in tests we always create the role.
 _POKER_PW = secrets.token_urlsafe(20)
@@ -121,9 +121,9 @@ def postgres_container() -> Iterator[Any]:
     # the fixture's behaviour explicit.
     container = PostgresContainer(
         "postgres:16-alpine",
-        username="goldrush_admin",
+        username="deathroll_admin",
         password="admin_test_pw",
-        dbname="goldrush",
+        dbname="deathroll",
     )
 
     container.start()
@@ -153,10 +153,10 @@ def _bootstrap_db(*, admin_dsn: str) -> None:
     try:
         with conn.cursor() as cur:
             for role, pw in (
-                ("goldrush_dw", _DW_PW),
-                ("goldrush_luck", _LUCK_PW),
-                ("goldrush_poker", _POKER_PW),
-                ("goldrush_readonly", _RO_PW),
+                ("deathroll_dw", _DW_PW),
+                ("deathroll_luck", _LUCK_PW),
+                ("deathroll_poker", _POKER_PW),
+                ("deathroll_readonly", _RO_PW),
             ):
                 # Idempotent CREATE — same shape as 00-init-roles.sh.
                 cur.execute(
@@ -175,7 +175,7 @@ def _bootstrap_db(*, admin_dsn: str) -> None:
             # Set the audit chain key as a database GUC so the SDFs
             # can read it via current_setting('app.audit_chain_key').
             cur.execute(
-                f"ALTER DATABASE goldrush SET app.audit_chain_key = '{_CHAIN_KEY}'"
+                f"ALTER DATABASE deathroll SET app.audit_chain_key = '{_CHAIN_KEY}'"
             )
     finally:
         conn.close()
@@ -207,7 +207,7 @@ def _run_alembic(*, admin_dsn: str) -> None:
 
 @pytest.fixture
 async def pool(postgres_container: Any) -> AsyncIterator[asyncpg.Pool]:
-    """Async asyncpg pool connected as ``goldrush_dw`` (the bot's
+    """Async asyncpg pool connected as ``deathroll_dw`` (the bot's
     role). Tables are TRUNCATEd before yield so each test sees a
     clean slate; the treasury seed row + dw.global_config defaults
     are re-inserted using the admin connection.
@@ -217,7 +217,7 @@ async def pool(postgres_container: Any) -> AsyncIterator[asyncpg.Pool]:
     )
     # Build the bot DSN by swapping the admin role + pw in the URL.
     # testcontainers gives us admin credentials in the DSN already.
-    bot_dsn = admin_dsn.replace("goldrush_admin", "goldrush_dw").replace(
+    bot_dsn = admin_dsn.replace("deathroll_admin", "deathroll_dw").replace(
         "admin_test_pw", _DW_PW
     )
 

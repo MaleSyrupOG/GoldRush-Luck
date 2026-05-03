@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_deposit_withdraw.tickets.factory`.
+"""Unit tests for `deathroll_deposit_withdraw.tickets.factory`.
 
 The factory creates the per-ticket private thread under the
 ``#deposit`` / ``#withdraw`` parent channel and adds the ticket
@@ -11,7 +11,7 @@ import asyncio
 from typing import Any
 
 import pytest
-from goldrush_deposit_withdraw.tickets.factory import create_ticket_thread
+from deathroll_deposit_withdraw.tickets.factory import create_ticket_thread
 
 
 class _FakeUser:
@@ -95,7 +95,7 @@ def test_create_thread_propagates_reason_for_audit() -> None:
             parent=parent,  # type: ignore[arg-type]
             name="deposit-1",
             user=user,  # type: ignore[arg-type]
-            reason="GoldRush deposit ticket",
+            reason="DeathRoll deposit ticket",
         )
     )
     assert "deposit" in (parent.create_calls[0]["reason"] or "")

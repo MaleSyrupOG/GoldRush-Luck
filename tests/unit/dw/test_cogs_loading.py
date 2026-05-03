@@ -20,8 +20,8 @@ from typing import Any
 
 import discord
 import pytest
-from goldrush_core.config import DwSettings
-from goldrush_deposit_withdraw.client import EXTENSIONS, DwBot, build_bot
+from deathroll_core.config import DwSettings
+from deathroll_deposit_withdraw.client import EXTENSIONS, DwBot, build_bot
 from pydantic import SecretStr
 
 
@@ -44,12 +44,12 @@ def test_extensions_lists_six_canonical_cogs() -> None:
     """Spec §5.1 has six command families: account, admin, cashier,
     deposit, ticket, withdraw. Each maps to one cog."""
     expected = {
-        "goldrush_deposit_withdraw.cogs.account",
-        "goldrush_deposit_withdraw.cogs.admin",
-        "goldrush_deposit_withdraw.cogs.cashier",
-        "goldrush_deposit_withdraw.cogs.deposit",
-        "goldrush_deposit_withdraw.cogs.ticket",
-        "goldrush_deposit_withdraw.cogs.withdraw",
+        "deathroll_deposit_withdraw.cogs.account",
+        "deathroll_deposit_withdraw.cogs.admin",
+        "deathroll_deposit_withdraw.cogs.cashier",
+        "deathroll_deposit_withdraw.cogs.deposit",
+        "deathroll_deposit_withdraw.cogs.ticket",
+        "deathroll_deposit_withdraw.cogs.withdraw",
     }
     assert set(EXTENSIONS) == expected
 

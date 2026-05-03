@@ -8,13 +8,13 @@ amount (and, for withdraws, the target user id).
 
 Discord modals require an event loop to construct — heavy to set up
 in unit tests — so the validation logic lives as PURE FUNCTIONS in
-``goldrush_deposit_withdraw.views.modals``. These tests pin that
+``deathroll_deposit_withdraw.views.modals``. These tests pin that
 logic; the modal itself is a thin Discord wrapper.
 """
 
 from __future__ import annotations
 
-from goldrush_deposit_withdraw.views.modals import (
+from deathroll_deposit_withdraw.views.modals import (
     validate_treasury_sweep_confirm,
     validate_treasury_withdraw_confirm,
 )

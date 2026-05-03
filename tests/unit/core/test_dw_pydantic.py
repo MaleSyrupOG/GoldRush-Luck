@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.models.dw_pydantic`.
+"""Unit tests for `deathroll_core.models.dw_pydantic`.
 
 Modal-input models receive raw strings from Discord; the tests cover
 both the happy path (valid strings normalise to typed objects) and the
@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 import pytest
 from pydantic import ValidationError
 
-from goldrush_core.models.dw_pydantic import (
+from deathroll_core.models.dw_pydantic import (
     BalanceSnapshot,
     CashierCharacter,
     CashierStats,

@@ -2,7 +2,7 @@
 
 The wrappers in ``dw_manager`` translate Postgres ``RaiseError``
 sentinels into the typed exceptions in
-``goldrush_core.balance.exceptions``. These tests cover the
+``deathroll_core.balance.exceptions``. These tests cover the
 cashier-specific paths added for Epic 7.
 """
 
@@ -12,12 +12,12 @@ from typing import Any
 
 import asyncpg
 import pytest
-from goldrush_core.balance.dw_manager import (
+from deathroll_core.balance.dw_manager import (
     add_cashier_character,
     remove_cashier_character,
     set_cashier_status,
 )
-from goldrush_core.balance.exceptions import (
+from deathroll_core.balance.exceptions import (
     CharacterNotFoundOrAlreadyRemoved,
     InvalidRegion,
     InvalidStatus,

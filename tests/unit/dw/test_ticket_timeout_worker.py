@@ -18,7 +18,7 @@ from typing import Any
 
 import asyncpg
 import pytest
-from goldrush_deposit_withdraw.workers.ticket_timeout import tick
+from deathroll_deposit_withdraw.workers.ticket_timeout import tick
 
 # ---------------------------------------------------------------------------
 # Pool fake — captures SQL the worker emits and the wrappers it calls.

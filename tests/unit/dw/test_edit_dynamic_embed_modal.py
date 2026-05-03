@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import asyncio
 
-from goldrush_deposit_withdraw.views.modals import EditDynamicEmbedModal
+from deathroll_deposit_withdraw.views.modals import EditDynamicEmbedModal
 
 
 async def _noop(_interaction, _payload):  # type: ignore[no-untyped-def]

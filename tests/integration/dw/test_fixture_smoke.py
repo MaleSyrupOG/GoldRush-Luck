@@ -1,7 +1,7 @@
 """Smoke test for the integration fixture (Epic 14 foundation).
 
 Boots the testcontainers Postgres, applies migrations, opens a pool
-as ``goldrush_dw``, and runs the cheapest possible round-trip:
+as ``deathroll_dw``, and runs the cheapest possible round-trip:
 
 - The bot role can call a SECURITY DEFINER fn (``dw.create_deposit_ticket``).
 - The hash-chain trigger fires (``audit_log_insert_with_chain`` writes a row).

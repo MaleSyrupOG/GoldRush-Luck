@@ -79,7 +79,7 @@ class _FakeInteraction:
 async def test_force_close_thread_acks_before_archiving() -> None:
     """Regression: the ack must happen BEFORE thread.edit to avoid
     the 403 race when the slash is invoked from inside the thread."""
-    from goldrush_deposit_withdraw.cogs.admin import AdminCog
+    from deathroll_deposit_withdraw.cogs.admin import AdminCog
 
     tracker = _CallTracker()
     bot = _FakeBot()
@@ -102,7 +102,7 @@ async def test_force_close_thread_acks_before_archiving() -> None:
 async def test_force_close_thread_handles_archive_failure_after_ack() -> None:
     """If ``thread.edit`` raises after the ack lands, the cog should
     edit the ephemeral with a user-facing error rather than crashing."""
-    from goldrush_deposit_withdraw.cogs.admin import AdminCog
+    from deathroll_deposit_withdraw.cogs.admin import AdminCog
 
     tracker = _CallTracker()
     bot = _FakeBot()

@@ -12,7 +12,7 @@ from typing import Any
 
 import asyncpg
 import pytest
-from goldrush_deposit_withdraw.tickets.orchestration import (
+from deathroll_deposit_withdraw.tickets.orchestration import (
     LifecycleOutcome,
     cancel_ticket_dispatch,
     claim_ticket_for_cashier,
@@ -205,7 +205,7 @@ class _PoolWithBalance:
 
 @pytest.mark.asyncio
 async def test_confirm_deposit_returns_new_balance() -> None:
-    from goldrush_deposit_withdraw.tickets.orchestration import (
+    from deathroll_deposit_withdraw.tickets.orchestration import (
         ConfirmOutcome,
         confirm_ticket_dispatch,
     )
@@ -225,7 +225,7 @@ async def test_confirm_deposit_returns_new_balance() -> None:
 async def test_confirm_withdraw_returns_new_balance() -> None:
     """Withdraw confirm: balance is unchanged (lock already deducted)
     but the row is now terminal and the treasury has the fee."""
-    from goldrush_deposit_withdraw.tickets.orchestration import (
+    from deathroll_deposit_withdraw.tickets.orchestration import (
         ConfirmOutcome,
         confirm_ticket_dispatch,
     )
@@ -242,7 +242,7 @@ async def test_confirm_withdraw_returns_new_balance() -> None:
 
 @pytest.mark.asyncio
 async def test_confirm_translates_wrong_cashier() -> None:
-    from goldrush_deposit_withdraw.tickets.orchestration import (
+    from deathroll_deposit_withdraw.tickets.orchestration import (
         ConfirmOutcome,
         confirm_ticket_dispatch,
     )
@@ -261,7 +261,7 @@ async def test_confirm_translates_wrong_cashier() -> None:
 async def test_confirm_translates_invariant_violation() -> None:
     """``invariant_violation_locked_too_low`` should arrive as
     InvariantViolation — distinct from the generic Unexpected."""
-    from goldrush_deposit_withdraw.tickets.orchestration import (
+    from deathroll_deposit_withdraw.tickets.orchestration import (
         ConfirmOutcome,
         confirm_ticket_dispatch,
     )
@@ -280,7 +280,7 @@ async def test_confirm_translates_invariant_violation() -> None:
 
 @pytest.mark.asyncio
 async def test_confirm_translates_not_claimed() -> None:
-    from goldrush_deposit_withdraw.tickets.orchestration import (
+    from deathroll_deposit_withdraw.tickets.orchestration import (
         ConfirmOutcome,
         confirm_ticket_dispatch,
     )

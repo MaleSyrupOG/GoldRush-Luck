@@ -1,0 +1,147 @@
+# DeathRoll — Deposit/Withdraw Prometheus alert rules (Story 11.3).
+#
+# Drop this file into your Prometheus rule_files glob (e.g.
+# /etc/prometheus/alerts/deathroll-dw.yml) and reload the config. Five
+# alerts mirror spec §7.3:
+#
+#   DeathRollDWStuckTicket          — open tickets persisting > 2h
+#   DeathRollNoCashiersOnline       — open tickets but zero cashiers
+#                                    online for 10+ min
+#   DeathRollTreasuryDrop           — treasury drops > 1M G in 1h
+#   DeathRollHighCancellationRate   — cancellations > 20 % in 1h
+#   DeathRollUnusualCashierActivity — claim->confirm P95 < 30 s for
+#                                    15+ min (suspiciously fast)
+#
+# Routing to Discord: see ops/observability/alertmanager-discord.yml
+# for the receiver snippet to merge into your existing
+# alertmanager.yml.
+
+groups:
+  - name: deathroll-dw
+    interval: 30s
+    rules:
+      - alert: DeathRollDWStuckTicket
+        # The ticket-timeout worker (Story 8.1) auto-cancels at
+        # expires_at, so a ticket continuously open for >2h means
+        # either the worker is down or the SDF is rejecting cancels.
+        # Either way → operator should investigate.
+        expr: |
+          (
+            sum(deathroll_deposit_tickets{status="open"})
+            + sum(deathroll_withdraw_tickets{status="open"})
+          ) > 0
+        for: 2h
+        labels:
+          severity: warning
+          project: deathroll-dw
+        annotations:
+          summary: "D/W has tickets stuck in open state for >2h"
+          description: >
+            At least one deposit or withdraw ticket has been in
+            status='open' continuously for two hours. The
+            ticket_timeout_worker should auto-cancel at expires_at —
+            check the worker logs for a stalled loop or a
+            ticket_already_terminal-style stuck state.
+
+      - alert: DeathRollNoCashiersOnline
+        # Tickets are opening (or sitting open) but the roster is
+        # empty. Operator should ping cashiers manually.
+        expr: |
+          sum(deathroll_cashiers_online) == 0
+          and
+          (
+            sum(deathroll_deposit_tickets{status="open"})
+            + sum(deathroll_withdraw_tickets{status="open"})
+          ) > 0
+        for: 10m
+        labels:
+          severity: warning
+          project: deathroll-dw
+        annotations:
+          summary: "No cashiers online with pending tickets"
+          description: >
+            The bot has open tickets but zero cashiers in
+            status='online' for >10 min. Page cashiers manually or
+            consider posting a low-availability notice in the
+            #deposit / #withdraw channels.
+
+      - alert: DeathRollTreasuryDrop
+        # Treasury balance dropped > 1M gold in the last hour. Either
+        # legitimate (admin treasury-sweep) or anomalous (bug, fraud).
+        # Compare current vs. 1h ago — needs the 1h offset to exist
+        # so a fresh deploy doesn't trigger immediately.
+        expr: |
+          (deathroll_treasury_balance_g offset 1h)
+          - deathroll_treasury_balance_g
+          > 1000000
+        for: 5m
+        labels:
+          severity: critical
+          project: deathroll-dw
+        annotations:
+          summary: "Treasury dropped >1M G in 1h"
+          description: >
+            The bot-tracked treasury balance fell by more than
+            1,000,000g in the last hour. Cross-check against
+            /admin-view-audit for treasury_sweep / treasury_withdraw
+            rows; if neither, suspect an unexpected refund or
+            accounting bug.
+
+      - alert: DeathRollHighCancellationRate
+        # Cancellations / total > 20 % over the last hour. Uses the
+        # delta of the cumulative gauge over the window instead of
+        # increase() because Prometheus increase() on Gauges has
+        # caveats (resets on bot restart return non-meaningful
+        # values; we tolerate that by clamping with max(..., 0)).
+        expr: |
+          (
+            (
+              max(sum(deathroll_deposit_tickets{status="cancelled"})
+                  - sum(deathroll_deposit_tickets{status="cancelled"} offset 1h), 0)
+              + max(sum(deathroll_withdraw_tickets{status="cancelled"})
+                    - sum(deathroll_withdraw_tickets{status="cancelled"} offset 1h), 0)
+            )
+            /
+            clamp_min(
+              max(sum(deathroll_deposit_tickets)
+                  - sum(deathroll_deposit_tickets offset 1h), 0)
+              + max(sum(deathroll_withdraw_tickets)
+                    - sum(deathroll_withdraw_tickets offset 1h), 0),
+              1
+            )
+          ) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          project: deathroll-dw
+        annotations:
+          summary: "Cancellation rate >20% in last hour"
+          description: >
+            More than 20% of new tickets in the last hour ended in
+            cancelled state. Check #cashier-alerts for repeated
+            timeouts and #disputes for opened cases.
+
+      - alert: DeathRollUnusualCashierActivity
+        # P95 claim→confirm < 30 s sustained = cashiers confirming
+        # too fast to plausibly be doing real in-game trades. Normal
+        # operations sit in the minutes-to-hours range. Tunable
+        # threshold — start strict, relax once we see real traffic
+        # patterns.
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (rate(deathroll_ticket_claim_duration_s_bucket[10m]))
+          ) < 30
+          and
+          sum(rate(deathroll_ticket_claim_duration_s_count[10m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+          project: deathroll-dw
+        annotations:
+          summary: "Unusual cashier confirm rate (P95 claim→confirm < 30 s)"
+          description: >
+            Cashiers are confirming tickets unusually fast (P95
+            claim→confirm < 30 s for 15+ min). Review recent
+            confirms in /admin-view-audit; force-cashier-offline any
+            account confirming faster than physically plausible.

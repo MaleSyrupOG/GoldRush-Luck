@@ -13,8 +13,8 @@ from typing import Any
 
 import asyncpg
 import pytest
-from goldrush_core.balance.dw_manager import expire_cashier
-from goldrush_core.balance.exceptions import CashierNotOnline
+from deathroll_core.balance.dw_manager import expire_cashier
+from deathroll_core.balance.exceptions import CashierNotOnline
 
 
 class _Pool:

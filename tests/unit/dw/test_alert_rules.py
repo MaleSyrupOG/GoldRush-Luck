@@ -1,6 +1,6 @@
-"""Tests for the GoldRush D/W Prometheus alert rules (Story 11.3).
+"""Tests for the DeathRoll D/W Prometheus alert rules (Story 11.3).
 
-The rules ship at ``ops/observability/alerts/goldrush-dw.yml`` and
+The rules ship at ``ops/observability/alerts/deathroll-dw.yml`` and
 get loaded by Prometheus via its ``rule_files`` glob. We don't load
 them into a real Prometheus in unit tests — instead we pin:
 
@@ -21,15 +21,15 @@ _RULES = (
     / "ops"
     / "observability"
     / "alerts"
-    / "goldrush-dw.yml"
+    / "deathroll-dw.yml"
 )
 
 _EXPECTED_ALERTS = {
-    "GoldRushDWStuckTicket",
-    "GoldRushNoCashiersOnline",
-    "GoldRushTreasuryDrop",
-    "GoldRushHighCancellationRate",
-    "GoldRushUnusualCashierActivity",
+    "DeathRollDWStuckTicket",
+    "DeathRollNoCashiersOnline",
+    "DeathRollTreasuryDrop",
+    "DeathRollHighCancellationRate",
+    "DeathRollUnusualCashierActivity",
 }
 
 
@@ -83,20 +83,20 @@ def test_every_alert_has_severity_and_summary(rules: dict[str, object]) -> None:
 
 
 def test_alert_expressions_reference_known_metrics(rules: dict[str, object]) -> None:
-    """Every alert's expr must mention at least one ``goldrush_*``
-    metric. Catches typos like ``goldrush_treasury_g`` (without ``_balance``)
+    """Every alert's expr must mention at least one ``deathroll_*``
+    metric. Catches typos like ``deathroll_treasury_g`` (without ``_balance``)
     that would otherwise silently never fire."""
     known_prefixes = (
-        "goldrush_deposit_tickets",
-        "goldrush_withdraw_tickets",
-        "goldrush_deposit_volume_g",
-        "goldrush_withdraw_volume_g",
-        "goldrush_treasury_balance_g",
-        "goldrush_cashiers_online",
-        "goldrush_ticket_claim_duration_s",
-        "goldrush_ticket_confirm_duration_s",
-        "goldrush_cashier_dispute_rate",
-        "goldrush_fee_revenue_g",
+        "deathroll_deposit_tickets",
+        "deathroll_withdraw_tickets",
+        "deathroll_deposit_volume_g",
+        "deathroll_withdraw_volume_g",
+        "deathroll_treasury_balance_g",
+        "deathroll_cashiers_online",
+        "deathroll_ticket_claim_duration_s",
+        "deathroll_ticket_confirm_duration_s",
+        "deathroll_cashier_dispute_rate",
+        "deathroll_fee_revenue_g",
     )
     groups = rules["groups"]
     assert isinstance(groups, list)
@@ -109,5 +109,5 @@ def test_alert_expressions_reference_known_metrics(rules: dict[str, object]) -> 
             expr = str(rule.get("expr", ""))
             assert any(p in expr for p in known_prefixes), (
                 f"alert {rule['alert']!r} expr does not reference any known "
-                f"goldrush_* metric: {expr!r}"
+                f"deathroll_* metric: {expr!r}"
             )

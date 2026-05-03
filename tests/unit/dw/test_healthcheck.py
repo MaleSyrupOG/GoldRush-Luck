@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_deposit_withdraw.healthcheck`.
+"""Unit tests for `deathroll_deposit_withdraw.healthcheck`.
 
 The healthcheck script is invoked by the Docker HEALTHCHECK directive.
 It must exit 0 if the bot can read from Postgres, 1 otherwise. The
@@ -12,7 +12,7 @@ import asyncio
 from typing import Any
 
 import pytest
-from goldrush_deposit_withdraw.healthcheck import ping
+from deathroll_deposit_withdraw.healthcheck import ping
 
 
 class _FakeOk:
@@ -82,7 +82,7 @@ def test_main_returns_1_when_postgres_dsn_unset(
 
     A missing DSN is an operational error (env file not mounted, typo
     in compose) — green-lighting it would mask a misconfiguration."""
-    from goldrush_deposit_withdraw import healthcheck as hc
+    from deathroll_deposit_withdraw import healthcheck as hc
 
     monkeypatch.delenv("POSTGRES_DSN", raising=False)
     assert hc.main() == 1
@@ -92,7 +92,7 @@ def test_main_returns_0_when_pool_factory_pings_ok(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """A well-behaved pool returns 1 from SELECT 1; main exits 0."""
-    from goldrush_deposit_withdraw import healthcheck as hc
+    from deathroll_deposit_withdraw import healthcheck as hc
 
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://x@y/z")
 
@@ -113,7 +113,7 @@ def test_main_returns_1_when_pool_factory_raises(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """If the pool cannot be opened (Postgres down, wrong DSN), exit 1."""
-    from goldrush_deposit_withdraw import healthcheck as hc
+    from deathroll_deposit_withdraw import healthcheck as hc
 
     monkeypatch.setenv("POSTGRES_DSN", "postgresql://x@y/z")
 

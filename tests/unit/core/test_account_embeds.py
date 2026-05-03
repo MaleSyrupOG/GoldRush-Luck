@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.embeds.account`.
+"""Unit tests for `deathroll_core.embeds.account`.
 
 Three builders live in this module:
 
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import discord
 import pytest
-from goldrush_core.embeds.account import (
+from deathroll_core.embeds.account import (
     HELP_TOPICS,
     account_summary_embed,
     help_embed,

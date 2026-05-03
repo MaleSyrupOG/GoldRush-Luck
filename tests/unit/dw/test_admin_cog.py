@@ -12,7 +12,7 @@ import asyncio
 
 import discord
 from discord.ext import commands
-from goldrush_deposit_withdraw.cogs.admin import AdminCog
+from deathroll_deposit_withdraw.cogs.admin import AdminCog
 
 
 def _build_bot() -> commands.Bot:

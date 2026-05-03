@@ -22,7 +22,7 @@ explicitly that weren't previously parametrized:
 from __future__ import annotations
 
 import pytest
-from goldrush_core.models.dw_pydantic import (
+from deathroll_core.models.dw_pydantic import (
     DepositModalInput,
     EditDynamicEmbedInput,
     WithdrawModalInput,

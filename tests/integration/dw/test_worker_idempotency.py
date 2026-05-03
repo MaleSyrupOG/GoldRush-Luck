@@ -35,23 +35,23 @@ from datetime import UTC, datetime, timedelta
 
 import asyncpg
 import pytest
-from goldrush_core.balance.dw_manager import (
+from deathroll_core.balance.dw_manager import (
     apply_deposit_ticket,
     cancel_deposit,
     claim_ticket,
     confirm_deposit,
 )
 
-from goldrush_deposit_withdraw.metrics import REGISTRY, refresh_from_db
-from goldrush_deposit_withdraw.workers.audit_chain_verifier import (
+from deathroll_deposit_withdraw.metrics import REGISTRY, refresh_from_db
+from deathroll_deposit_withdraw.workers.audit_chain_verifier import (
     tick as audit_chain_tick,
 )
-from goldrush_deposit_withdraw.workers.cashier_idle import tick as cashier_idle_tick
-from goldrush_deposit_withdraw.workers.claim_idle import tick as claim_idle_tick
-from goldrush_deposit_withdraw.workers.stats_aggregator import (
+from deathroll_deposit_withdraw.workers.cashier_idle import tick as cashier_idle_tick
+from deathroll_deposit_withdraw.workers.claim_idle import tick as claim_idle_tick
+from deathroll_deposit_withdraw.workers.stats_aggregator import (
     tick as stats_aggregator_tick,
 )
-from goldrush_deposit_withdraw.workers.ticket_timeout import (
+from deathroll_deposit_withdraw.workers.ticket_timeout import (
     tick as ticket_timeout_tick,
 )
 

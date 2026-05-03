@@ -29,8 +29,8 @@ from typing import Literal
 
 import asyncpg
 import pytest
-from goldrush_core.balance import exceptions as exc
-from goldrush_core.balance.dw_manager import (
+from deathroll_core.balance import exceptions as exc
+from deathroll_core.balance.dw_manager import (
     apply_deposit_ticket,
     apply_withdraw_ticket,
     cancel_deposit,
@@ -286,7 +286,7 @@ async def test_audit_log_update_rejected_by_trigger(
     pool: asyncpg.Pool,
     admin_pool: asyncpg.Pool,
 ) -> None:
-    """Even goldrush_admin can't bypass the immutability triggers
+    """Even deathroll_admin can't bypass the immutability triggers
     (they're FOR EACH ROW BEFORE UPDATE/DELETE on every row regardless
     of role)."""
     # Insert at least one audit row so we have a target.

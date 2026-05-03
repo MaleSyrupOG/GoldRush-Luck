@@ -1,4 +1,4 @@
-"""Snapshot tests for `goldrush_core.embeds.dw_tickets`.
+"""Snapshot tests for `deathroll_core.embeds.dw_tickets`.
 
 Embeds are presentation surface — they need to be visually consistent
 across every state and across redeploys. The tests below act as a
@@ -19,7 +19,7 @@ from typing import Any
 
 import discord
 import pytest
-from goldrush_core.embeds.dw_tickets import (
+from deathroll_core.embeds.dw_tickets import (
     COLOR_BUST,
     COLOR_EMBER,
     COLOR_GOLD,
@@ -75,7 +75,7 @@ SAMPLE_TS = datetime(2026, 4, 27, 23, 32, tzinfo=UTC)
 
 
 def test_palette_constants_match_design_system() -> None:
-    """Hexes match the GoldRush design system (Luck §6.3 + visual contract)."""
+    """Hexes match the DeathRoll design system (Luck §6.3 + visual contract)."""
     assert COLOR_HOUSE == 0x5B7CC9
     assert COLOR_WIN == 0x5DBE5A
     assert COLOR_BUST == 0xD8231A
@@ -493,14 +493,14 @@ def test_cashier_alert_embed_handles_withdraw() -> None:
 
 def _empty_snapshot() -> Any:
     """Build a RosterSnapshot with no cashiers — used by the empty-state tests."""
-    from goldrush_core.balance.cashier_roster import RosterSnapshot
+    from deathroll_core.balance.cashier_roster import RosterSnapshot
 
     return RosterSnapshot(online_by_region={}, on_break=(), offline_count=0)
 
 
 def _two_cashier_snapshot() -> Any:
     """Build a RosterSnapshot with one EU online + one NA on break."""
-    from goldrush_core.balance.cashier_roster import RosterEntry, RosterSnapshot
+    from deathroll_core.balance.cashier_roster import RosterEntry, RosterSnapshot
 
     eu = RosterEntry(
         discord_id=1,
@@ -553,7 +553,7 @@ def test_online_cashiers_live_embed_carries_timestamp() -> None:
 
 def test_online_cashiers_live_embed_offline_count_in_footer() -> None:
     """The offline count surfaces in the footer per spec §5.6."""
-    from goldrush_core.balance.cashier_roster import RosterSnapshot
+    from deathroll_core.balance.cashier_roster import RosterSnapshot
 
     snap = RosterSnapshot(online_by_region={}, on_break=(), offline_count=4)
     embed = online_cashiers_live_embed(snapshot=snap, last_updated=SAMPLE_TS)

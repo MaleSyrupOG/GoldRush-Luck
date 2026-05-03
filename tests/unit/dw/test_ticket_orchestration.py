@@ -15,8 +15,8 @@ from typing import Any
 
 import asyncpg
 import pytest
-from goldrush_core.models.dw_pydantic import DepositModalInput, WithdrawModalInput
-from goldrush_deposit_withdraw.tickets.orchestration import (
+from deathroll_core.models.dw_pydantic import DepositModalInput, WithdrawModalInput
+from deathroll_deposit_withdraw.tickets.orchestration import (
     DepositOutcome,
     WithdrawOutcome,
     open_deposit_ticket,

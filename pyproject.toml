@@ -1,7 +1,7 @@
 [project]
-name = "goldrush"
+name = "deathroll"
 version = "0.0.1"
-description = "GoldRush — Discord-hosted casino platform settling in WoW Gold"
+description = "DeathRoll — Discord-hosted casino platform settling in WoW Gold"
 authors = [{ name = "Aleix" }]
 requires-python = ">=3.12"
 readme = "README.md"
@@ -45,7 +45,7 @@ package = false
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["goldrush_core", "goldrush_luck", "goldrush_deposit_withdraw", "goldrush_poker", "tests"]
+src = ["deathroll_core", "deathroll_luck", "deathroll_deposit_withdraw", "deathroll_poker", "tests"]
 
 [tool.ruff.lint]
 select = [
@@ -96,7 +96,7 @@ markers = [
 ]
 
 [tool.coverage.run]
-source = ["goldrush_core", "goldrush_luck", "goldrush_deposit_withdraw"]
+source = ["deathroll_core", "deathroll_luck", "deathroll_deposit_withdraw"]
 omit = ["**/__init__.py", "tests/**"]
 
 [tool.coverage.report]

@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_deposit_withdraw.client`.
+"""Unit tests for `deathroll_deposit_withdraw.client`.
 
 The bot is a thin subclass of ``discord.ext.commands.Bot``. Real
 command sync and Discord login are exercised in Epic 14 integration
@@ -20,8 +20,8 @@ from typing import Any
 
 import discord
 from discord.ext import commands
-from goldrush_core.config import DwSettings
-from goldrush_deposit_withdraw.client import EXTENSIONS, DwBot, build_bot
+from deathroll_core.config import DwSettings
+from deathroll_deposit_withdraw.client import EXTENSIONS, DwBot, build_bot
 from pydantic import SecretStr
 
 
@@ -40,7 +40,7 @@ def test_extensions_is_tuple_of_strings() -> None:
     assert isinstance(EXTENSIONS, tuple)
     for ext in EXTENSIONS:
         assert isinstance(ext, str)
-        assert ext.startswith("goldrush_deposit_withdraw.")
+        assert ext.startswith("deathroll_deposit_withdraw.")
 
 
 def test_dw_bot_is_a_commands_bot_subclass() -> None:

@@ -17,7 +17,7 @@ from typing import Any
 
 import discord
 import pytest
-from goldrush_deposit_withdraw.disputes import (
+from deathroll_deposit_withdraw.disputes import (
     post_dispute_open_embed,
     update_dispute_status_embed,
 )

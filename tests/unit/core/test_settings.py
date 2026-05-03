@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.config.DwSettings`.
+"""Unit tests for `deathroll_core.config.DwSettings`.
 
 Settings load from environment variables (and from .env files in dev).
 These tests validate the type contract: required fields, defaults,
@@ -8,7 +8,7 @@ and the validation of constrained values (log_format, guild_id).
 from __future__ import annotations
 
 import pytest
-from goldrush_core.config import DwSettings
+from deathroll_core.config import DwSettings
 from pydantic import SecretStr, ValidationError
 
 
@@ -16,7 +16,7 @@ def _good_env() -> dict[str, str]:
     return {
         "DISCORD_TOKEN": "dummy.token.string",
         "GUILD_ID": "1234567890",
-        "POSTGRES_DSN": "postgresql://goldrush_dw:secret@localhost:5432/goldrush",
+        "POSTGRES_DSN": "postgresql://deathroll_dw:secret@localhost:5432/deathroll",
     }
 
 

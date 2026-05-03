@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_deposit_withdraw.cashiers.alert` (Story 5.3).
+"""Unit tests for `deathroll_deposit_withdraw.cashiers.alert` (Story 5.3).
 
 The alert poster runs after a ticket is opened. It fetches the live
 roster, filters compatible cashiers, builds the alert embed with
@@ -17,7 +17,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from goldrush_deposit_withdraw.cashiers.alert import post_cashier_alert
+from deathroll_deposit_withdraw.cashiers.alert import post_cashier_alert
 
 SAMPLE_TS = datetime(2026, 5, 2, 19, 0, tzinfo=UTC)
 

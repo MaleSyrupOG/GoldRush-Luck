@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.ratelimit`.
+"""Unit tests for `deathroll_core.ratelimit`.
 
 In-memory fixed-window limiter used by the deposit / withdraw cogs
 (spec: max 1 ticket creation per user per 60 s) and by future
@@ -10,7 +10,7 @@ backing is deferred to v1.x.
 from __future__ import annotations
 
 import pytest
-from goldrush_core.ratelimit import FixedWindowLimiter
+from deathroll_core.ratelimit import FixedWindowLimiter
 
 
 def test_first_call_acquires() -> None:

@@ -15,8 +15,8 @@ import asyncio
 
 import discord
 from discord.ext import commands
-from goldrush_deposit_withdraw.cogs.deposit import DepositCog
-from goldrush_deposit_withdraw.cogs.withdraw import WithdrawCog
+from deathroll_deposit_withdraw.cogs.deposit import DepositCog
+from deathroll_deposit_withdraw.cogs.withdraw import WithdrawCog
 
 
 def _build_bot() -> commands.Bot:
@@ -88,16 +88,16 @@ def test_withdraw_command_takes_no_user_parameters() -> None:
 
 
 def test_format_deposit_failure_user_banned_says_blacklisted() -> None:
-    from goldrush_deposit_withdraw.cogs.deposit import _format_deposit_failure
-    from goldrush_deposit_withdraw.tickets.orchestration import DepositOutcome
+    from deathroll_deposit_withdraw.cogs.deposit import _format_deposit_failure
+    from deathroll_deposit_withdraw.tickets.orchestration import DepositOutcome
 
     msg = _format_deposit_failure(DepositOutcome.UserBanned())
     assert "blacklist" in msg.lower()
 
 
 def test_format_withdraw_failure_user_banned_says_blacklisted() -> None:
-    from goldrush_deposit_withdraw.cogs.withdraw import _format_withdraw_failure
-    from goldrush_deposit_withdraw.tickets.orchestration import WithdrawOutcome
+    from deathroll_deposit_withdraw.cogs.withdraw import _format_withdraw_failure
+    from deathroll_deposit_withdraw.tickets.orchestration import WithdrawOutcome
 
     msg = _format_withdraw_failure(WithdrawOutcome.UserBanned())
     assert "blacklist" in msg.lower()

@@ -1,6 +1,6 @@
 """Unit tests for the ``list_audit_events`` wrapper (Story 10.8).
 
-The bot's ``goldrush_dw`` role does not have SELECT on
+The bot's ``deathroll_dw`` role does not have SELECT on
 ``core.audit_log`` (deliberate — read access stays gated). Story 10.8
 exposes a SECURITY DEFINER fn ``core.list_audit_events(p_target_id,
 p_limit)`` and the wrapper just calls fetch over it.
@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from goldrush_core.balance.dw_manager import list_audit_events
+from deathroll_core.balance.dw_manager import list_audit_events
 
 
 class _Pool:

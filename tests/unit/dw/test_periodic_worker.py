@@ -3,7 +3,7 @@
 Five of the six Epic 8 stories all share one shape — an asyncio loop
 that runs ``tick()`` every N seconds, with idempotent ``start()`` and
 awaitable ``stop()``. We factor the common scaffolding into
-``goldrush_deposit_withdraw.workers._periodic.PeriodicWorker`` so each
+``deathroll_deposit_withdraw.workers._periodic.PeriodicWorker`` so each
 worker only writes its ``tick`` body.
 
 Tests run with VERY short intervals (sub-second) so we exercise the
@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 
 import pytest
-from goldrush_deposit_withdraw.workers._periodic import PeriodicWorker
+from deathroll_deposit_withdraw.workers._periodic import PeriodicWorker
 
 
 class _Counter(PeriodicWorker):

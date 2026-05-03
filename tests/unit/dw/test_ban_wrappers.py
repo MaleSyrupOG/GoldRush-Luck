@@ -1,9 +1,9 @@
 """Unit tests for the blacklist SECURITY DEFINER wrappers (Story 9.3).
 
-Wrappers under test live in ``goldrush_core.balance.dw_manager``. They
+Wrappers under test live in ``deathroll_core.balance.dw_manager``. They
 talk to the SECURITY DEFINER fns from migration
 ``20260501_0012_dw_ban_fns`` and translate raised sentinels into the
-typed exceptions in ``goldrush_core.balance.exceptions``.
+typed exceptions in ``deathroll_core.balance.exceptions``.
 
 The fake-pool pattern matches the rest of the wrapper test suite so
 new wrappers follow a single, easy-to-grep template.
@@ -15,8 +15,8 @@ from typing import Any
 
 import asyncpg
 import pytest
-from goldrush_core.balance.dw_manager import ban_user, unban_user
-from goldrush_core.balance.exceptions import (
+from deathroll_core.balance.dw_manager import ban_user, unban_user
+from deathroll_core.balance.exceptions import (
     CannotBanTreasury,
     UserNotRegistered,
 )

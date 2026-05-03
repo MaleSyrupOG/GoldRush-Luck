@@ -1,9 +1,9 @@
-# GoldRush — Alertmanager Discord webhook routing snippet (Story 11.3).
+# DeathRoll — Alertmanager Discord webhook routing snippet (Story 11.3).
 #
 # This file is NOT a complete Alertmanager config — it's a partial
 # snippet showing the receiver + route entries you merge into your
-# existing alertmanager.yml so the goldrush-dw alert rules
-# (ops/observability/alerts/goldrush-dw.yml) deliver to a Discord
+# existing alertmanager.yml so the deathroll-dw alert rules
+# (ops/observability/alerts/deathroll-dw.yml) deliver to a Discord
 # channel.
 #
 # Setup (operator):
@@ -18,7 +18,7 @@
 #      the container at /etc/alertmanager/secrets/discord_webhook.
 #
 #   3. Merge the YAML below into your existing alertmanager.yml.
-#      The receiver name 'goldrush-dw-discord' is referenced from
+#      The receiver name 'deathroll-dw-discord' is referenced from
 #      the route block — keep them aligned if you rename.
 #
 #   4. Reload Alertmanager (HUP signal or restart).
@@ -29,7 +29,7 @@
 # vector / fluent-bit / a small custom relay; out of scope here.
 
 receivers:
-  - name: goldrush-dw-discord
+  - name: deathroll-dw-discord
     discord_configs:
       - webhook_url_file: /etc/alertmanager/secrets/discord_webhook
         send_resolved: true
@@ -46,13 +46,13 @@ receivers:
           {{ end }}
 
 # Add this entry to your existing route tree. The matchers route
-# every goldrush-dw labelled alert to the Discord receiver above;
+# every deathroll-dw labelled alert to the Discord receiver above;
 # other projects continue to flow through their existing routes.
 route:
   routes:
     - matchers:
-        - project = "goldrush-dw"
-      receiver: goldrush-dw-discord
+        - project = "deathroll-dw"
+      receiver: deathroll-dw-discord
       group_by: [alertname]
       group_wait: 30s
       group_interval: 5m

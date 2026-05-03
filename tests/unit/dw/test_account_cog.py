@@ -15,7 +15,7 @@ from typing import Any
 
 import discord
 from discord.ext import commands
-from goldrush_deposit_withdraw.cogs.account import AccountCog
+from deathroll_deposit_withdraw.cogs.account import AccountCog
 
 
 def _build_bot() -> commands.Bot:

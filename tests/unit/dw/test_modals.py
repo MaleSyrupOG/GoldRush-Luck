@@ -12,7 +12,7 @@ exercised in Epic 14 integration tests.
 from __future__ import annotations
 
 import pytest
-from goldrush_deposit_withdraw.views.modals import is_magic_word_match
+from deathroll_deposit_withdraw.views.modals import is_magic_word_match
 
 
 @pytest.mark.parametrize(

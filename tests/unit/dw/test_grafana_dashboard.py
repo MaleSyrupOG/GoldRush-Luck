@@ -1,12 +1,12 @@
-"""Tests for the GoldRush D/W Grafana dashboard JSON (Story 11.2).
+"""Tests for the DeathRoll D/W Grafana dashboard JSON (Story 11.2).
 
-The dashboard ships at ``ops/observability/grafana-dashboards/goldrush-dw.json``.
+The dashboard ships at ``ops/observability/grafana-dashboards/deathroll-dw.json``.
 We don't load it into a real Grafana in unit tests (that's Epic 14
 integration work) — instead we pin the structural contract:
 
 - Loads as valid JSON.
 - Contains every panel from the spec §7.3 list.
-- Every PromQL query references a goldrush_* metric we actually
+- Every PromQL query references a deathroll_* metric we actually
   emit, so a typo at the dashboard side surfaces here rather than
   in production.
 """
@@ -23,7 +23,7 @@ _DASHBOARD = (
     / "ops"
     / "observability"
     / "grafana-dashboards"
-    / "goldrush-dw.json"
+    / "deathroll-dw.json"
 )
 
 
@@ -41,9 +41,9 @@ def test_dashboard_loads_as_json(dashboard: dict[str, object]) -> None:
     assert len(dashboard["panels"]) >= 6  # one per spec category, plus a couple extras
 
 
-def test_dashboard_title_says_goldrush_dw(dashboard: dict[str, object]) -> None:
+def test_dashboard_title_says_deathroll_dw(dashboard: dict[str, object]) -> None:
     title = str(dashboard["title"]).lower()
-    assert "goldrush" in title and ("d/w" in title or "deposit" in title)
+    assert "deathroll" in title and ("d/w" in title or "deposit" in title)
 
 
 def test_dashboard_covers_every_spec_panel(dashboard: dict[str, object]) -> None:
@@ -54,16 +54,16 @@ def test_dashboard_covers_every_spec_panel(dashboard: dict[str, object]) -> None
     assert isinstance(panels, list)
     all_queries = " ".join(_collect_query_text(p) for p in panels)
     expected_metric_substrings = (
-        "goldrush_deposit_tickets",        # tickets/min by status
-        "goldrush_withdraw_tickets",
-        "goldrush_deposit_volume_g",        # volume by region
-        "goldrush_withdraw_volume_g",
-        "goldrush_treasury_balance_g",      # treasury over time
-        "goldrush_cashiers_online",
-        "goldrush_ticket_claim_duration_s", # duration distributions
-        "goldrush_ticket_confirm_duration_s",
-        "goldrush_cashier_dispute_rate",
-        "goldrush_fee_revenue_g",           # fee revenue trend
+        "deathroll_deposit_tickets",        # tickets/min by status
+        "deathroll_withdraw_tickets",
+        "deathroll_deposit_volume_g",        # volume by region
+        "deathroll_withdraw_volume_g",
+        "deathroll_treasury_balance_g",      # treasury over time
+        "deathroll_cashiers_online",
+        "deathroll_ticket_claim_duration_s", # duration distributions
+        "deathroll_ticket_confirm_duration_s",
+        "deathroll_cashier_dispute_rate",
+        "deathroll_fee_revenue_g",           # fee revenue trend
     )
     missing = [m for m in expected_metric_substrings if m not in all_queries]
     assert not missing, f"dashboard missing PromQL refs to: {missing}"

@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.balance.cashier_matcher`.
+"""Unit tests for `deathroll_core.balance.cashier_matcher`.
 
 Given a (region, faction) pair, returns the list of cashiers
 currently online whose active chars match. Used by:
@@ -13,8 +13,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 
 import pytest
-from goldrush_core.balance.cashier_matcher import find_compatible_cashiers
-from goldrush_core.balance.cashier_roster import RosterEntry, RosterSnapshot
+from deathroll_core.balance.cashier_matcher import find_compatible_cashiers
+from deathroll_core.balance.cashier_roster import RosterEntry, RosterSnapshot
 
 SAMPLE_TS = datetime(2026, 5, 2, 18, 0, tzinfo=UTC)
 

@@ -1,4 +1,4 @@
-"""Unit tests for `goldrush_core.balance.account_stats`.
+"""Unit tests for `deathroll_core.balance.account_stats`.
 
 The stats query joins ``core.users`` / ``core.balances`` /
 ``dw.deposit_tickets`` / ``dw.withdraw_tickets`` to surface the four
@@ -19,7 +19,7 @@ import dataclasses
 from typing import Any
 
 import pytest
-from goldrush_core.balance.account_stats import AccountStats, fetch_account_stats
+from deathroll_core.balance.account_stats import AccountStats, fetch_account_stats
 
 
 class _FakeExec:
