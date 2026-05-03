@@ -1,0 +1,60 @@
+# GoldRush — Alertmanager Discord webhook routing snippet (Story 11.3).
+#
+# This file is NOT a complete Alertmanager config — it's a partial
+# snippet showing the receiver + route entries you merge into your
+# existing alertmanager.yml so the goldrush-dw alert rules
+# (ops/observability/alerts/goldrush-dw.yml) deliver to a Discord
+# channel.
+#
+# Setup (operator):
+#
+#   1. Create a Discord webhook in your private staff #alerts
+#      channel (Server Settings → Integrations → Webhooks → New).
+#      Copy the webhook URL.
+#
+#   2. Store the URL in a file the alertmanager container can read,
+#      e.g. /srv/observability/secrets/discord_webhook (chmod 600,
+#      owned by the same user the container runs as). Mount it into
+#      the container at /etc/alertmanager/secrets/discord_webhook.
+#
+#   3. Merge the YAML below into your existing alertmanager.yml.
+#      The receiver name 'goldrush-dw-discord' is referenced from
+#      the route block — keep them aligned if you rename.
+#
+#   4. Reload Alertmanager (HUP signal or restart).
+#
+# Tested with Alertmanager 0.27+. Discord built-in receiver
+# (``discord_configs:``) was added in 0.26. Older versions need to
+# use ``webhook_configs`` with a translation gateway like
+# vector / fluent-bit / a small custom relay; out of scope here.
+
+receivers:
+  - name: goldrush-dw-discord
+    discord_configs:
+      - webhook_url_file: /etc/alertmanager/secrets/discord_webhook
+        send_resolved: true
+        title: '[{{ .Status | toUpper }}] {{ .CommonLabels.alertname }}'
+        message: |
+          **Severity:** {{ .CommonLabels.severity }}
+          **Project:** {{ .CommonLabels.project }}
+
+          {{ range .Alerts }}
+          • {{ .Annotations.summary }}
+          {{ if .Annotations.description }}
+            {{ .Annotations.description }}
+          {{ end }}
+          {{ end }}
+
+# Add this entry to your existing route tree. The matchers route
+# every goldrush-dw labelled alert to the Discord receiver above;
+# other projects continue to flow through their existing routes.
+route:
+  routes:
+    - matchers:
+        - project = "goldrush-dw"
+      receiver: goldrush-dw-discord
+      group_by: [alertname]
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 6h
+      continue: false

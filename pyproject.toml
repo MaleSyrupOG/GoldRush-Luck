@@ -31,6 +31,9 @@ dev = [
     "ruff==0.8.4",
     "mypy==1.13.0",
     "types-Pillow",
+    # Story 11.3: alert rules YAML validation in tests/unit/dw/test_alert_rules.py.
+    "pyyaml==6.0.2",
+    "types-PyYAML==6.0.12.20240917",
 ]
 
 [tool.uv]

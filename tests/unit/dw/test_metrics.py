@@ -29,14 +29,12 @@ from __future__ import annotations
 
 import prometheus_client
 import pytest
-
 from goldrush_deposit_withdraw.metrics import (
     REGISTRY,
     record_claim_duration,
     record_confirm_duration,
     refresh_from_db,
 )
-
 
 # ---------------------------------------------------------------------------
 # Registry shape — every metric family from spec §7.3 must be present.

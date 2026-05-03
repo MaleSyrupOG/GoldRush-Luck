@@ -30,9 +30,8 @@ from typing import Any
 
 import prometheus_client
 import structlog
-from prometheus_client import CollectorRegistry, Gauge, Histogram
-
 from goldrush_core.db import Executor
+from prometheus_client import CollectorRegistry, Gauge, Histogram
 
 _log = structlog.get_logger(__name__)
 
