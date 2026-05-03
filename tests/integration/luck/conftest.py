@@ -339,5 +339,58 @@ async def _reset_db(*, admin_dsn: str) -> None:
             "INSERT INTO core.balances (discord_id, balance) VALUES (0, 0) "
             "ON CONFLICT DO NOTHING"
         )
+
+        # Re-seed luck.game_config + luck.global_config defaults
+        # (mirrors migration 0021). Tests that verify the seed values
+        # rely on these being present after each TRUNCATE; tests that
+        # don't care simply ignore them.
+        if any(t == "luck.game_config" for t in existing):
+            for game_name, extra_json in (
+                ("coinflip", "{}"),
+                ("dice", "{}"),
+                ("ninetyninex", "{}"),
+                ("hotcold", "{}"),
+                (
+                    "mines",
+                    '{"max_mines":24,"min_mines":1,'
+                    '"default_mines":3,"grid_size":25}',
+                ),
+                (
+                    "blackjack",
+                    '{"commission_bps":450,'
+                    '"rules":"vegas_s17_3to2_noins_nosplit","decks":6}',
+                ),
+                (
+                    "roulette",
+                    '{"commission_bps":236,'
+                    '"variant":"european_single_zero"}',
+                ),
+                ("diceduel", "{}"),
+                ("stakingduel", "{}"),
+            ):
+                await conn.execute(
+                    """
+                    INSERT INTO luck.game_config
+                      (game_name, enabled, min_bet, max_bet, house_edge_bps,
+                       extra_config, updated_by)
+                    VALUES ($1, TRUE, 100, 500000, 500, $2::jsonb, 0)
+                    ON CONFLICT (game_name) DO NOTHING
+                    """,
+                    game_name,
+                    extra_json,
+                )
+
+        if any(t == "luck.global_config" for t in existing):
+            await conn.execute(
+                """
+                INSERT INTO luck.global_config (key, value_int, updated_by)
+                VALUES
+                    ('raffle_rake_bps',            100, 0),
+                    ('raffle_ticket_threshold_g',  100, 0),
+                    ('bet_rate_limit_per_60s',     30,  0),
+                    ('command_rate_limit_per_60s', 30,  0)
+                ON CONFLICT (key) DO NOTHING
+                """
+            )
     finally:
         await conn.close()
