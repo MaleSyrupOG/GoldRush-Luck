@@ -1,6 +1,6 @@
-# Optional observability overlay — exposes goldrush-dw:9101/metrics to
+# Optional observability overlay — exposes deathroll-dw:9101/metrics to
 # an external Prometheus. NOT applied by default; the canonical
-# ``compose.yml`` keeps port 9101 reachable only inside ``goldrush_net``
+# ``compose.yml`` keeps port 9101 reachable only inside ``deathroll_net``
 # so the project doesn't couple to any specific monitoring stack.
 #
 # Two ways to use this overlay, both documented here so you can pick
@@ -10,9 +10,9 @@
 #   ``host.docker.internal:9101`` (Docker Desktop) or the host's
 #   docker bridge IP (Linux). No cross-project network coupling.
 #
-# OPTION B — attach goldrush-dw to an existing observability docker
+# OPTION B — attach deathroll-dw to an existing observability docker
 #   network so Prometheus reaches the container by name (e.g.
-#   ``goldrush-dw:9101``). Simpler DNS at the cost of a soft dep on
+#   ``deathroll-dw:9101``). Simpler DNS at the cost of a soft dep on
 #   the foreign network's name.
 #
 # This file ships OPTION A. To opt into OPTION B instead, comment out
@@ -25,10 +25,10 @@
 #   docker compose \
 #       -f ops/docker/compose.yml \
 #       -f ops/docker/compose.observability.yml \
-#       up -d goldrush-deposit-withdraw
+#       up -d deathroll-deposit-withdraw
 
 services:
-  goldrush-deposit-withdraw:
+  deathroll-deposit-withdraw:
     # OPTION A (default): publish 9101 on host loopback only. Local
     # Prometheus on the same host can scrape via 127.0.0.1:9101.
     ports:
@@ -37,7 +37,7 @@ services:
     # OPTION B (alternative): attach to an external observability
     # network. Uncomment + edit the ``name`` to your real network.
     # networks:
-    #   goldrush_net: {}
+    #   deathroll_net: {}
     #   external_observability: {}
 
 # networks:

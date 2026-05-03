@@ -1,4 +1,4 @@
-# GoldRush — production-only overlay for compose.yml.
+# DeathRoll — production-only overlay for compose.yml.
 #
 # Apply with: docker compose -f ops/docker/compose.yml -f ops/docker/compose.prod.yml up -d
 #
@@ -8,8 +8,8 @@
 # - Forbids accidental rebuilds in production: pull_policy=never.
 
 services:
-  goldrush-deposit-withdraw:
-    image: goldrush-dw:latest
+  deathroll-deposit-withdraw:
+    image: deathroll-dw:latest
     pull_policy: never
     deploy:
       resources:

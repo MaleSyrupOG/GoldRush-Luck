@@ -1,36 +1,36 @@
-# GoldRush — base Docker Compose stack.
+# DeathRoll — base Docker Compose stack.
 #
 # This file is the shared base for local development and production. The
 # production overlay (compose.prod.yml) tightens resources further. Both are
-# referenced from /opt/goldrush/repo when deploying on the VPS.
+# referenced from /opt/deathroll/repo when deploying on the VPS.
 #
 # Services:
 #   - postgres                : PostgreSQL 16-alpine, internal network only
-#   - goldrush-deposit-withdraw : the D/W bot (this iteration)
+#   - deathroll-deposit-withdraw : the D/W bot (this iteration)
 #
 # When the Luck bot resumes, its service definition will be added to this file.
 
-name: goldrush
+name: deathroll
 
 networks:
-  goldrush_net:
+  deathroll_net:
     driver: bridge
     ipam:
       config:
         - subnet: 172.30.0.0/24
 
 volumes:
-  goldrush_pgdata:
-    name: goldrush_pgdata
+  deathroll_pgdata:
+    name: deathroll_pgdata
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: goldrush-postgres
+    container_name: deathroll-postgres
     restart: unless-stopped
-    networks: [goldrush_net]
+    networks: [deathroll_net]
     environment:
-      POSTGRES_DB: goldrush
+      POSTGRES_DB: deathroll
       POSTGRES_USER: ${PG_ADMIN_USER:?PG_ADMIN_USER must be set in .env.shared}
       POSTGRES_PASSWORD: ${PG_ADMIN_PASSWORD:?PG_ADMIN_PASSWORD must be set in .env.shared}
       # Passwords for the per-bot roles consumed by init.sql.
@@ -39,7 +39,7 @@ services:
       PG_POKER_PASSWORD: ${PG_POKER_PASSWORD:-disabled}
       PG_READONLY_PASSWORD: ${PG_READONLY_PASSWORD:?PG_READONLY_PASSWORD must be set in .env.shared}
     volumes:
-      - goldrush_pgdata:/var/lib/postgresql/data
+      - deathroll_pgdata:/var/lib/postgresql/data
       - ../postgres/00-init-roles.sh:/docker-entrypoint-initdb.d/00-init-roles.sh:ro
       - ../postgres/01-schemas-grants.sql:/docker-entrypoint-initdb.d/01-schemas-grants.sql:ro
     cap_drop: [ALL]
@@ -47,7 +47,7 @@ services:
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PG_ADMIN_USER} -d goldrush"]
+      test: ["CMD-SHELL", "pg_isready -U ${PG_ADMIN_USER} -d deathroll"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -57,33 +57,33 @@ services:
       options: {max-size: "20m", max-file: "5"}
     labels:
       logging: "promtail"
-      logging_jobname: "goldrush-postgres"
-    # Intentionally NO ports section: Postgres is only reachable inside goldrush_net.
+      logging_jobname: "deathroll-postgres"
+    # Intentionally NO ports section: Postgres is only reachable inside deathroll_net.
     # For local dev access, use: ssh -L 5432:172.30.0.x:5432 root@vps OR
     # add a temporary `ports: ["127.0.0.1:5432:5432"]` line locally (do not commit).
 
-  goldrush-deposit-withdraw:
+  deathroll-deposit-withdraw:
     build:
       context: ../..
       dockerfile: ops/docker/Dockerfile.dw
-    image: goldrush-dw:latest
-    container_name: goldrush-dw
+    image: deathroll-dw:latest
+    container_name: deathroll-dw
     restart: unless-stopped
-    networks: [goldrush_net]
-    # Story 11.1: 9101 is reachable on goldrush_net only. To let an
+    networks: [deathroll_net]
+    # Story 11.1: 9101 is reachable on deathroll_net only. To let an
     # external Prometheus scrape /metrics, see the opt-in overlay in
     # ``compose.observability.yml`` (the operator decides whether to
     # bind to localhost or attach to a foreign docker network).
     expose:
       - "9101"
     env_file:
-      # ENV_DIR defaults to /opt/goldrush/secrets on the VPS. For local dev,
+      # ENV_DIR defaults to /opt/deathroll/secrets on the VPS. For local dev,
       # export ENV_DIR=/path/to/local/secrets before running docker compose.
-      - ${ENV_DIR:-/opt/goldrush/secrets}/.env.shared
-      - ${ENV_DIR:-/opt/goldrush/secrets}/.env.dw
+      - ${ENV_DIR:-/opt/deathroll/secrets}/.env.shared
+      - ${ENV_DIR:-/opt/deathroll/secrets}/.env.dw
     environment:
       # Constructed at runtime so the password is not visible in process listings.
-      POSTGRES_DSN: postgresql://goldrush_dw:${PG_DW_PASSWORD}@postgres:5432/goldrush
+      POSTGRES_DSN: postgresql://deathroll_dw:${PG_DW_PASSWORD}@postgres:5432/deathroll
     user: "1002:1002"
     read_only: true
     tmpfs:
@@ -95,7 +95,7 @@ services:
     mem_limit: 384m
     mem_reservation: 192m
     healthcheck:
-      test: ["CMD", "python", "-m", "goldrush_deposit_withdraw.healthcheck"]
+      test: ["CMD", "python", "-m", "deathroll_deposit_withdraw.healthcheck"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -105,7 +105,7 @@ services:
       options: {max-size: "10m", max-file: "5"}
     labels:
       logging: "promtail"
-      logging_jobname: "goldrush-dw"
+      logging_jobname: "deathroll-dw"
     depends_on:
       postgres:
         condition: service_healthy
