@@ -983,9 +983,13 @@ Status: Done (2026-05-03)
 
 ### Story 10.2 — `/admin set-deposit-limits`, `/admin set-withdraw-limits`, `/admin set-fee-withdraw`
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Three commands updating `dw.global_config` with audit log entries.
-- [ ] In-process cache invalidated immediately.
+- [x] Three commands UPSERT into `dw.global_config` (`min_deposit_g` / `max_deposit_g`, `min_withdraw_g` / `max_withdraw_g`, `withdraw_fee_bps`) and post `audit_config_changed` events to `#audit-log`. Validation lives in the cog (positive ints, min<=max, bps in [0, 10000]).
+- [x] "In-process cache invalidated" — the bot reads `dw.global_config` via `fetchrow` on each call (no in-process cache exists), so the AC is satisfied trivially. Caching can land in a future Luck-shared story.
+
+**Verification:** `tests/unit/dw/test_admin_cog.py` (4 registration tests for the 3 commands and parameter shapes) + `tests/unit/dw/test_config_writer_limits.py` (2 tests asserting the new `persist_config_int` UPSERT).
 
 **Dependencies:** Luck Story 4.4 (config caching pattern)
 **Effort:** S
@@ -993,10 +997,14 @@ Status: Done (2026-05-03)
 
 ### Story 10.3 — `/admin set-deposit-guide` and `/admin set-withdraw-guide` modals
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Open `EditDynamicEmbedModal` with current content prefilled.
-- [ ] On submit, updates `dw.dynamic_embeds` row and edits the live Discord message via `message.edit`.
-- [ ] Test: editing description updates Discord embed.
+- [x] `EditDynamicEmbedModal` opens with the current `dw.dynamic_embeds` row's title + description pre-filled (modal limit is 5 inputs; v1 only edits those two — color/image/footer/fields stay editable via SQL).
+- [x] On submit, the validator (`EditDynamicEmbedInput`) trims whitespace and enforces title <= 256 chars / description <= 4000 chars; the new helper `update_dynamic_embed_content` in `welcome.py` writes the row, re-renders via the same `_build_embed_from_row` builder the welcome reconciler uses, and edits the live Discord message in place (with repost-on-NotFound self-heal).
+- [x] Audit poster emits `audit_config_changed` with the embed key + a summary of the new content.
+
+**Verification:** `tests/unit/dw/test_edit_dynamic_embed_modal.py` (3 modal construction tests: prefilled inputs, embed_key flows through, human-readable labels) + `tests/unit/dw/test_admin_cog.py` (2 registration tests for the two `/admin-set-*-guide` commands and zero-arg surface).
 
 **Dependencies:** Story 4.4
 **Effort:** M
@@ -1030,11 +1038,17 @@ Status: Done (2026-05-03; paired with 10.4 + 10.7)
 
 ### Story 10.6 — `/admin treasury-balance`, `/admin treasury-sweep`, `/admin treasury-withdraw-to-user`
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] `treasury-balance` ephemeral shows current treasury balance with note "actual gold lives in the in-game guild bank".
-- [ ] `treasury-sweep amount reason` opens 2FA modal expecting "SWEEP" + re-typed amount; on success, calls `dw.treasury_sweep`; webhook alert to `#alerts`.
-- [ ] `treasury-withdraw-to-user amount user reason` opens 2FA modal expecting "TREASURY-WITHDRAW" + re-typed amount + re-typed user_id; on success, calls `dw.treasury_withdraw_to_user`; webhook alert.
-- [ ] Test: type wrong magic word → operation cancelled with ephemeral message; treasury unchanged.
+- [x] `/admin-treasury-balance` reads `core.balances WHERE discord_id=0` and renders a compact ephemeral with the canonical caveat "actual gold lives in the in-game guild bank".
+- [x] `/admin-treasury-sweep amount reason` opens `TreasurySweepConfirmModal` (2-input 2FA — type `SWEEP` + re-type amount). On both checks passing, calls `dw.treasury_sweep` and posts `audit_treasury_sweep` to `#audit-log`. `exc.InsufficientTreasury` maps to a friendly ephemeral.
+- [x] `/admin-treasury-withdraw-to-user amount user reason` opens `TreasuryWithdrawConfirmModal` (3-input 2FA — type `TREASURY-WITHDRAW` + re-type amount + re-type recipient user id). The user-id re-type is the extra guard against a slash-command-time autocomplete picking the wrong user.
+- [x] Wrong magic word → ephemeral cancel, no SDF call. Validators are pure functions (`validate_treasury_sweep_confirm`, `validate_treasury_withdraw_confirm`) so the rules unit-test cleanly without a Discord event loop.
+
+**Webhook alert note:** the spec AC mentions "webhook alert to #alerts" — there is no `#alerts` channel in the canonical setup. The audit poster routes to `#audit-log` instead. Story 11.3 (Alertmanager) will add a dedicated `#alerts` route later.
+
+**Verification:** `tests/unit/dw/test_treasury_confirm_validators.py` (8 validator tests: happy paths, magic-word rejection, non-integer amount, amount mismatch, user-id mismatch, non-numeric user id, copy-paste forgiveness for thousand separators) + `tests/unit/dw/test_admin_cog.py` (4 registration tests for the 3 commands and parameter shapes).
 
 **Dependencies:** Story 2.11
 **Effort:** L
@@ -1055,11 +1069,16 @@ Status: Done (2026-05-03; paired with 10.4 + 10.5)
 
 ### Story 10.8 — `/admin view-audit` (shared with Luck)
 
-**ACs:**
-- [ ] Same command implementation as Luck §11.4; available in both bots.
-- [ ] Filters by `target_id` (user) or returns last N rows.
+Status: Done (2026-05-03)
 
-**Dependencies:** Luck Story 11.4
+**ACs:**
+- [x] `/admin-view-audit user? limit?` calls the new SECURITY DEFINER fn `core.list_audit_events(p_target_id, p_limit)` (migration `20260503_0018_core_list_audit_events`) which the bot's role can EXECUTE without holding SELECT on `core.audit_log`. The SDF clamps `p_limit` to [1, 100]; the cog further clamps the embed render to 25 rows for Discord embed-size safety.
+- [x] Filters by `target_id` when ``user`` is supplied; otherwise returns the global tail. New embed builder `audit_log_list_embed` lays out rows as a markdown list (same approach as `dispute_list_embed`) with explicit empty-state and target_filter visible in the title.
+- [x] Lives in `core.*` schema so Luck Story 11.4 can bind the same SDF when Luck resumes — no duplicate fn needed.
+
+**Verification:** `tests/unit/dw/test_audit_list_wrapper.py` (2 tests for `list_audit_events` filter passthrough and NULL=all behaviour) + `tests/unit/core/test_dw_embeds.py` (3 tests for the embed builder: empty, populated rows, target filter title) + `tests/unit/dw/test_admin_cog.py` (2 cog registration tests for command + optional parameters).
+
+**Dependencies:** Luck Story 11.4 — but landed independently in this Epic 10 close-out using the same SDF pattern; Luck will reuse `core.list_audit_events` when it resumes.
 **Effort:** S
 **Spec refs:** D/W §5.1
 

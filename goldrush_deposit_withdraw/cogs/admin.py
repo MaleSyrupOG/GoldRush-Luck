@@ -1,16 +1,25 @@
-"""Admin cog — every ``/admin *`` command (Epic 10 + Epic 9 dispute slice).
+"""Admin cog — every ``/admin *`` command (Epics 9 + 10 + Story 8.6 verifier).
 
-Story 10.1 lands the foundational ``/admin-setup``; Stories 10.4,
-10.5 and 10.7 add the operational toolkit (force-cashier-offline,
-cashier-stats, force-cancel-ticket, force-close-thread). Epic 9's
-Story 9.1 adds the dispute commands (open / list / resolve / reject)
-because they are admin-only by spec §5.1 and live alongside the
-other admin tooling. The remaining Epic 10 stories (10.2 set-limits,
-10.3 set-guides, 10.6 treasury, 10.8 view-audit) are deferred —
-admins can edit ``dw.global_config`` / ``dw.dynamic_embeds`` via SQL
-until they land.
+The cog is the home for every admin-only slash command:
 
-All admin commands are hidden from non-admins by default via
+- Story 10.1 — ``/admin-setup`` (channel + role provisioning).
+- Stories 10.4 / 10.5 / 10.7 — operational toolkit
+  (force-cashier-offline, promote/demote reminders, cashier-stats,
+  force-cancel-ticket, force-close-thread).
+- Story 9.1 — dispute lifecycle (``/admin-dispute-{open, list,
+  resolve, reject}``).
+- Story 9.3 — blacklist (``/admin-{ban, unban}-user``).
+- Story 8.6 — on-demand chain verifier (``/admin-verify-audit``).
+- Story 10.2 — config writes
+  (``/admin-set-{deposit, withdraw}-limits``,
+  ``/admin-set-fee-withdraw``).
+- Story 10.3 — dynamic-embed copy editor
+  (``/admin-set-{deposit, withdraw}-guide`` modals).
+- Story 10.6 — treasury operations with 2FA gates
+  (``/admin-treasury-{balance, sweep, withdraw-to-user}``).
+- Story 10.8 — audit log read (``/admin-view-audit``).
+
+All commands are hidden from non-admins by default via
 ``@app_commands.default_permissions(administrator=True)``. Aleix
 configures visibility per-role manually in *Server Settings →
 Integrations* — that's the canonical mechanism for v1 (spec §6.5
