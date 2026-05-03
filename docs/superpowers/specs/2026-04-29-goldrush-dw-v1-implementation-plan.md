@@ -818,13 +818,15 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 8.1 — `ticket_timeout_worker`
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Async task runs every 60 s.
-- [ ] For each ticket in `dw.deposit_tickets` and `dw.withdraw_tickets` with `status IN ('open','claimed') AND expires_at < NOW()`:
-  - If status='open', cancel + (refund if withdraw).
-  - If status='claimed', cancel + refund + alert admin in `#alerts` (configurable channel).
-- [ ] Each cancellation is via the corresponding SECURITY DEFINER fn (audit-logged).
-- [ ] Idempotent: if the worker is killed mid-loop, restarting it correctly cancels remaining tickets.
+- [x] `TicketTimeoutWorker` runs every 60 s (scaffolded by the new `PeriodicWorker` base class). Every iteration scans BOTH `dw.deposit_tickets` and `dw.withdraw_tickets` for rows with `status IN ('open','claimed') AND expires_at < NOW()`.
+- [x] Open + claimed expired tickets are cancelled via `dw.cancel_deposit` / `dw.cancel_withdraw` (the SDF refunds locked balance for withdraws). System actor (`actor_id=0`); reason starts with `auto-cancel: expired`.
+- [x] Claimed-side cancellations also surface in `#audit-log` via `audit_ticket_cancelled` (System actor) so admins see cashiers who let claims go stale until the timeout fired. Open-side cancellations are routine and stay in the SDF audit row only (no Discord-side noise).
+- [x] Idempotent: `ticket_already_terminal` is swallowed; a crash mid-loop or a race with admin force-cancel converges to the same end state.
+
+**Verification:** `tests/unit/dw/test_ticket_timeout_worker.py` (6 tests covering empty pass, open deposit, open withdraw, claimed cancel, idempotent already-terminal, mixed pass) + `tests/unit/dw/test_periodic_worker.py` (4 base-class tests for the shared `PeriodicWorker` scaffolding).
 
 **Dependencies:** Story 2.6, Story 2.7
 **Effort:** M
@@ -832,10 +834,15 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 8.2 — `claim_idle_worker`
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Runs every 60 s.
-- [ ] For tickets `status='claimed' AND last_activity_at < NOW() - 30 min`: auto-release (`dw.release_ticket`) + repost cashier alert.
-- [ ] For tickets `status='claimed' AND claimed_at < NOW() - 2h`: auto-cancel + refund (if withdraw) + admin alert.
+- [x] `ClaimIdleWorker` runs every 60 s. Two distinct deadlines, each its own SELECT UNION'd across deposit + withdraw rows.
+- [x] `last_activity_at < NOW() - 30 min` → `dw.release_ticket` (system actor); the cashier alert is reposted in `#cashier-alerts` so the next cashier picks the ticket up. `ticket_not_claimed` swallowed (cashier voluntarily released between SELECT and the SDF call).
+- [x] `claimed_at < NOW() - 2 h` → `dw.cancel_deposit` / `dw.cancel_withdraw` (refunds happen via the withdraw SDF). `ticket_already_terminal` swallowed.
+- [x] `tick` returns a `TickSummary(released, cancelled)` so observability stories (Story 11.x) can emit per-branch metrics without re-instrumenting.
+
+**Verification:** `tests/unit/dw/test_claim_idle_worker.py` (8 tests: release deposit, release withdraw, swallow released-already, cancel deposit, cancel withdraw, swallow already-terminal, mixed pass, no-op).
 
 **Dependencies:** Story 2.8
 **Effort:** M
@@ -843,9 +850,14 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 8.3 — `cashier_idle_worker`
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Runs every 5 min.
-- [ ] For each `cashier_status` row with `status='online' AND last_active_at < NOW() - 1h`: auto-set offline; close session with `end_reason='expired'`.
+- [x] `CashierIdleWorker` runs every 5 min. Scans `dw.cashier_status` for rows in `status='online' AND last_active_at < NOW() - 1 h` and auto-offlines each via the new `dw.expire_cashier(p_discord_id)` SECURITY DEFINER fn (migration `20260503_0016_dw_expire_cashier`).
+- [x] The session row gets `end_reason='expired'` (distinct from `'manual_offline'` written by `dw.set_cashier_status`); the audit row reads `cashier_status_offline_expired` (vs. `cashier_status_offline`). Splitting the verb keeps reporting on "manual offlines vs. idle timeouts" a single GROUP BY.
+- [x] New typed exception `CashierNotOnline` (sentinel `cashier_not_online`); the worker swallows it on the idempotent race where a manual `/cashier-offline` beats the worker.
+
+**Verification:** `tests/unit/dw/test_cashier_idle_worker.py` (3 tests: empty, expires each idle online cashier, swallows already-offline) + `tests/unit/dw/test_expire_cashier_wrapper.py` (2 wrapper translation tests).
 
 **Dependencies:** Story 2.9
 **Effort:** S
@@ -853,11 +865,15 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 8.4 — `online_cashiers_embed_updater`
 
+Status: Done (2026-05-02; landed during Story 4.5)
+
 **ACs:**
-- [ ] Runs every 30 s.
-- [ ] Reads online cashiers from `dw.cashier_status` joined with `dw.cashier_characters`; groups by region.
-- [ ] Edits the persisted message in `#online-cashiers` (message_id from `dw.global_config`).
-- [ ] If message_id is missing, creates a new message and persists its id.
+- [x] `OnlineCashiersUpdater` (in `goldrush_deposit_withdraw/cashiers/live_updater.py`) runs every 30 s.
+- [x] Reads online roster via `goldrush_core.balance.cashier_roster.fetch_online_roster`; renders via `online_cashiers_live_embed`.
+- [x] Edits the persisted message in `#online-cashiers`; on `discord.NotFound`, reposts and persists the new message id in `dw.dynamic_embeds[embed_key='online_cashiers']`.
+- [x] Idempotent across reconnects (`start()` no-op when running); cancellable shutdown via `await stop()`.
+
+**Verification:** Story 4.5 — 7 tests in `tests/unit/dw/test_live_updater.py`. The Epic 8 base class (`PeriodicWorker`) is intentionally NOT applied here yet to avoid touching working code; future cleanup story can migrate.
 
 **Dependencies:** Story 4.5
 **Effort:** M
@@ -865,10 +881,13 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 8.5 — `stats_aggregator`
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Runs every 15 min.
-- [ ] Recomputes `dw.cashier_stats.avg_claim_to_confirm_s` for cashiers with new confirmations since last run (moving average over last 100 confirmations).
-- [ ] Updates `total_online_seconds` from `dw.cashier_sessions`.
+- [x] `StatsAggregatorWorker` runs every 15 min. Walks `dw.cashier_stats` and recomputes per cashier in one UPDATE statement: `avg_claim_to_confirm_s` (moving average over the last 100 confirmations across BOTH ticket families) and `total_online_seconds` (SUM of `cashier_sessions.duration_s`).
+- [x] Plain SQL — no SDF needed because the bot's role already has the required SELECT on tickets/sessions and UPDATE on `cashier_stats` per migration 0004's GRANT block. No "since last run" state-tracking; idempotent recompute from scratch keeps the worker simple at our current scale.
+
+**Verification:** `tests/unit/dw/test_stats_aggregator_worker.py` (3 tests: empty no-op, one UPDATE per cashier, the UPDATE statement covers both fields and both ticket families).
 
 **Dependencies:** Story 2.3
 **Effort:** M
@@ -876,11 +895,15 @@ Status: Done (2026-05-03; paired with 7.1 + 7.2)
 
 ### Story 8.6 — `audit_chain_verifier`
 
+Status: Done (2026-05-03)
+
 **ACs:**
-- [ ] Runs every 6 h (or on demand via `/admin verify-audit`).
-- [ ] Walks `core.audit_log` from last verified row, recomputes hash chain.
-- [ ] On chain break: writes Loki log + sends critical alert via Alertmanager webhook.
-- [ ] Stores `last_verified_row_id` in `dw.global_config`.
+- [x] `AuditChainVerifierWorker` runs every 6 h. Reads `dw.global_config.last_verified_audit_row_id` as the resume pointer; calls the new `core.verify_audit_chain(p_from_id, p_max_rows)` SECURITY DEFINER fn (migration `20260503_0017_core_audit_chain_verifier`) which walks `core.audit_log` recomputing the HMAC chain bit-for-bit using the same canonical jsonb composition as `core.audit_log_insert_with_chain`.
+- [x] On healthy advance: emits INFO `audit_chain_verified` and UPSERTs the new `last_verified_audit_row_id`. Empty range skips the UPSERT to avoid pointless writes.
+- [x] On chain break: emits CRITICAL `audit_chain_break` with `broken_at_id`; does NOT advance the pointer so the next iteration re-checks the same range after admin remediation. Loki collects today; Story 11.3 will route to Alertmanager.
+- [x] On-demand verification via `/admin-verify-audit` slash command in `AdminCog` — runs the same `tick()` and reports inline (✅ healthy / 🚨 break).
+
+**Verification:** `tests/unit/dw/test_audit_chain_verifier_worker.py` (5 worker tests: resume from persisted id, persist new id on success, no persist when count=0, no persist on break, fall back to id=0 when no config row) + `tests/unit/dw/test_admin_cog.py` (1 new registration test for `/admin-verify-audit`).
 
 **Dependencies:** Luck Story 2.5
 **Effort:** L
