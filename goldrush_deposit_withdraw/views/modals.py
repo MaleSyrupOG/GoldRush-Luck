@@ -41,6 +41,85 @@ def is_magic_word_match(*, supplied: str, expected: str) -> bool:
     return supplied.strip() == expected
 
 
+def _parse_amount(amount_str: str) -> int | None:
+    """Parse a re-typed amount, forgiving thousand separators.
+
+    Returns the int on success, ``None`` if the input isn't an
+    integer at all. The forgiveness (commas + underscores) reduces
+    UX friction without weakening the 2FA: the typed VALUE has to
+    still match the original ``amount`` exactly, just spelled with
+    a thousands separator if the operator likes.
+    """
+    cleaned = amount_str.strip().replace(",", "").replace("_", "")
+    try:
+        return int(cleaned)
+    except ValueError:
+        return None
+
+
+def validate_treasury_sweep_confirm(
+    *,
+    magic_word: str,
+    amount_str: str,
+    expected_amount: int,
+) -> str | None:
+    """Validate the treasury-sweep 2FA modal payload.
+
+    Returns ``None`` when the operator typed the magic word ``SWEEP``
+    AND the same amount they put in the slash command. On any failure,
+    returns a single-line, ephemeral-friendly error string explaining
+    which check failed.
+    """
+    if not is_magic_word_match(supplied=magic_word, expected="SWEEP"):
+        return "❌ Cancelled — expected to read `SWEEP` exactly."
+    re_typed = _parse_amount(amount_str)
+    if re_typed is None:
+        return f"❌ Cancelled — amount `{amount_str}` is not an integer."
+    if re_typed != expected_amount:
+        return (
+            f"❌ Cancelled — amount mismatch (typed {re_typed:,}, "
+            f"expected {expected_amount:,})."
+        )
+    return None
+
+
+def validate_treasury_withdraw_confirm(
+    *,
+    magic_word: str,
+    amount_str: str,
+    expected_amount: int,
+    user_id_str: str,
+    expected_user_id: int,
+) -> str | None:
+    """Validate the treasury-withdraw 2FA modal payload.
+
+    Same shape as :func:`validate_treasury_sweep_confirm` plus a
+    re-typed user id check — the operator MUST re-type the snowflake
+    of the recipient so a typo in the slash command can't move gold
+    to the wrong user. The magic word is ``TREASURY-WITHDRAW``.
+    """
+    if not is_magic_word_match(supplied=magic_word, expected="TREASURY-WITHDRAW"):
+        return "❌ Cancelled — expected to read `TREASURY-WITHDRAW` exactly."
+    re_typed_amount = _parse_amount(amount_str)
+    if re_typed_amount is None:
+        return f"❌ Cancelled — amount `{amount_str}` is not an integer."
+    if re_typed_amount != expected_amount:
+        return (
+            f"❌ Cancelled — amount mismatch (typed {re_typed_amount:,}, "
+            f"expected {expected_amount:,})."
+        )
+    try:
+        re_typed_user = int(user_id_str.strip())
+    except ValueError:
+        return f"❌ Cancelled — user id `{user_id_str}` is not numeric."
+    if re_typed_user != expected_user_id:
+        return (
+            "❌ Cancelled — user id mismatch (typed "
+            f"`{re_typed_user}`, expected `{expected_user_id}`)."
+        )
+    return None
+
+
 # ---------------------------------------------------------------------------
 # Confirmation modal — used by /confirm and treasury ops
 # ---------------------------------------------------------------------------
@@ -310,10 +389,132 @@ class EditDynamicEmbedModal(discord.ui.Modal, title="Edit guide"):
         await self._on_validated(interaction, payload)
 
 
+_TreasurySweepConfirmCallback = Callable[[discord.Interaction], Awaitable[None]]
+
+
+class TreasurySweepConfirmModal(discord.ui.Modal, title="Treasury sweep — confirm"):
+    """Two-input 2FA modal for ``/admin-treasury-sweep`` (Story 10.6).
+
+    The operator re-types the magic word ``SWEEP`` AND the amount they
+    just typed in the slash command. Mismatch on either input cancels
+    the sweep with a clear ephemeral; only when both pass does the
+    callback fire (which calls ``dw.treasury_sweep``).
+    """
+
+    magic_word_input: discord.ui.TextInput[discord.ui.Modal]
+    amount_input: discord.ui.TextInput[discord.ui.Modal]
+
+    def __init__(
+        self,
+        *,
+        expected_amount: int,
+        on_confirm: _TreasurySweepConfirmCallback,
+    ) -> None:
+        super().__init__()
+        self._expected_amount = expected_amount
+        self._on_confirm = on_confirm
+        self.magic_word_input = discord.ui.TextInput(
+            label="Type SWEEP to confirm",
+            placeholder="SWEEP",
+            required=True,
+            min_length=5,
+            max_length=8,
+        )
+        self.amount_input = discord.ui.TextInput(
+            label=f"Re-type amount ({expected_amount:,})",
+            placeholder=f"{expected_amount}",
+            required=True,
+            min_length=1,
+            max_length=20,
+        )
+        self.add_item(self.magic_word_input)
+        self.add_item(self.amount_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        err = validate_treasury_sweep_confirm(
+            magic_word=self.magic_word_input.value,
+            amount_str=self.amount_input.value,
+            expected_amount=self._expected_amount,
+        )
+        if err is not None:
+            await interaction.response.send_message(err, ephemeral=True)
+            return
+        await self._on_confirm(interaction)
+
+
+class TreasuryWithdrawConfirmModal(
+    discord.ui.Modal, title="Treasury withdraw-to-user — confirm"
+):
+    """Three-input 2FA modal for ``/admin-treasury-withdraw-to-user``.
+
+    The operator re-types the magic word ``TREASURY-WITHDRAW``, the
+    amount, AND the target user id. Re-typing the user id is the
+    extra guard against a slash-command-time autocomplete picking the
+    wrong user.
+    """
+
+    magic_word_input: discord.ui.TextInput[discord.ui.Modal]
+    amount_input: discord.ui.TextInput[discord.ui.Modal]
+    user_id_input: discord.ui.TextInput[discord.ui.Modal]
+
+    def __init__(
+        self,
+        *,
+        expected_amount: int,
+        expected_user_id: int,
+        on_confirm: _TreasurySweepConfirmCallback,
+    ) -> None:
+        super().__init__()
+        self._expected_amount = expected_amount
+        self._expected_user_id = expected_user_id
+        self._on_confirm = on_confirm
+        self.magic_word_input = discord.ui.TextInput(
+            label="Type TREASURY-WITHDRAW",
+            placeholder="TREASURY-WITHDRAW",
+            required=True,
+            min_length=17,
+            max_length=20,
+        )
+        self.amount_input = discord.ui.TextInput(
+            label=f"Re-type amount ({expected_amount:,})",
+            placeholder=f"{expected_amount}",
+            required=True,
+            min_length=1,
+            max_length=20,
+        )
+        self.user_id_input = discord.ui.TextInput(
+            label=f"Re-type recipient user id ({expected_user_id})",
+            placeholder=f"{expected_user_id}",
+            required=True,
+            min_length=10,
+            max_length=24,
+        )
+        self.add_item(self.magic_word_input)
+        self.add_item(self.amount_input)
+        self.add_item(self.user_id_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        err = validate_treasury_withdraw_confirm(
+            magic_word=self.magic_word_input.value,
+            amount_str=self.amount_input.value,
+            expected_amount=self._expected_amount,
+            user_id_str=self.user_id_input.value,
+            expected_user_id=self._expected_user_id,
+        )
+        if err is not None:
+            await interaction.response.send_message(err, ephemeral=True)
+            return
+        await self._on_confirm(interaction)
+
+
 __all__ = [
     "ConfirmTicketModal",
     "DepositModal",
     "EditDynamicEmbedModal",
+    "TreasurySweepConfirmModal",
+    "TreasuryWithdrawConfirmModal",
     "WithdrawModal",
     "is_magic_word_match",
+    "validate_treasury_sweep_confirm",
+    "validate_treasury_withdraw_confirm",
 ]

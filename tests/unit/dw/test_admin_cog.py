@@ -372,3 +372,67 @@ def test_admin_set_guide_commands_take_no_parameters() -> None:
     deposit_args, withdraw_args = asyncio.run(_exercise())
     assert deposit_args == 0
     assert withdraw_args == 0
+
+
+# ---------------------------------------------------------------------------
+# Story 10.6 — treasury-balance / treasury-sweep / treasury-withdraw-to-user
+# ---------------------------------------------------------------------------
+
+
+def test_admin_cog_registers_treasury_commands() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        return {cmd.name for cmd in cog.get_app_commands()}
+
+    names = asyncio.run(_exercise())
+    expected = {
+        "admin-treasury-balance",
+        "admin-treasury-sweep",
+        "admin-treasury-withdraw-to-user",
+    }
+    assert expected.issubset(names)
+
+
+def test_admin_treasury_balance_takes_no_parameters() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> int:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        cmd = next(c for c in cog.get_app_commands() if c.name == "admin-treasury-balance")
+        return len(cmd.parameters)
+
+    assert asyncio.run(_exercise()) == 0
+
+
+def test_admin_treasury_sweep_takes_amount_and_reason() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        cmd = next(c for c in cog.get_app_commands() if c.name == "admin-treasury-sweep")
+        return {p.name for p in cmd.parameters}
+
+    assert asyncio.run(_exercise()) == {"amount", "reason"}
+
+
+def test_admin_treasury_withdraw_takes_amount_user_reason() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        cmd = next(
+            c for c in cog.get_app_commands() if c.name == "admin-treasury-withdraw-to-user"
+        )
+        return {p.name for p in cmd.parameters}
+
+    assert asyncio.run(_exercise()) == {"amount", "user", "reason"}

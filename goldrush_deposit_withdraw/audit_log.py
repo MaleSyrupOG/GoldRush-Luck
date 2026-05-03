@@ -49,6 +49,9 @@ _ACTION_COLOR: dict[str, int] = {
     "user_unbanned": 0x5DBE5A,        # WIN green
     # Story 10.2 — config writes
     "config_changed": 0xF2B22A,       # GOLD
+    # Story 10.6 — treasury operations
+    "treasury_sweep": 0xF2B22A,       # GOLD
+    "treasury_withdraw_to_user": 0xC8511C,  # EMBER (admin moves money out of treasury)
 }
 
 
@@ -405,6 +408,56 @@ async def audit_user_unbanned(
 # ---------------------------------------------------------------------------
 
 
+async def audit_treasury_sweep(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    admin_mention: str,
+    amount: int,
+    new_balance: int,
+    reason: str,
+) -> None:
+    """Posted on every successful ``/admin-treasury-sweep`` (Story 10.6)."""
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="treasury_sweep",
+        title="🏦 Treasury sweep",
+        description=(
+            f"{admin_mention} swept **{amount:,}g** from the treasury. "
+            f"New balance: **{new_balance:,}g**. Reason: *{reason}*"
+        ),
+        actor_mention=admin_mention,
+        amount=amount,
+        extra_fields={"New treasury balance": f"{new_balance:,}g"},
+    )
+
+
+async def audit_treasury_withdraw_to_user(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    admin_mention: str,
+    target_mention: str,
+    amount: int,
+    reason: str,
+) -> None:
+    """Posted on every successful ``/admin-treasury-withdraw-to-user``."""
+    await post_audit_event(
+        pool=pool,
+        bot=bot,
+        action="treasury_withdraw_to_user",
+        title="🏦 Treasury withdraw to user",
+        description=(
+            f"{admin_mention} sent **{amount:,}g** from the treasury to "
+            f"{target_mention}. Reason: *{reason}*"
+        ),
+        actor_mention=admin_mention,
+        target_mention=target_mention,
+        amount=amount,
+    )
+
+
 async def audit_config_changed(
     *,
     pool: Executor,
@@ -448,6 +501,8 @@ __all__ = [
     "audit_ticket_claimed",
     "audit_ticket_confirmed",
     "audit_ticket_opened",
+    "audit_treasury_sweep",
+    "audit_treasury_withdraw_to_user",
     "audit_user_banned",
     "audit_user_unbanned",
     "post_audit_event",

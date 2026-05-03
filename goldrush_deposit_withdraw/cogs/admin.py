@@ -35,6 +35,8 @@ from goldrush_core.balance.dw_manager import (
     reject_dispute,
     resolve_dispute,
     set_cashier_status,
+    treasury_sweep,
+    treasury_withdraw_to_user,
     unban_user,
 )
 from goldrush_core.embeds.dw_tickets import (
@@ -51,6 +53,8 @@ from goldrush_deposit_withdraw.audit_log import (
     audit_force_cancel_ticket,
     audit_force_cashier_offline,
     audit_force_close_thread,
+    audit_treasury_sweep,
+    audit_treasury_withdraw_to_user,
     audit_user_banned,
     audit_user_unbanned,
 )
@@ -67,7 +71,11 @@ from goldrush_deposit_withdraw.setup.global_config_writer import (
     persist_config_int,
     persist_role_ids,
 )
-from goldrush_deposit_withdraw.views.modals import EditDynamicEmbedModal
+from goldrush_deposit_withdraw.views.modals import (
+    EditDynamicEmbedModal,
+    TreasurySweepConfirmModal,
+    TreasuryWithdrawConfirmModal,
+)
 from goldrush_deposit_withdraw.welcome import (
     reconcile_welcome_embeds,
     update_dynamic_embed_content,
@@ -1083,6 +1091,202 @@ class AdminCog(commands.Cog):
             actor_id=interaction.user.id,
             bps=bps,
         )
+
+    # -----------------------------------------------------------------------
+    # Story 10.6: /admin-treasury-balance, /admin-treasury-sweep,
+    # /admin-treasury-withdraw-to-user — 2FA-gated treasury operations.
+    # -----------------------------------------------------------------------
+
+    @app_commands.command(
+        name="admin-treasury-balance",
+        description="Show the bot's tracked treasury balance (gold).",
+    )
+    async def treasury_balance_cmd(self, interaction: discord.Interaction) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        # The treasury seed row is core.balances WHERE discord_id=0
+        # (created by migration 0001). On first deposit nothing changes
+        # there; treasury accumulates withdraw fees via dw.confirm_withdraw.
+        balance = await bot.pool.fetchval(
+            "SELECT balance FROM core.balances WHERE discord_id = 0"
+        )
+        if balance is None:
+            await interaction.response.send_message(
+                "❌ Treasury seed row missing — escalate to ops.",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            f"🏦 Treasury balance: **{int(balance):,}g**.\n"
+            f"_Note: actual gold lives in the in-game guild bank; "
+            f"this is the bot's accounting view._",
+            ephemeral=True,
+        )
+
+    @app_commands.command(
+        name="admin-treasury-sweep",
+        description="Record a sweep of gold OUT of the treasury (2FA-gated).",
+    )
+    @app_commands.describe(
+        amount="Amount in gold to remove from the bot's treasury accounting.",
+        reason="Why the sweep happened (visible in audit log).",
+    )
+    async def treasury_sweep_cmd(
+        self,
+        interaction: discord.Interaction,
+        amount: int,
+        reason: str,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        if amount <= 0:
+            await interaction.response.send_message(
+                "❌ Amount must be a positive integer.",
+                ephemeral=True,
+            )
+            return
+
+        async def _on_confirm(inner: discord.Interaction) -> None:
+            assert bot.pool is not None
+            try:
+                new_balance = await treasury_sweep(
+                    bot.pool,
+                    amount=amount,
+                    admin_id=inner.user.id,
+                    reason=reason,
+                )
+            except exc.InsufficientTreasury:
+                await inner.response.send_message(
+                    "❌ Treasury has less than the requested amount.",
+                    ephemeral=True,
+                )
+                return
+            except exc.BalanceError as e:
+                await inner.response.send_message(
+                    f"❌ Sweep failed: {e.message}",
+                    ephemeral=True,
+                )
+                return
+            await inner.response.send_message(
+                f"✅ Swept **{amount:,}g**. New treasury balance: "
+                f"**{int(new_balance):,}g**.",
+                ephemeral=True,
+            )
+            await audit_treasury_sweep(
+                pool=bot.pool,
+                bot=bot,
+                admin_mention=inner.user.mention,
+                amount=amount,
+                new_balance=int(new_balance),
+                reason=reason,
+            )
+            _log.info(
+                "admin_treasury_sweep",
+                actor_id=inner.user.id,
+                amount=amount,
+                reason=reason,
+            )
+
+        modal = TreasurySweepConfirmModal(
+            expected_amount=amount,
+            on_confirm=_on_confirm,
+        )
+        await interaction.response.send_modal(modal)
+
+    @app_commands.command(
+        name="admin-treasury-withdraw-to-user",
+        description="Move gold from the treasury to a real user (2FA-gated).",
+    )
+    @app_commands.describe(
+        amount="Amount in gold to send.",
+        user="The recipient.",
+        reason="Why (e.g., refund / dispute resolution).",
+    )
+    async def treasury_withdraw_to_user_cmd(
+        self,
+        interaction: discord.Interaction,
+        amount: int,
+        user: discord.User,
+        reason: str,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        if amount <= 0:
+            await interaction.response.send_message(
+                "❌ Amount must be a positive integer.",
+                ephemeral=True,
+            )
+            return
+        if user.id == 0:
+            await interaction.response.send_message(
+                "❌ Cannot target the treasury seed row.",
+                ephemeral=True,
+            )
+            return
+
+        async def _on_confirm(inner: discord.Interaction) -> None:
+            assert bot.pool is not None
+            try:
+                await treasury_withdraw_to_user(
+                    bot.pool,
+                    amount=amount,
+                    target_user=user.id,
+                    admin_id=inner.user.id,
+                    reason=reason,
+                )
+            except exc.InsufficientTreasury:
+                await inner.response.send_message(
+                    "❌ Treasury has less than the requested amount.",
+                    ephemeral=True,
+                )
+                return
+            except exc.BalanceError as e:
+                await inner.response.send_message(
+                    f"❌ Withdraw failed: {e.message}",
+                    ephemeral=True,
+                )
+                return
+            await inner.response.send_message(
+                f"✅ Sent **{amount:,}g** from treasury to {user.mention}.",
+                ephemeral=True,
+            )
+            await audit_treasury_withdraw_to_user(
+                pool=bot.pool,
+                bot=bot,
+                admin_mention=inner.user.mention,
+                target_mention=user.mention,
+                amount=amount,
+                reason=reason,
+            )
+            _log.info(
+                "admin_treasury_withdraw_to_user",
+                actor_id=inner.user.id,
+                target_id=user.id,
+                amount=amount,
+                reason=reason,
+            )
+
+        modal = TreasuryWithdrawConfirmModal(
+            expected_amount=amount,
+            expected_user_id=user.id,
+            on_confirm=_on_confirm,
+        )
+        await interaction.response.send_modal(modal)
 
     async def _handle_set_pair(
         self,
