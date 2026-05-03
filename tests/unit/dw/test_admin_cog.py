@@ -374,6 +374,22 @@ def test_admin_set_guide_commands_take_no_parameters() -> None:
     assert withdraw_args == 0
 
 
+def test_admin_cog_registers_set_cashier_onboarding_guide() -> None:
+    """A third dynamic-embed guide command, mirroring the deposit /
+    withdraw pair so admins edit cashier onboarding copy via the same
+    modal flow without falling back to SQL."""
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        return {cmd.name for cmd in cog.get_app_commands()}
+
+    names = asyncio.run(_exercise())
+    assert "admin-set-cashier-guide" in names
+
+
 # ---------------------------------------------------------------------------
 # Story 10.6 — treasury-balance / treasury-sweep / treasury-withdraw-to-user
 # ---------------------------------------------------------------------------

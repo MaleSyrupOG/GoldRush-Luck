@@ -141,10 +141,26 @@ class _FakePool:
 
 
 def test_default_welcomes_covers_canonical_keys() -> None:
-    """Spec §5.6: ``how_to_deposit`` and ``how_to_withdraw`` are the
-    two canonical dynamic embeds the bot renders on startup."""
+    """Spec §5.6: ``how_to_deposit``, ``how_to_withdraw``, and
+    ``cashier_onboarding`` are the canonical dynamic embeds the bot
+    renders on startup. Cashier onboarding was added later so new
+    cashiers get a procedure cheatsheet without an admin having to
+    paste it manually every time the channel is provisioned."""
     keys = {w.embed_key for w in DEFAULT_WELCOMES}
-    assert keys == {"how_to_deposit", "how_to_withdraw"}
+    assert keys == {"how_to_deposit", "how_to_withdraw", "cashier_onboarding"}
+
+
+def test_cashier_onboarding_default_mentions_anti_phishing_rule() -> None:
+    """The single most-important rule cashiers must internalize is the
+    anti-phishing one: they NEVER initiate the trade. The default copy
+    must bake this in so new cashiers see it on first walk-through."""
+    onboarding = next(
+        w for w in DEFAULT_WELCOMES if w.embed_key == "cashier_onboarding"
+    )
+    text = (onboarding.title + " " + onboarding.description).lower()
+    # Either phrasing satisfies — we keep flexibility for future copy
+    # tweaks, but one of them must be present.
+    assert "never" in text and ("trade" in text or "approach" in text)
 
 
 def test_welcome_default_is_frozen() -> None:
@@ -367,11 +383,13 @@ def test_orchestrator_processes_every_default() -> None:
         config={
             "channel_id_how_to_deposit": 100,
             "channel_id_how_to_withdraw": 200,
+            "channel_id_cashier_onboarding": 300,
         },
     )
     channels = {
         100: _FakeChannel(channel_id=100),
         200: _FakeChannel(channel_id=200),
+        300: _FakeChannel(channel_id=300),
     }
     bot = _FakeBot(channels=channels)
 
@@ -382,8 +400,12 @@ def test_orchestrator_processes_every_default() -> None:
         )
 
     outcomes = asyncio.run(_exercise())
-    assert {o.embed_key for o in outcomes} == {"how_to_deposit", "how_to_withdraw"}
-    # Both posted on first run.
+    assert {o.embed_key for o in outcomes} == {
+        "how_to_deposit",
+        "how_to_withdraw",
+        "cashier_onboarding",
+    }
+    # All three posted on first run.
     assert all(o.action == "posted" for o in outcomes)
 
 

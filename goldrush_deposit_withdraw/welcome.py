@@ -90,6 +90,49 @@ DEFAULT_WELCOMES: tuple[WelcomeDefault, ...] = (
             "in-game is shown up front before you confirm."
         ),
     ),
+    # Cashier-facing onboarding cheatsheet. Lives in the staff-only
+    # ``#cashier-onboarding`` channel (provisioned by ``/admin-setup``
+    # under the Cashier category). The text is structured as a numbered
+    # walkthrough so a brand-new cashier can run their first ticket
+    # end-to-end without anyone having to walk them through it.
+    WelcomeDefault(
+        embed_key="cashier_onboarding",
+        title="Welcome — cashier onboarding",
+        description=(
+            "**1. Register your characters.** Run "
+            "``/cashier-add-character`` for each WoW char + realm + "
+            "region + faction you can trade from. The bot uses this "
+            "list to match you with tickets your characters can "
+            "actually fulfil.\n\n"
+            "**2. Set yourself online.** Run ``/cashier-online`` "
+            "before claiming. The roster in ``#online-cashiers`` "
+            "updates within 30 s. Use ``/cashier-break`` for a short "
+            "AFK and ``/cashier-offline`` when you're done — the bot "
+            "auto-offlines anyone idle >1 h.\n\n"
+            "**3. Claim a ticket.** When ``#cashier-alerts`` pings, "
+            "open the linked ticket channel and run ``/claim``. You "
+            "have 30 min of typing/clicking activity before the bot "
+            "auto-releases the ticket back to the queue, and a 2 h "
+            "hard cap on holding it.\n\n"
+            "**4. Trade in-game.** "
+            "**You NEVER send the trade request first — the user "
+            "approaches you.** This is the anti-phishing rule the "
+            "user-facing copy holds them to; it works only if you "
+            "honour it. Confirm the user's character matches what "
+            "they typed in the ticket before accepting any trade.\n\n"
+            "**5. Run /confirm.** After the in-game trade settles, "
+            "``/confirm`` in the ticket channel closes the ticket and "
+            "credits / deducts the user's bot balance. ``/release`` "
+            "hands the ticket back to the queue if you cannot "
+            "complete it; ``/cancel`` is for when the user explicitly "
+            "calls it off.\n\n"
+            "**6. Disputes.** If something goes wrong (gold sent and "
+            "the user denies it, partial trade, etc.), DO NOT cancel "
+            "or confirm. Open a ticket in the support channel and "
+            "ping ``@admin`` — they'll open a ``/admin-dispute-open`` "
+            "and the case lands in ``#disputes`` for tracking."
+        ),
+    ),
 )
 
 

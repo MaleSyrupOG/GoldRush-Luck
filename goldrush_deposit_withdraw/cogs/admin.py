@@ -1022,6 +1022,17 @@ class AdminCog(commands.Cog):
             interaction=interaction, embed_key="how_to_withdraw"
         )
 
+    @app_commands.command(
+        name="admin-set-cashier-guide",
+        description="Edit the #cashier-onboarding welcome embed.",
+    )
+    async def set_cashier_onboarding_guide_cmd(
+        self, interaction: discord.Interaction
+    ) -> None:
+        await self._open_dynamic_embed_modal(
+            interaction=interaction, embed_key="cashier_onboarding"
+        )
+
     async def _open_dynamic_embed_modal(
         self,
         *,
