@@ -2,12 +2,14 @@
 
 | Field | Value |
 |---|---|
-| **Document version** | 1.0 |
-| **Date** | 2026-04-29 |
+| **Document version** | 1.1 |
+| **Date originally locked** | 2026-04-29 |
+| **Date v1.1 bumped** | 2026-05-04 |
 | **Author** | Aleix |
 | **Repository** | <https://github.com/MaleSyrupOG/DeathRoll> (monorepo) |
-| **Status** | Locked — ready for implementation planning |
+| **Status** | Locked — implementation complete (v1.0.0 shipped 2026-05-03); v1.1 documents post-implementation reality |
 | **Companion specs** | `2026-04-29-deathroll-luck-v1-design.md` (sister bot, currently paused) |
+| **v1.1 changelog** | See §13 below — private channels supersede private threads; `GRD-XXXX` UID format documented |
 
 ---
 
@@ -20,7 +22,7 @@ The bot mediates between two worlds:
 1. **The Discord world**, where users hold a numeric `core.balances.balance` they can spend in the Luck bot's games.
 2. **The World of Warcraft world**, where the actual gold lives in a guild bank controlled by the operator (Aleix). Real value is moved by **cashiers** — trusted humans with the `@cashier` role — who execute trades inside the game and confirm them through the bot.
 
-The bot ships with full deposit and withdraw flows, a private-thread-based ticket system, cashier online/offline tracking, automated timeouts and refunds, dispute management, treasury accounting, and an `/admin setup` command that bootstraps the entire channel structure on first install.
+The bot ships with full deposit and withdraw flows, a private-channel-based ticket system (see §5.4 and §13.1 — v1.1 supersedes the original "private threads" decision), cashier online/offline tracking, automated timeouts and refunds, dispute management, treasury accounting, and an `/admin setup` command that bootstraps the entire channel structure on first install.
 
 The design priorities, in order, are: **balance integrity** (no balance ever becomes negative; no gold ever materialises out of nothing or vanishes silently), **operational verifiability** (every cashier action is auditable and tied to a Discord identity with 2FA-style confirmation), **isolation from the games bot** (a compromise of Luck cannot mint gold; a compromise of D/W cannot manipulate game outcomes).
 
@@ -28,11 +30,11 @@ The design priorities, in order, are: **balance integrity** (no balance ever bec
 
 ### 1.1. Goals (v1)
 
-1. `/deposit` flow: user → modal → private thread → cashier `/claim` → in-game trade → cashier `/confirm` → `core.users` row created if needed + balance credited.
-2. `/withdraw` flow: user → modal → balance locked → private thread → cashier `/claim` → in-game trade of `amount − fee` to user → cashier `/confirm` → fee credited to treasury.
+1. `/deposit` flow: user → modal → private channel → cashier `/claim` → in-game trade → cashier `/confirm` → `core.users` row created if needed + balance credited.
+2. `/withdraw` flow: user → modal → balance locked → private channel → cashier `/claim` → in-game trade of `amount − fee` to user → cashier `/confirm` → fee credited to treasury.
 3. Stateless WoW-identity capture: every modal asks character, realm, region, faction, amount; nothing is persisted on the user side.
 4. Cashier lifecycle: registration of WoW characters, online/offline/break status, FCFS ticket claim, audited cancellation, accountability stats.
-5. Private-thread tickets in dedicated parent channels; thread auto-archives on resolution; permission model isolates user privacy while allowing cashiers to claim.
+5. Private-channel tickets under the `Banking` category; channel archives on resolution; permission model isolates user privacy while allowing cashiers to claim. (v1.1 supersedes the original "private threads" decision — see §5.4 and §13.1.)
 6. Background workers for ticket timeouts (24h open, 30m claim idle, 2h claim total), cashier inactivity, online-cashiers embed refresh, audit chain verification.
 7. Dispute system for admin investigation and resolution of contested tickets.
 8. Treasury accounting: fees accumulate in `core.balances[discord_id=0]`; admins periodically physically retrieve gold from the in-game guild bank and reconcile via `/admin treasury-sweep`.
@@ -687,11 +689,29 @@ Idempotent admin command that creates the `Banking` and `Cashier` categories plu
 
 The command persists every channel's ID into `dw.global_config` so subsequent runs detect existing channels and reuse them.
 
-### 5.4. Private thread management
+### 5.4. Private channel management (v1.1 — supersedes the v1.0 "private threads" decision)
 
-Threads are created via `discord.TextChannel.create_thread(type=ChannelType.private_thread, invitable=False)` from the `#deposit` or `#withdraw` parent. The user is added explicitly; `@cashier` role members see the thread because they have `View Private Threads` on the parent channel.
+Tickets live in **private channels** under the `Banking` category, not private threads. Each ticket is a fresh `discord.TextChannel` created with three explicit permission overwrites: the ticket owner (read+send), the `@cashier` role (read+send), the `@admin` role (read+send), and `@everyone` denied. Channel name format: `<type>-grd-<4-char>` (e.g., `#deposit-grd-a1b2`).
 
-`auto_archive_duration=1440` (24h) is a backup; our workers archive the thread immediately on `confirm`, `cancel`, or `expired`. Archived threads remain visible for audit; they are never deleted.
+The `<4-char>` component is the canonical UID slug: 4 base36 characters (`0-9A-Z`), per §5.4.1 below.
+
+On resolution (confirm or cancel), the channel is archived in place via permission-overwrite update (read-only mode; `@everyone` stays denied; the user keeps read access for audit-history purposes; cashier and admin keep read access). The channel is NOT deleted — the audit-trail value of preserving the conversation outweighs the cost of the channel-list entry.
+
+The original v1.0 spec called for private threads. The implementation diverged for the reasons captured in ADR 0013 (mobile UX, permission granularity, operator memory continuity, search & history). v1.1 is the spec catching up to the implementation.
+
+#### 5.4.1. UID format — `GRD-XXXX`
+
+Tickets use a 4-character base36 slug rendered as `GRD-XXXX`. The `GRD-` prefix is short for "GoldRush Deposit" (a relic of the platform's original name; preserved deliberately for operator-memory continuity post-rename). The 4-char namespace gives `36^4 = 1 679 616` possible values. Uniqueness is enforced via the `dw.deposit_tickets.uid_slug` and `dw.withdraw_tickets.uid_slug` columns; collisions (extremely rare) trigger a deterministic re-roll inside the create-ticket SDF.
+
+The slug is used:
+
+- As the channel name suffix (`#deposit-grd-a1b2`).
+- As the canonical ticket reference in the audit log (`target_ref = 'GRD-A1B2'`).
+- In every embed title and slash command argument (`/cancel-mine ticket:GRD-A1B2`).
+
+#### 5.4.2. The `discord_channel_id` column
+
+The schema column on `dw.*_tickets` is named `thread_id` for v1.0 historical reasons. It stores a `BIGINT` Discord id; the value is now a channel id, not a thread id. Renaming the column to `discord_channel_id` is a future migration; until then the column is referred to as "the Discord id of the ticket conversation" in code comments and log payloads. v1.1 documents the misnomer; v1.x will rename it.
 
 ### 5.5. Modals
 
@@ -972,7 +992,7 @@ docs/
 | # | Decision | Locked in |
 |---|---|---|
 | 1 | Scope: deposit + withdraw symmetric in v1 | §1.1 |
-| 2 | Tickets via private threads in `#deposit` and `#withdraw` parent channels | §5.4 |
+| 2 | ~~Tickets via private threads in `#deposit` and `#withdraw` parent channels~~ → **v1.1**: Tickets via private channels under the `Banking` category, named `<type>-grd-<4char>` per §5.4.1 | §5.4 (v1.1) |
 | 3 | Stateless modal: char/realm/region/faction/amount each time, no persistence per user | §5.5 |
 | 4 | WoW retail only; EU and NA regions only | §1.2 |
 | 5 | Region is a hard filter for cashier–ticket compatibility; faction is informational only | §3.2, §3.3 (`dw.claim_ticket`) |
@@ -1002,7 +1022,7 @@ docs/
 | Term | Meaning |
 |---|---|
 | Cashier | Discord member with the `@cashier` role, responsible for executing in-game trades |
-| Ticket | A deposit or withdraw operation tracked by a private Discord thread + a row in `dw.deposit_tickets` or `dw.withdraw_tickets` |
+| Ticket | A deposit or withdraw operation tracked by a private Discord channel (v1.1; was thread in v1.0) + a row in `dw.deposit_tickets` or `dw.withdraw_tickets`, identified by a `GRD-XXXX` UID slug |
 | Treasury | The system account at `core.balances[discord_id=0]` that holds accumulated fee revenue (accounting record; the actual gold is in the in-game guild bank) |
 | Treasury sweep | The act of an admin physically removing gold from the guild bank and reconciling the bot's records via `/admin treasury-sweep` |
 | Locked balance | Gold reserved against an in-flight withdraw; subtracted from `balance` and added to `locked_balance`; finalised as a deduction at `confirm` or refunded at `cancel`/`expire` |
@@ -1018,7 +1038,7 @@ docs/
 |---|---|---|
 | D/W is the economic frontier; only role with INSERT/UPDATE on core.users/balances | §2.2, §3.1 | Defence in depth; isolates Luck from money-creation paths |
 | Stateless WoW identity capture | §1.2, §5.5 | Reduces PII storage; simplifies model |
-| Private Discord threads for tickets | §5.4 | Native Discord, clean lifecycle, auto-archive |
+| Private Discord channels for tickets (v1.1; was threads in v1.0) | §5.4 | Mobile UX, permission granularity, operator memory continuity; see ADR 0013 |
 | Region as hard filter, faction as informational | §3.3 | Retail allows cross-faction trading; cross-region is technically impossible |
 | FCFS claim among online cashiers | §5.1, §3.3 | Simple, fair, low overhead |
 | 5-field deposit/withdraw modal | §5.5 | Within Discord limits; pydantic-validated; exact integer amount |
@@ -1033,6 +1053,57 @@ docs/
 | No multi-account detection in v1 | §1.2 | Explicit project decision; documented gap |
 | No partial completions | §1.2 | Reduces complexity; rare cases handled via dispute |
 | Aleix as sole author | throughout | Project authorship rule; enforced in commits, docs, embeds, PDFs |
+
+---
+
+## 13. v1.0 → v1.1 changelog
+
+v1.1 is a documentation-only bump — no behaviour changes since the live v1.0.0 deploy on 2026-05-03. The bump exists to make the spec match implementation reality after the gaps that surfaced during construction were resolved.
+
+### 13.1. Private channels supersede private threads (§5.4)
+
+The original spec called for private threads under `#deposit` / `#withdraw` parent channels. The implementation diverged to private channels under the `Banking` category, named `<type>-grd-<4char>`. Reasons for the change are captured in **ADR 0013** (mobile UX rendering, permission granularity, operator memory continuity from the pre-bot manual flow, search & history mechanics, the absence of `view_private_threads` as a discrete permission constant in discord.py 2.4.0).
+
+This affects:
+
+- §0 executive summary (text updated).
+- §1.1 row 1, 2, 5 (text updated).
+- §5.4 (full subsection rewritten; the v1.0 text is preserved in the section opener for traceability).
+- §10 row 2 (locked decisions log; v1.0 line struck-through with v1.1 superseding line beneath).
+- §11 glossary "Ticket" entry (text updated).
+- §12 cross-reference decision log (text updated; ADR 0013 referenced).
+
+### 13.2. `GRD-XXXX` UID format documented (§5.4.1)
+
+The implementation uses `GRD-XXXX` (4-char base36) ticket UID slugs throughout. This was inherited from Aleix's pre-bot manual deposit/withdraw process (the GRD- prefix was short for "GoldRush Deposit" — preserved post-rename for operator memory continuity). The spec now formally documents this format under the new §5.4.1 subsection.
+
+### 13.3. The `thread_id` column is a misnomer (§5.4.2)
+
+The `dw.deposit_tickets.thread_id` and `dw.withdraw_tickets.thread_id` columns store Discord channel ids, not thread ids. The column name is preserved for v1.0 backward compatibility (no migration required at the rename). v1.x will rename to `discord_channel_id`. The misnomer is documented under the new §5.4.2 subsection so future readers understand it.
+
+### 13.4. ADRs 0011-0017 written
+
+The seven D/W decisions enumerated in §9 of the v1.0 spec were each written up as a formal ADR during the Story 13.2 documentation pass:
+
+- ADR 0011 — D/W as the economic frontier
+- ADR 0012 — Stateless deposit/withdraw modal
+- ADR 0013 — Private channels for tickets (the v1.1 change driver)
+- ADR 0014 — Cashier online status as bot-state, not Discord presence
+- ADR 0015 — Treasury as `core.balances[discord_id=0]`
+- ADR 0016 — 2FA modals for money operations
+- ADR 0017 — `/admin-setup` channel auto-creation
+
+Each ADR follows the project template and references the corresponding spec section.
+
+### 13.5. What is NOT changed in v1.1
+
+- No new SECURITY DEFINER fns.
+- No DB schema changes.
+- No new slash commands.
+- No new metrics or alert rules.
+- No new permissions or intents.
+
+A re-deploy of the live `deathroll-dw` is NOT required for v1.1. The bump is purely documentation.
 
 ---
 
