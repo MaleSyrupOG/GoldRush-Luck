@@ -449,18 +449,40 @@ class AdminCog(commands.Cog):
         thread: discord.Thread,
         reason: str,
     ) -> None:
+        # Acknowledge the interaction FIRST. We're about to archive
+        # ``thread``; if the slash command was invoked from inside
+        # that thread, archiving cuts off the response channel and
+        # any later ``send_message`` 403s with "Thread is archived"
+        # (Discord error 50083). The user sees "interacción fallida"
+        # even though the archive itself worked. Sending the ack now,
+        # while the thread is still open, breaks the race.
+        await interaction.response.send_message(
+            f"⏳ Archiving {thread.mention}...",
+            ephemeral=True,
+        )
+
         try:
             await thread.edit(archived=True, reason=f"admin force: {reason}")
         except Exception as e:
-            await interaction.response.send_message(
-                f"❌ Could not archive: {e}",
-                ephemeral=True,
-            )
+            # Best-effort error surface: edit the ephemeral we just
+            # sent. If the edit itself races with the archive (which
+            # may have partially succeeded), log + move on so the
+            # operator at least sees the "Archiving..." pending state.
+            try:
+                await interaction.edit_original_response(
+                    content=f"❌ Could not archive: {e}",
+                )
+            except Exception as edit_err:
+                _log.warning(
+                    "force_close_thread_edit_response_failed",
+                    error=str(edit_err),
+                    archive_error=str(e),
+                )
             return
-        await interaction.response.send_message(
-            f"✅ Archived {thread.mention}. Reason: {reason}",
-            ephemeral=True,
-        )
+
+        # Audit-log post goes to #audit-log (NOT the now-archived
+        # thread), so it always works regardless of where the slash
+        # command was invoked from.
         bot: DwBot = self.bot  # type: ignore[assignment]
         if bot.pool is not None:
             await audit_force_close_thread(
@@ -470,6 +492,22 @@ class AdminCog(commands.Cog):
                 thread_mention=thread.mention,
                 reason=reason,
             )
+
+        # Try to update the ephemeral with the success message.
+        # Best-effort: the archive + audit row are the source of
+        # truth, so a failure here is logged-and-swallowed (the
+        # operator already saw the "Archiving..." ack).
+        try:
+            await interaction.edit_original_response(
+                content=f"✅ Archived {thread.mention}. Reason: {reason}",
+            )
+        except Exception as edit_err:
+            _log.info(
+                "force_close_thread_post_archive_edit_failed",
+                note="archive + audit succeeded; ack edit failed",
+                error=str(edit_err),
+            )
+
         _log.info(
             "admin_force_close_thread",
             actor_id=interaction.user.id,
