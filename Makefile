@@ -1,4 +1,4 @@
-# GoldRush — developer Makefile
+# DeathRoll — developer Makefile
 # Run `make help` to see available targets.
 
 .PHONY: help setup lint format type audit test test-unit test-integration test-property test-e2e \
@@ -6,7 +6,7 @@
         run-dev-luck run-dev-dw migrate-up migrate-down clean
 
 help:
-	@echo "GoldRush — developer targets"
+	@echo "DeathRoll — developer targets"
 	@echo ""
 	@echo "  setup              install dependencies via uv"
 	@echo "  lint               ruff check"
@@ -18,10 +18,10 @@ help:
 	@echo "  test-integration   integration tests (needs Postgres)"
 	@echo "  test-property      hypothesis property tests"
 	@echo "  test-e2e           end-to-end tests (Discord sandbox)"
-	@echo "  test-luck-unit     unit tests scoped to goldrush_luck"
-	@echo "  test-luck-integration  integration tests scoped to goldrush_luck"
-	@echo "  test-dw-unit       unit tests scoped to goldrush_deposit_withdraw"
-	@echo "  test-dw-integration    integration tests scoped to goldrush_deposit_withdraw"
+	@echo "  test-luck-unit     unit tests scoped to deathroll_luck"
+	@echo "  test-luck-integration  integration tests scoped to deathroll_luck"
+	@echo "  test-dw-unit       unit tests scoped to deathroll_deposit_withdraw"
+	@echo "  test-dw-integration    integration tests scoped to deathroll_deposit_withdraw"
 	@echo "  test-cross-bot     cross-bot integration tests"
 	@echo "  run-dev-luck       run the Luck bot in dev mode"
 	@echo "  run-dev-dw         run the D/W bot in dev mode"
@@ -39,7 +39,7 @@ format:
 	uv run ruff format .
 
 type:
-	uv run mypy --strict goldrush_core goldrush_luck goldrush_deposit_withdraw
+	uv run mypy --strict deathroll_core deathroll_luck deathroll_deposit_withdraw
 
 audit:
 	uv run pip-audit --strict
@@ -76,10 +76,10 @@ test-cross-bot:
 	uv run pytest tests/integration/cross_bot -v
 
 run-dev-luck:
-	uv run python -m goldrush_luck
+	uv run python -m deathroll_luck
 
 run-dev-dw:
-	uv run python -m goldrush_deposit_withdraw
+	uv run python -m deathroll_deposit_withdraw
 
 migrate-up:
 	uv run alembic -c ops/alembic/alembic.ini upgrade head
