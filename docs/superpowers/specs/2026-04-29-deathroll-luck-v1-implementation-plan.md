@@ -6,8 +6,69 @@
 | **Date** | 2026-04-29 |
 | **Author** | Aleix |
 | **Repository** | <https://github.com/MaleSyrupOG/DeathRoll> |
-| **Status** | Active — drives implementation work |
+| **Status** | Active — drives implementation work (resumed 2026-05-04 after the D/W bot v1.0.0 shipped) |
 | **Source of truth for design** | `2026-04-29-deathroll-luck-v1-design.md` (this plan implements that spec) |
+
+---
+
+## 0. How to read this document
+
+> **Conventions and the DoD are identical to the D/W plan**. This plan was paused on 2026-04-29 while the D/W bot was built; resumed on 2026-05-04 once dw-v1.0.0 shipped. See `docs/sessions/2026-04-29_to_2026-05-03-session-log.md` for the D/W history.
+
+### Current state (resumed 2026-05-04)
+
+| Field | Value |
+|---|---|
+| **Active phase** | Phase 1 — Foundation (Epic 1; mostly inherited from D/W work) |
+| **Active epic** | Epic 1 — Foundation. Stories 1.1, 1.2, 1.3, 1.4 done as a side-effect of the D/W monorepo work; Story 1.5 (doc skeleton) closed 2026-05-04. |
+| **Active story** | Epic 2 next — DB foundation (Luck-specific schemas + roles + audit-log integration). |
+| **Last commit** | _(updated as work lands)_ |
+| **Next milestone** | First playable game (Coinflip — Epic 6.1) on a staging guild. |
+| **Overall progress** | 5 / 5 Epic 1 stories done · 0 / 15 Epic 2-15 epics started |
+
+### Epic-level status
+
+| Epic | Title | Status | Stories Done |
+|---|---|---|---|
+| 1 | Foundation and repo setup | ✅ Done | 5 / 5 |
+| 2 | Database foundation | Pending (next) | 0 / TBD |
+| 3 | Core services & models | Pending | 0 / TBD |
+| 4 | Bot skeleton | Pending | 0 / TBD |
+| 5 | (Phase 2) Bot skeleton consolidation | Pending | 0 / TBD |
+| 6 | Game catalogue (per-game subepics) | Pending | 0 / TBD |
+| 7 | Raffle | Pending | 0 / TBD |
+| 8 | Provably fair + verifier | Pending | 0 / TBD |
+| 9 | Account / balance UX | Pending | 0 / TBD |
+| 10 | Leaderboard | Pending | 0 / TBD |
+| 11 | Admin commands | Pending | 0 / TBD |
+| 12 | Observability | Pending | 0 / TBD |
+| 13 | Operations and deploy | Pending | 0 / TBD |
+| 14 | Documentation final pass | Pending | 0 / TBD |
+| 15 | Production verification and launch | Pending | 0 / TBD |
+
+### Epic 1 inheritance from D/W work
+
+Epic 1's five foundation stories were either built directly during D/W (Stories 1.1, 1.2, 1.3, 1.4) or batched alongside Epic 13 D/W documentation (Story 1.5):
+
+| Story | What | Where it landed |
+|---|---|---|
+| 1.1 — Git repo | `main` branch initialised, remote `origin` set to `MaleSyrupOG/DeathRoll` | D/W initial commit `85de88a` (renamed from GoldRush-Luck on 2026-05-03) |
+| 1.2 — Python toolchain (uv, Makefile) | `pyproject.toml` + `uv.lock` + `Makefile` targets | D/W foundation; verified clean by D/W CI |
+| 1.3 — CI pipeline | `.github/workflows/ci.yml` with ruff + mypy strict + pip-audit + tests + coverage gates | D/W foundation; coverage gates per module |
+| 1.4 — Monorepo skeleton | `deathroll_luck/{games,raffle,leaderboard,admin,account,fairness,views}/__init__.py` empty modules + `tests/{unit,integration,property,e2e}/` exist | Verified empirically by `find deathroll_luck -name __init__.py` on 2026-05-04 |
+| 1.5 — Documentation skeleton | 7 top-level docs created as outlines (`architecture`, `provably-fair`, `dr-plan`, `release-process`, `secrets-rotation`, `responsible-gambling`, `onboarding`); 10 game stubs in `docs/games/`; 3 API outlines in `docs/api/`; verifier README in `docs/verifier/` | Closed 2026-05-04 alongside Epic 13 D/W docs |
+
+### Decision log additions during implementation
+
+| Date | Story | Decision | ADR |
+|---|---|---|---|
+| _none yet_ | | | |
+
+### Blockers and notes
+
+| Date | Note |
+|---|---|
+| 2026-05-04 | Plan resumed after D/W shipped. Epic 1 inheritance from D/W means we start at Epic 2 (DB foundation) for net-new Luck work. |
 
 ---
 
