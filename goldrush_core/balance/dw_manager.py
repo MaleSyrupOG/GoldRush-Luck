@@ -606,3 +606,27 @@ async def unban_user(
         )
     except asyncpg.RaiseError as e:
         raise translate_pg_error(e) from e
+
+
+# ---------------------------------------------------------------------------
+# Audit log read (migration 0018_core_list_audit_events) — Story 10.8
+# ---------------------------------------------------------------------------
+
+
+async def list_audit_events(
+    conn: Executor,
+    *,
+    target_id: int | None,
+    limit: int = 25,
+) -> list[dict[str, object]]:
+    """List recent ``core.audit_log`` rows. Filters by ``target_id`` if set.
+
+    The SECURITY DEFINER fn caps ``limit`` at 100; passing a larger
+    value silently clamps. ``target_id=None`` returns the global tail.
+    """
+    rows = await conn.fetch(
+        "SELECT * FROM core.list_audit_events($1, $2)",
+        target_id,
+        limit,
+    )
+    return [dict(r) for r in rows]

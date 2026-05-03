@@ -26,6 +26,7 @@ from goldrush_core.embeds.dw_tickets import (
     COLOR_HOUSE,
     COLOR_WIN,
     awaiting_cashier_embed,
+    audit_log_list_embed,
     cashier_alert_embed,
     cashier_stats_embed,
     deposit_ticket_cancelled_embed,
@@ -707,6 +708,55 @@ def test_dispute_list_embed_titles_with_status_filter() -> None:
     embed = dispute_list_embed(disputes=[], status_filter="resolved")
     blob = (embed.title or "") + (embed.description or "")
     assert "resolved" in blob.lower()
+
+
+# ---------------------------------------------------------------------------
+# audit_log_list_embed (Story 10.8)
+# ---------------------------------------------------------------------------
+
+
+def test_audit_log_list_embed_empty_state() -> None:
+    embed = audit_log_list_embed(rows=[], target_filter=None)
+    blob = (embed.title or "") + (embed.description or "")
+    assert "no" in blob.lower() or "empty" in blob.lower() or "0" in blob
+
+
+def test_audit_log_list_embed_renders_each_row() -> None:
+    rows = [
+        {
+            "id": 17,
+            "ts": SAMPLE_TS,
+            "actor_type": "user",
+            "actor_id": 222,
+            "target_id": 222,
+            "action": "deposit_ticket_opened",
+            "amount": 50_000,
+            "reason": "Deposit ticket opened",
+            "bot_name": "dw",
+        },
+        {
+            "id": 18,
+            "ts": SAMPLE_TS,
+            "actor_type": "cashier",
+            "actor_id": 333,
+            "target_id": 222,
+            "action": "deposit_confirmed",
+            "amount": 50_000,
+            "reason": "Confirmed",
+            "bot_name": "dw",
+        },
+    ]
+    embed = audit_log_list_embed(rows=rows, target_filter=None)
+    blob = (embed.description or "") + " ".join(f.value or "" for f in embed.fields)
+    assert "17" in blob
+    assert "deposit_ticket_opened" in blob
+    assert "deposit_confirmed" in blob
+
+
+def test_audit_log_list_embed_titles_with_target_filter() -> None:
+    embed = audit_log_list_embed(rows=[], target_filter=222)
+    blob = (embed.title or "") + (embed.description or "")
+    assert "222" in blob
 
 
 # ---------------------------------------------------------------------------

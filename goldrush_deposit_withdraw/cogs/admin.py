@@ -31,6 +31,7 @@ from goldrush_core.balance.dw_manager import (
     ban_user,
     cancel_deposit,
     cancel_withdraw,
+    list_audit_events,
     open_dispute,
     reject_dispute,
     resolve_dispute,
@@ -40,6 +41,7 @@ from goldrush_core.balance.dw_manager import (
     unban_user,
 )
 from goldrush_core.embeds.dw_tickets import (
+    audit_log_list_embed,
     cashier_stats_embed,
     dispute_list_embed,
     dispute_resolved_embed,
@@ -900,6 +902,53 @@ class AdminCog(commands.Cog):
             f"✅ Chain verified across {result.checked_count} new row(s). "
             f"Last verified id: `{result.last_verified_id}`.",
             ephemeral=True,
+        )
+
+    # -----------------------------------------------------------------------
+    # Story 10.8: /admin-view-audit — paginated tail of core.audit_log.
+    # -----------------------------------------------------------------------
+
+    @app_commands.command(
+        name="admin-view-audit",
+        description="Show recent audit-log events (optionally filter by user).",
+    )
+    @app_commands.describe(
+        user="Filter to events targeting this user (optional).",
+        limit="Number of rows to show (1-100, default 25).",
+    )
+    async def view_audit_cmd(
+        self,
+        interaction: discord.Interaction,
+        user: discord.User | None = None,
+        limit: int | None = None,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        # The SDF clamps to [1, 100]; we additionally cap the embed
+        # render at 25 rows to stay under Discord's 6000-char total
+        # embed limit (each row is ~120 chars in the markdown list).
+        effective_limit = max(1, min(limit or 25, 25))
+        rows = await list_audit_events(
+            bot.pool,
+            target_id=user.id if user is not None else None,
+            limit=effective_limit,
+        )
+        embed = audit_log_list_embed(
+            rows=rows,
+            target_filter=user.id if user is not None else None,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+        _log.info(
+            "admin_view_audit",
+            actor_id=interaction.user.id,
+            target_id=user.id if user is not None else None,
+            limit=effective_limit,
+            row_count=len(rows),
         )
 
     # -----------------------------------------------------------------------

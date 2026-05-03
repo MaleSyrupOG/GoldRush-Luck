@@ -436,3 +436,41 @@ def test_admin_treasury_withdraw_takes_amount_user_reason() -> None:
         return {p.name for p in cmd.parameters}
 
     assert asyncio.run(_exercise()) == {"amount", "user", "reason"}
+
+
+# ---------------------------------------------------------------------------
+# Story 10.8 — view-audit
+# ---------------------------------------------------------------------------
+
+
+def test_admin_cog_registers_view_audit_command() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        return {cmd.name for cmd in cog.get_app_commands()}
+
+    names = asyncio.run(_exercise())
+    assert "admin-view-audit" in names
+
+
+def test_admin_view_audit_takes_optional_user_and_limit() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> tuple[set[str], dict[str, bool]]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        cmd = next(c for c in cog.get_app_commands() if c.name == "admin-view-audit")
+        names = {p.name for p in cmd.parameters}
+        required = {p.name: p.required for p in cmd.parameters}
+        return names, required
+
+    names, required = asyncio.run(_exercise())
+    assert {"user", "limit"}.issubset(names)
+    # Both optional — default behaviour returns the last 25 rows
+    # without any filter.
+    assert required["user"] is False
+    assert required["limit"] is False

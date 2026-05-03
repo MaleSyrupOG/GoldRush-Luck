@@ -585,6 +585,57 @@ def dispute_resolved_embed(
     return embed
 
 
+def audit_log_list_embed(
+    *,
+    rows: Sequence[dict[str, Any]],
+    target_filter: int | None,
+) -> discord.Embed:
+    """Render a paginated list of audit-log rows (Story 10.8).
+
+    Each row carries ``id`` / ``ts`` / ``actor_type`` / ``actor_id`` /
+    ``target_id`` / ``action`` / ``amount`` / ``reason``. ``target_filter``
+    is the optional Discord user id the cog filtered on; we surface it
+    in the title so the operator sees what they queried.
+
+    The embed lays out rows in the description as a markdown list — same
+    rationale as ``dispute_list_embed``: avoids the 25-field cap and
+    keeps the result copy-pasteable.
+    """
+    if target_filter is not None:
+        title = f"📜 Audit log — target=`{target_filter}`"
+    else:
+        title = "📜 Audit log — recent events"
+    if not rows:
+        return discord.Embed(
+            title=title,
+            description=(
+                f"No audit events"
+                f"{f' for `{target_filter}`' if target_filter else ''} yet."
+            ),
+            color=discord.Color(COLOR_HOUSE),
+        )
+
+    lines = [f"**{len(rows)} event(s) shown.**"]
+    for row in rows:
+        ts: datetime = row["ts"]
+        ts_str = ts.strftime("%Y-%m-%d %H:%M UTC")
+        amount_str = (
+            f" · **{int(row['amount']):,}g**"
+            if row.get("amount") is not None
+            else ""
+        )
+        lines.append(
+            f"• `#{row['id']}` `{ts_str}` "
+            f"**{row['action']}** by {row['actor_type']} `{row['actor_id']}` "
+            f"→ `{row['target_id']}`{amount_str}"
+        )
+    return discord.Embed(
+        title=title,
+        description="\n".join(lines),
+        color=discord.Color(COLOR_HOUSE),
+    )
+
+
 def dispute_list_embed(
     *,
     disputes: Sequence[dict[str, Any]],
