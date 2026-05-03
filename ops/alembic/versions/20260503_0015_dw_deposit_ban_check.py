@@ -18,7 +18,7 @@ This migration brings parity by replacing ``dw.create_deposit_ticket``
 with a version that checks ``core.users.banned`` early. The ban check
 runs BEFORE the row insert so we don't pollute the audit log with
 ``deposit_ticket_opened`` rows for blocked tickets. The Python
-translation layer (``goldrush_core.balance.exceptions``) already
+translation layer (``deathroll_core.balance.exceptions``) already
 maps the ``user_banned`` sentinel to ``UserBanned`` and the deposit
 orchestration returns ``DepositOutcome.UserBanned`` on that path —
 the cog's existing ``_format_deposit_failure`` then renders the
@@ -134,7 +134,7 @@ def upgrade() -> None:
     ) FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION dw.create_deposit_ticket(
         BIGINT, TEXT, TEXT, TEXT, TEXT, BIGINT, BIGINT, BIGINT
-    ) TO goldrush_dw;
+    ) TO deathroll_dw;
     """)
 
 

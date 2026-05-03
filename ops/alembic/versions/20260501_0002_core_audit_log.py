@@ -18,7 +18,7 @@ Chain-key provisioning:
 - The chain key is read from the Postgres setting ``app.audit_chain_key``
   which is set once per database via:
 
-      ALTER DATABASE goldrush SET app.audit_chain_key = '<hex>';
+      ALTER DATABASE deathroll SET app.audit_chain_key = '<hex>';
 
   documented in docs/operations.md. The migration cannot read environment
   variables, so it leaves the key absent and relies on the operator to set
@@ -27,7 +27,7 @@ Chain-key provisioning:
 
 Append-only enforcement:
 - The two triggers raise unconditionally on UPDATE and DELETE; even
-  goldrush_admin cannot bypass them without explicitly disabling the
+  deathroll_admin cannot bypass them without explicitly disabling the
   triggers — which would itself appear in the system catalog.
 """
 
@@ -103,7 +103,7 @@ def upgrade() -> None:
         ON CONFLICT (id) DO NOTHING;
     """)
 
-    # The chain helper. Owned by the migration role (goldrush_admin) and
+    # The chain helper. Owned by the migration role (deathroll_admin) and
     # marked SECURITY DEFINER so it can be granted EXECUTE to bot roles
     # while still running with admin privileges (which gives it the rights
     # needed to INSERT into audit_log and UPDATE the chain state).
@@ -140,7 +140,7 @@ def upgrade() -> None:
         BEGIN
             -- Resolve the chain key. The operator sets it once per database
             -- with:
-            --     ALTER DATABASE goldrush
+            --     ALTER DATABASE deathroll
             --         SET app.audit_chain_key = '<hex-encoded-32-bytes>';
             -- If unset, abort loudly so the misconfiguration is impossible
             -- to miss.
@@ -215,11 +215,11 @@ def upgrade() -> None:
         GRANT EXECUTE ON FUNCTION core.audit_log_insert_with_chain(
             TEXT, BIGINT, BIGINT, TEXT, BIGINT, BIGINT, BIGINT, TEXT,
             TEXT, TEXT, TEXT, JSONB
-        ) TO goldrush_dw, goldrush_luck;
+        ) TO deathroll_dw, deathroll_luck;
         DO $$
         BEGIN
-            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'goldrush_poker') THEN
-                EXECUTE 'GRANT EXECUTE ON FUNCTION core.audit_log_insert_with_chain(TEXT, BIGINT, BIGINT, TEXT, BIGINT, BIGINT, BIGINT, TEXT, TEXT, TEXT, TEXT, JSONB) TO goldrush_poker';
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'deathroll_poker') THEN
+                EXECUTE 'GRANT EXECUTE ON FUNCTION core.audit_log_insert_with_chain(TEXT, BIGINT, BIGINT, TEXT, BIGINT, BIGINT, BIGINT, TEXT, TEXT, TEXT, TEXT, JSONB) TO deathroll_poker';
             END IF;
         END
         $$;
@@ -231,23 +231,23 @@ def upgrade() -> None:
     # write goes through the helper so the chain is consistent.
     # Readonly role gets SELECT for grafana.
     op.execute("""
-        GRANT INSERT ON core.audit_log TO goldrush_dw, goldrush_luck;
-        GRANT SELECT ON core.audit_log TO goldrush_readonly;
+        GRANT INSERT ON core.audit_log TO deathroll_dw, deathroll_luck;
+        GRANT SELECT ON core.audit_log TO deathroll_readonly;
 
         DO $$
         BEGIN
-            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'goldrush_poker') THEN
-                EXECUTE 'GRANT INSERT ON core.audit_log TO goldrush_poker';
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'deathroll_poker') THEN
+                EXECUTE 'GRANT INSERT ON core.audit_log TO deathroll_poker';
             END IF;
         END
         $$;
 
         -- Sequence permission so the BIGSERIAL works for inserters.
-        GRANT USAGE, SELECT ON SEQUENCE core.audit_log_id_seq TO goldrush_dw, goldrush_luck;
+        GRANT USAGE, SELECT ON SEQUENCE core.audit_log_id_seq TO deathroll_dw, deathroll_luck;
         DO $$
         BEGIN
-            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'goldrush_poker') THEN
-                EXECUTE 'GRANT USAGE, SELECT ON SEQUENCE core.audit_log_id_seq TO goldrush_poker';
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'deathroll_poker') THEN
+                EXECUTE 'GRANT USAGE, SELECT ON SEQUENCE core.audit_log_id_seq TO deathroll_poker';
             END IF;
         END
         $$;

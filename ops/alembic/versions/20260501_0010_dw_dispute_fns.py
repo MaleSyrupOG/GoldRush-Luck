@@ -94,7 +94,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.open_dispute(TEXT, TEXT, BIGINT, TEXT, TEXT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.open_dispute(TEXT, TEXT, BIGINT, TEXT, TEXT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.open_dispute(TEXT, TEXT, BIGINT, TEXT, TEXT) TO deathroll_dw;
     """)
 
     # resolve_dispute calls dw.treasury_withdraw_to_user for partial-refund;
@@ -178,7 +178,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.resolve_dispute(BIGINT, TEXT, BIGINT, BIGINT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.resolve_dispute(BIGINT, TEXT, BIGINT, BIGINT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.resolve_dispute(BIGINT, TEXT, BIGINT, BIGINT) TO deathroll_dw;
     """)
 
 

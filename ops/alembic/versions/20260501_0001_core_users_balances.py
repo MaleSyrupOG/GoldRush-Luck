@@ -10,10 +10,10 @@ Implements Luck design §3.3 and D/W design §3.1, §3.2:
   locked_balance >= 0, total_wagered >= 0, total_won >= 0) and the
   optimistic-locking version column.
 - Adds the per-table grants:
-    - goldrush_dw       : SELECT, INSERT, UPDATE on both tables
-    - goldrush_luck     : SELECT only
-    - goldrush_poker    : SELECT only
-    - goldrush_readonly : SELECT
+    - deathroll_dw       : SELECT, INSERT, UPDATE on both tables
+    - deathroll_luck     : SELECT only
+    - deathroll_poker    : SELECT only
+    - deathroll_readonly : SELECT
 - Seeds the operator-controlled treasury account at discord_id=0
   (idempotent ON CONFLICT DO NOTHING).
 """
@@ -60,28 +60,28 @@ def upgrade() -> None:
 
     # Per-table grants. init.sql granted USAGE on the schema; here we attach
     # the actual table-level privileges per the spec's role matrix.
-    # IMPORTANT: goldrush_luck and goldrush_poker get SELECT only — they
-    # cannot mint or destroy balance. Only goldrush_dw can write here, and
+    # IMPORTANT: deathroll_luck and deathroll_poker get SELECT only — they
+    # cannot mint or destroy balance. Only deathroll_dw can write here, and
     # even then only via SECURITY DEFINER functions (which bypass these
-    # grants because the function runs as its owner, goldrush_admin).
+    # grants because the function runs as its owner, deathroll_admin).
     op.execute("""
-        GRANT SELECT, INSERT, UPDATE ON core.users    TO goldrush_dw;
-        GRANT SELECT, INSERT, UPDATE ON core.balances TO goldrush_dw;
-        GRANT SELECT                  ON core.users    TO goldrush_luck;
-        GRANT SELECT                  ON core.balances TO goldrush_luck;
-        GRANT SELECT                  ON core.users    TO goldrush_readonly;
-        GRANT SELECT                  ON core.balances TO goldrush_readonly;
+        GRANT SELECT, INSERT, UPDATE ON core.users    TO deathroll_dw;
+        GRANT SELECT, INSERT, UPDATE ON core.balances TO deathroll_dw;
+        GRANT SELECT                  ON core.users    TO deathroll_luck;
+        GRANT SELECT                  ON core.balances TO deathroll_luck;
+        GRANT SELECT                  ON core.users    TO deathroll_readonly;
+        GRANT SELECT                  ON core.balances TO deathroll_readonly;
     """)
 
-    # goldrush_poker is created by init.sh only when its password is set
+    # deathroll_poker is created by init.sh only when its password is set
     # (it is 'disabled' in v1). Wrap the grant so the migration succeeds
     # even when the role does not exist yet.
     op.execute("""
         DO $$
         BEGIN
-            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'goldrush_poker') THEN
-                EXECUTE 'GRANT SELECT ON core.users    TO goldrush_poker';
-                EXECUTE 'GRANT SELECT ON core.balances TO goldrush_poker';
+            IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'deathroll_poker') THEN
+                EXECUTE 'GRANT SELECT ON core.users    TO deathroll_poker';
+                EXECUTE 'GRANT SELECT ON core.balances TO deathroll_poker';
             END IF;
         END
         $$;

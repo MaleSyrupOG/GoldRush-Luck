@@ -5,9 +5,9 @@ Revises: 0017_core_audit_chain_verifier
 Create Date: 2026-05-03
 
 Story 10.8 says: ``/admin view-audit`` filters by ``target_id`` (user)
-or returns the last N rows. The bot's ``goldrush_dw`` role does NOT
+or returns the last N rows. The bot's ``deathroll_dw`` role does NOT
 have SELECT on ``core.audit_log`` (deliberate — read access stays
-gated to ``goldrush_readonly``), so the cog calls a SECURITY DEFINER
+gated to ``deathroll_readonly``), so the cog calls a SECURITY DEFINER
 fn that runs with admin privileges.
 
 Cap on rows: the SDF clamps ``p_limit`` to ``[1, 100]`` so a typo at
@@ -52,7 +52,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION core.list_audit_events(BIGINT, INTEGER) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION core.list_audit_events(BIGINT, INTEGER) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION core.list_audit_events(BIGINT, INTEGER) TO deathroll_dw;
     """)
 
 

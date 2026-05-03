@@ -101,11 +101,11 @@ def upgrade() -> None:
     op.execute("""
         GRANT SELECT, INSERT, UPDATE
             ON dw.disputes, dw.dynamic_embeds, dw.global_config
-            TO goldrush_dw;
-        GRANT USAGE, SELECT ON SEQUENCE dw.disputes_id_seq TO goldrush_dw;
+            TO deathroll_dw;
+        GRANT USAGE, SELECT ON SEQUENCE dw.disputes_id_seq TO deathroll_dw;
         GRANT SELECT
             ON dw.disputes, dw.dynamic_embeds, dw.global_config
-            TO goldrush_readonly;
+            TO deathroll_readonly;
     """)
 
 

@@ -81,7 +81,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.treasury_sweep(BIGINT, BIGINT, TEXT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.treasury_sweep(BIGINT, BIGINT, TEXT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.treasury_sweep(BIGINT, BIGINT, TEXT) TO deathroll_dw;
     """)
 
     op.execute("""
@@ -157,7 +157,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.treasury_withdraw_to_user(BIGINT, BIGINT, BIGINT, TEXT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.treasury_withdraw_to_user(BIGINT, BIGINT, BIGINT, TEXT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.treasury_withdraw_to_user(BIGINT, BIGINT, BIGINT, TEXT) TO deathroll_dw;
     """)
 
 

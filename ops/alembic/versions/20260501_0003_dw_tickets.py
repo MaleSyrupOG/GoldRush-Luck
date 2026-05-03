@@ -125,11 +125,11 @@ def upgrade() -> None:
             FOR EACH ROW EXECUTE FUNCTION dw.ticket_terminal_status_immutable();
     """)
 
-    # Per-table privileges: goldrush_dw has full RW; readonly has SELECT.
+    # Per-table privileges: deathroll_dw has full RW; readonly has SELECT.
     op.execute("""
-        GRANT SELECT, INSERT, UPDATE ON dw.deposit_tickets, dw.withdraw_tickets TO goldrush_dw;
-        GRANT USAGE, SELECT ON SEQUENCE dw.deposit_tickets_id_seq, dw.withdraw_tickets_id_seq TO goldrush_dw;
-        GRANT SELECT ON dw.deposit_tickets, dw.withdraw_tickets TO goldrush_readonly;
+        GRANT SELECT, INSERT, UPDATE ON dw.deposit_tickets, dw.withdraw_tickets TO deathroll_dw;
+        GRANT USAGE, SELECT ON SEQUENCE dw.deposit_tickets_id_seq, dw.withdraw_tickets_id_seq TO deathroll_dw;
+        GRANT SELECT ON dw.deposit_tickets, dw.withdraw_tickets TO deathroll_readonly;
     """)
 
 

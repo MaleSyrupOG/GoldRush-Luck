@@ -78,7 +78,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.expire_cashier(BIGINT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.expire_cashier(BIGINT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.expire_cashier(BIGINT) TO deathroll_dw;
     """)
 
 

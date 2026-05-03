@@ -88,7 +88,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.reject_dispute(BIGINT, TEXT, BIGINT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.reject_dispute(BIGINT, TEXT, BIGINT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.reject_dispute(BIGINT, TEXT, BIGINT) TO deathroll_dw;
     """)
 
 

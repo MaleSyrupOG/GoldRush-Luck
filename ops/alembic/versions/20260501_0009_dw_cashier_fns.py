@@ -69,7 +69,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.add_cashier_character(BIGINT, TEXT, TEXT, TEXT, TEXT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.add_cashier_character(BIGINT, TEXT, TEXT, TEXT, TEXT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.add_cashier_character(BIGINT, TEXT, TEXT, TEXT, TEXT) TO deathroll_dw;
     """)
 
     op.execute("""
@@ -112,7 +112,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.remove_cashier_character(BIGINT, TEXT, TEXT, TEXT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.remove_cashier_character(BIGINT, TEXT, TEXT, TEXT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.remove_cashier_character(BIGINT, TEXT, TEXT, TEXT) TO deathroll_dw;
     """)
 
     op.execute("""
@@ -178,7 +178,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.set_cashier_status(BIGINT, TEXT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.set_cashier_status(BIGINT, TEXT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.set_cashier_status(BIGINT, TEXT) TO deathroll_dw;
     """)
 
 

@@ -148,7 +148,7 @@ def upgrade() -> None:
     ) FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION dw.create_withdraw_ticket(
         BIGINT, TEXT, TEXT, TEXT, TEXT, BIGINT, BIGINT, BIGINT
-    ) TO goldrush_dw;
+    ) TO deathroll_dw;
     """)
 
     # ---------- confirm_withdraw ----------
@@ -269,7 +269,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.confirm_withdraw(TEXT, BIGINT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.confirm_withdraw(TEXT, BIGINT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.confirm_withdraw(TEXT, BIGINT) TO deathroll_dw;
     """)
 
     # ---------- cancel_withdraw (REFUND path) ----------
@@ -352,7 +352,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.cancel_withdraw(TEXT, BIGINT, TEXT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.cancel_withdraw(TEXT, BIGINT, TEXT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.cancel_withdraw(TEXT, BIGINT, TEXT) TO deathroll_dw;
     """)
 
 

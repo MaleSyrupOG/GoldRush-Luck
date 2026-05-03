@@ -70,7 +70,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.ban_user(BIGINT, TEXT, BIGINT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.ban_user(BIGINT, TEXT, BIGINT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.ban_user(BIGINT, TEXT, BIGINT) TO deathroll_dw;
     """)
 
     op.execute("""
@@ -110,7 +110,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.unban_user(BIGINT, BIGINT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.unban_user(BIGINT, BIGINT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.unban_user(BIGINT, BIGINT) TO deathroll_dw;
     """)
 
 

@@ -8,7 +8,7 @@ Story 8.6 says: every 6 h, walk ``core.audit_log`` recomputing each
 row's HMAC against the chain key and the previous row's hash. On
 break, alert. The bot's role does NOT have SELECT on
 ``core.audit_log`` (deliberate — read access stays gated to
-goldrush_readonly), so the verifier itself runs as SECURITY DEFINER
+deathroll_readonly), so the verifier itself runs as SECURITY DEFINER
 with the migration role's privileges and exposes a thin RETURNS
 TABLE the bot can call.
 
@@ -138,7 +138,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION core.verify_audit_chain(BIGINT, INTEGER) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION core.verify_audit_chain(BIGINT, INTEGER) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION core.verify_audit_chain(BIGINT, INTEGER) TO deathroll_dw;
     """)
 
 

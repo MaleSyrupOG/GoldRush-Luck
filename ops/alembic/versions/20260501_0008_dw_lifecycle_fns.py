@@ -109,7 +109,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.claim_ticket(TEXT, TEXT, BIGINT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.claim_ticket(TEXT, TEXT, BIGINT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.claim_ticket(TEXT, TEXT, BIGINT) TO deathroll_dw;
     """)
 
     op.execute("""
@@ -183,7 +183,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.release_ticket(TEXT, TEXT, BIGINT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.release_ticket(TEXT, TEXT, BIGINT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.release_ticket(TEXT, TEXT, BIGINT) TO deathroll_dw;
     """)
 
 

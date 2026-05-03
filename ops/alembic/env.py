@@ -1,4 +1,4 @@
-"""Alembic environment for the GoldRush monorepo.
+"""Alembic environment for the DeathRoll monorepo.
 
 Connects as the admin role and applies migrations across schemas
 (core, fairness, luck, dw, poker). Real migration scripts will land in versions/.

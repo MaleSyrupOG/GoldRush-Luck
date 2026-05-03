@@ -94,15 +94,15 @@ def upgrade() -> None:
         GRANT SELECT, INSERT, UPDATE
             ON dw.cashier_characters, dw.cashier_status,
                dw.cashier_sessions,    dw.cashier_stats
-            TO goldrush_dw;
+            TO deathroll_dw;
         GRANT USAGE, SELECT
             ON SEQUENCE dw.cashier_characters_id_seq,
                         dw.cashier_sessions_id_seq
-            TO goldrush_dw;
+            TO deathroll_dw;
         GRANT SELECT
             ON dw.cashier_characters, dw.cashier_status,
                dw.cashier_sessions,    dw.cashier_stats
-            TO goldrush_readonly;
+            TO deathroll_readonly;
     """)
 
 

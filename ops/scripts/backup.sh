@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 # =============================================================================
-# GoldRush — Postgres daily backup script.
+# DeathRoll — Postgres daily backup script.
 #
-# Runs as root via /etc/cron.d/goldrush-backup.
+# Runs as root via /etc/cron.d/deathroll-backup.
 #
 # What it does:
-#   1. pg_dump of the entire `goldrush` database in custom format (-Fc)
-#      executed inside the goldrush-postgres container.
-#   2. Pipes the dump into `gpg --encrypt --recipient "GoldRush Backup"` and
-#      writes the encrypted archive to /opt/goldrush/backups/daily/.
+#   1. pg_dump of the entire `deathroll` database in custom format (-Fc)
+#      executed inside the deathroll-postgres container.
+#   2. Pipes the dump into `gpg --encrypt --recipient "DeathRoll Backup"` and
+#      writes the encrypted archive to /opt/deathroll/backups/daily/.
 #   3. On the 1st of each month, copies the daily backup to monthly/.
 #   4. Verifies the archive size > 1 KB and that the GPG header is valid.
 #   5. Prunes daily backups older than 30 days, monthly backups older than
@@ -22,12 +22,12 @@
 
 set -euo pipefail
 
-BACKUP_DIR="/opt/goldrush/backups"
+BACKUP_DIR="/opt/deathroll/backups"
 RETENTION_DAYS=30
 RETENTION_MONTHS=12
-GPG_RECIPIENT="GoldRush Backup"
-COMPOSE_FILE="/opt/goldrush/repo/ops/docker/compose.yml"
-ENV_FILE="/opt/goldrush/secrets/.env.shared"
+GPG_RECIPIENT="DeathRoll Backup"
+COMPOSE_FILE="/opt/deathroll/repo/ops/docker/compose.yml"
+ENV_FILE="/opt/deathroll/secrets/.env.shared"
 
 if [ ! -f "${COMPOSE_FILE}" ]; then
     echo "Error: compose file not found at ${COMPOSE_FILE}" >&2
@@ -39,9 +39,9 @@ if [ ! -f "${ENV_FILE}" ]; then
 fi
 
 TS="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
-DAILY_FILE="${BACKUP_DIR}/daily/goldrush-${TS}.dump.gpg"
+DAILY_FILE="${BACKUP_DIR}/daily/deathroll-${TS}.dump.gpg"
 MONTH_TAG="$(date -u +%Y-%m)"
-MONTHLY_FILE="${BACKUP_DIR}/monthly/goldrush-${MONTH_TAG}.dump.gpg"
+MONTHLY_FILE="${BACKUP_DIR}/monthly/deathroll-${MONTH_TAG}.dump.gpg"
 
 mkdir -p "${BACKUP_DIR}/daily" "${BACKUP_DIR}/monthly"
 
@@ -52,7 +52,7 @@ source "${ENV_FILE}"
 : "${PG_ADMIN_USER:?PG_ADMIN_USER must be set}"
 
 docker compose --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" exec -T postgres \
-    pg_dump --username "${PG_ADMIN_USER}" --dbname goldrush -Fc --no-owner --no-acl |
+    pg_dump --username "${PG_ADMIN_USER}" --dbname deathroll -Fc --no-owner --no-acl |
 gpg --batch --yes --quiet --encrypt --recipient "${GPG_RECIPIENT}" \
     --output "${DAILY_FILE}"
 
@@ -83,7 +83,7 @@ if [ -f /root/.ssh/storagebox_key ] && [ -n "${STORAGEBOX_HOST:-}" ]; then
     rsync --quiet -az --delete \
         -e "ssh -i /root/.ssh/storagebox_key -o StrictHostKeyChecking=accept-new" \
         "${BACKUP_DIR}/" \
-        "${STORAGEBOX_HOST}:goldrush-backups/"
+        "${STORAGEBOX_HOST}:deathroll-backups/"
 fi
 
 echo "[backup] OK ${DAILY_FILE} (${SIZE} bytes)" >&2

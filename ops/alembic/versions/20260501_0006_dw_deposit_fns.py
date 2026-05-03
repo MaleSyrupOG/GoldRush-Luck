@@ -23,8 +23,8 @@ Implements D/W design §3.3 functions:
 - dw.cancel_deposit(p_ticket_uid, p_actor_id, p_reason)
     Closes a ticket without crediting. Audit row only. No balance change.
 
-All three functions are owned by goldrush_admin (the migration role) and
-granted EXECUTE only to goldrush_dw — bot code must call them; nothing
+All three functions are owned by deathroll_admin (the migration role) and
+granted EXECUTE only to deathroll_dw — bot code must call them; nothing
 else can mint balance.
 """
 
@@ -126,7 +126,7 @@ def upgrade() -> None:
     ) FROM PUBLIC;
     GRANT EXECUTE ON FUNCTION dw.create_deposit_ticket(
         BIGINT, TEXT, TEXT, TEXT, TEXT, BIGINT, BIGINT, BIGINT
-    ) TO goldrush_dw;
+    ) TO deathroll_dw;
     """)
 
     # ---------- confirm_deposit ----------
@@ -219,7 +219,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.confirm_deposit(TEXT, BIGINT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.confirm_deposit(TEXT, BIGINT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.confirm_deposit(TEXT, BIGINT) TO deathroll_dw;
     """)
 
     # ---------- cancel_deposit ----------
@@ -273,7 +273,7 @@ def upgrade() -> None:
     $$;
 
     REVOKE ALL ON FUNCTION dw.cancel_deposit(TEXT, BIGINT, TEXT) FROM PUBLIC;
-    GRANT EXECUTE ON FUNCTION dw.cancel_deposit(TEXT, BIGINT, TEXT) TO goldrush_dw;
+    GRANT EXECUTE ON FUNCTION dw.cancel_deposit(TEXT, BIGINT, TEXT) TO deathroll_dw;
     """)
 
 
