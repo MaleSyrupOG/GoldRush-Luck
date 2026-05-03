@@ -19,19 +19,19 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 1 — Foundation (Epic 1; mostly inherited from D/W work) |
-| **Active epic** | Epic 1 — Foundation. Stories 1.1, 1.2, 1.3, 1.4 done as a side-effect of the D/W monorepo work; Story 1.5 (doc skeleton) closed 2026-05-04. |
-| **Active story** | Epic 2 next — DB foundation (Luck-specific schemas + roles + audit-log integration). |
-| **Last commit** | _(updated as work lands)_ |
-| **Next milestone** | First playable game (Coinflip — Epic 6.1) on a staging guild. |
-| **Overall progress** | 5 / 5 Epic 1 stories done · 0 / 15 Epic 2-15 epics started |
+| **Active phase** | Phase 1 — Foundation. Epic 2 (DB foundation) in progress. |
+| **Active epic** | Epic 2 — Database foundation. Stories 2.1-2.5 inherited from D/W work; Stories 2.6, 2.7, 2.9 closed today; Story 2.8 (SECURITY DEFINER fns) is the next net-new work. |
+| **Active story** | Story 2.8 next — split into 2.8a/b/c/d per spec. |
+| **Last commit** | `8db573b` (Story 2.9 — default game_config + global_config seed values). |
+| **Next milestone** | Story 2.8d closes Epic 2; first playable game (Coinflip — Epic 6.1) on staging is the next user-visible deliverable. |
+| **Overall progress** | 5 / 5 Epic 1 stories done · 8 / 9 Epic 2 stories done (2.8 split into 4 sub-stories pending) |
 
 ### Epic-level status
 
 | Epic | Title | Status | Stories Done |
 |---|---|---|---|
 | 1 | Foundation and repo setup | ✅ Done | 5 / 5 |
-| 2 | Database foundation | Pending (next) | 0 / TBD |
+| 2 | Database foundation | In Progress (Story 2.8 next) | 8 / 9 |
 | 3 | Core services & models | Pending | 0 / TBD |
 | 4 | Bot skeleton | Pending | 0 / TBD |
 | 5 | (Phase 2) Bot skeleton consolidation | Pending | 0 / TBD |
@@ -58,6 +58,20 @@ Epic 1's five foundation stories were either built directly during D/W (Stories 
 | 1.4 — Monorepo skeleton | `deathroll_luck/{games,raffle,leaderboard,admin,account,fairness,views}/__init__.py` empty modules + `tests/{unit,integration,property,e2e}/` exist | Verified empirically by `find deathroll_luck -name __init__.py` on 2026-05-04 |
 | 1.5 — Documentation skeleton | 7 top-level docs created as outlines (`architecture`, `provably-fair`, `dr-plan`, `release-process`, `secrets-rotation`, `responsible-gambling`, `onboarding`); 10 game stubs in `docs/games/`; 3 API outlines in `docs/api/`; verifier README in `docs/verifier/` | Closed 2026-05-04 alongside Epic 13 D/W docs |
 
+### Epic 2 progress (in flight)
+
+| Story | Status | Migration | Tests | Notes |
+|---|---|---|---|---|
+| 2.1 — Postgres compose service | ✅ Done (D/W) | n/a | covered by D/W integration suite | `ops/docker/compose.yml` |
+| 2.2 — init.sql for schemas + roles + grants | ✅ Done (D/W) | n/a | covered by D/W permission tests | `ops/postgres/01-schemas-grants.sql` already declares `fairness` and `luck` schemas |
+| 2.3 — Alembic setup | ✅ Done (D/W) | n/a | covered by D/W's 18 migrations | `ops/alembic/` |
+| 2.4 — `core.users` + `core.balances` | ✅ Done (D/W) | 0001 | D/W integration tests | per-table grants for deathroll_luck ship in this migration |
+| 2.5 — `core.audit_log` + hash chain | ✅ Done (D/W) | 0002, 0017 | D/W audit-chain re-verifier integration tests | append-only triggers + HMAC chain |
+| **2.6 — Fairness schemas** | ✅ Done 2026-05-04 (`710f404`) | **0019** | 14 integration tests | `fairness.user_seeds` + `fairness.history` (append-only); per-table grants for luck/dw/readonly |
+| **2.7 — Luck schemas (11 tables)** | ✅ Done 2026-05-04 (`e7ee273`) | **0020** | 38 integration tests | game_config / channel_binding / bets / bet_rounds / game_sessions / rate_limit_entries / raffle_periods / raffle_tickets / raffle_draws / leaderboard_snapshot / global_config; raffle_draws append-only |
+| **2.9 — Default game_config + global_config seeds** | ✅ Done 2026-05-04 (`8db573b`) | **0021** | 26 integration tests | 9 games seeded (Flower Poker excluded); 4 global_config keys; idempotent ON CONFLICT DO NOTHING |
+| **2.8 — SECURITY DEFINER fns** (XL — split a/b/c/d) | Pending | 0022-0025 (next) | TDD: concurrency + idempotency + permission boundary | apply_bet / resolve_bet / refund_bet / cashout_mines / consume_rate_token / rotate_user_seed / next_nonce / grant_raffle_tickets |
+
 ### Decision log additions during implementation
 
 | Date | Story | Decision | ADR |
@@ -69,6 +83,7 @@ Epic 1's five foundation stories were either built directly during D/W (Stories 
 | Date | Note |
 |---|---|
 | 2026-05-04 | Plan resumed after D/W shipped. Epic 1 inheritance from D/W means we start at Epic 2 (DB foundation) for net-new Luck work. |
+| 2026-05-04 | Stories 2.6, 2.7, 2.9 closed in three atomic commits (`710f404`, `e7ee273`, `8db573b`). 78 integration tests for Luck schemas pass (14 + 38 + 26). The Luck conftest at `tests/integration/luck/conftest.py` is independent from the D/W conftest for v1 (two postgres containers per pytest run); a future commit will refactor the shared bootstrap into `tests/integration/conftest.py`. The conftest's `_reset_db` introspects `information_schema` to TRUNCATE only existing tables, making it forward-compat with in-progress migrations; after each TRUNCATE it re-seeds the canonical `luck.game_config` (9 games) + `luck.global_config` (4 keys) so every test starts from production-equivalent state. Real bug found by the integration suite during Story 2.9: SQLAlchemy interpreted the `:` in JSON literal extra_config values as named-bind-parameter placeholders; fix was `sa.text(...).bindparams(...)` with `CAST(:extra AS jsonb)`. Pinned in test `test_blackjack_extra_config` etc. |
 
 ---
 
