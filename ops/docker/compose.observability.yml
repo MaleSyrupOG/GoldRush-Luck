@@ -1,0 +1,46 @@
+# Optional observability overlay — exposes goldrush-dw:9101/metrics to
+# an external Prometheus. NOT applied by default; the canonical
+# ``compose.yml`` keeps port 9101 reachable only inside ``goldrush_net``
+# so the project doesn't couple to any specific monitoring stack.
+#
+# Two ways to use this overlay, both documented here so you can pick
+# whichever fits your VPS topology:
+#
+# OPTION A — bind 9101 on the host loopback. Prometheus scrapes
+#   ``host.docker.internal:9101`` (Docker Desktop) or the host's
+#   docker bridge IP (Linux). No cross-project network coupling.
+#
+# OPTION B — attach goldrush-dw to an existing observability docker
+#   network so Prometheus reaches the container by name (e.g.
+#   ``goldrush-dw:9101``). Simpler DNS at the cost of a soft dep on
+#   the foreign network's name.
+#
+# This file ships OPTION A. To opt into OPTION B instead, comment out
+# the ``ports:`` block below and uncomment the ``networks:`` block,
+# editing the ``name:`` to your actual observability network's name
+# (run ``docker network ls`` on the host to find it).
+#
+# Apply with:
+#
+#   docker compose \
+#       -f ops/docker/compose.yml \
+#       -f ops/docker/compose.observability.yml \
+#       up -d goldrush-deposit-withdraw
+
+services:
+  goldrush-deposit-withdraw:
+    # OPTION A (default): publish 9101 on host loopback only. Local
+    # Prometheus on the same host can scrape via 127.0.0.1:9101.
+    ports:
+      - "127.0.0.1:9101:9101"
+
+    # OPTION B (alternative): attach to an external observability
+    # network. Uncomment + edit the ``name`` to your real network.
+    # networks:
+    #   goldrush_net: {}
+    #   external_observability: {}
+
+# networks:
+#   external_observability:
+#     external: true
+#     name: PUT_YOUR_NETWORK_NAME_HERE

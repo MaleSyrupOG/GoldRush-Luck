@@ -1,0 +1,213 @@
+{
+  "title": "GoldRush — Deposit/Withdraw bot",
+  "description": "Operational dashboard for the D/W bot. Mirrors the metric families defined in goldrush_deposit_withdraw/metrics.py (spec §7.3).",
+  "tags": ["goldrush", "deposit-withdraw", "bot"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "templating": {
+    "list": [
+      {
+        "name": "datasource",
+        "type": "datasource",
+        "query": "prometheus",
+        "current": {
+          "text": "Prometheus",
+          "value": "Prometheus"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Tickets per minute by status — deposits",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "deriv(goldrush_deposit_tickets[5m]) * 60",
+          "legendFormat": "{{status}}",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "min"
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Tickets per minute by status — withdraws",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "deriv(goldrush_withdraw_tickets[5m]) * 60",
+          "legendFormat": "{{status}}",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "min"
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Volume processed by region (gold)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "goldrush_deposit_volume_g",
+          "legendFormat": "deposit · {{region}}",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        },
+        {
+          "expr": "goldrush_withdraw_volume_g",
+          "legendFormat": "withdraw · {{region}}",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Treasury balance (gold)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "goldrush_treasury_balance_g",
+          "legendFormat": "treasury",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      }
+    },
+    {
+      "id": 5,
+      "title": "Cashiers online by region",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "goldrush_cashiers_online",
+          "legendFormat": "{{region}}",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Fee revenue trend (gold)",
+      "type": "timeseries",
+      "gridPos": { "h": 6, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "goldrush_fee_revenue_g",
+          "legendFormat": "cumulative fees",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short" }
+      }
+    },
+    {
+      "id": 7,
+      "title": "Claim → confirm duration (P50/P95) — deposits",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(goldrush_ticket_claim_duration_s_bucket{ticket_type=\"deposit\"}[10m])))",
+          "legendFormat": "P50",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(goldrush_ticket_claim_duration_s_bucket{ticket_type=\"deposit\"}[10m])))",
+          "legendFormat": "P95",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "id": 8,
+      "title": "Confirm SDF latency (P50/P95) — both ticket types",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum by (le, ticket_type) (rate(goldrush_ticket_confirm_duration_s_bucket[10m])))",
+          "legendFormat": "P50 · {{ticket_type}}",
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by (le, ticket_type) (rate(goldrush_ticket_confirm_duration_s_bucket[10m])))",
+          "legendFormat": "P95 · {{ticket_type}}",
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s" }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Dispute rate per cashier",
+      "type": "table",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 30 },
+      "datasource": { "type": "prometheus", "uid": "$datasource" },
+      "targets": [
+        {
+          "expr": "topk(10, goldrush_cashier_dispute_rate)",
+          "legendFormat": "{{cashier_id}}",
+          "format": "table",
+          "instant": true,
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "$datasource" }
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        }
+      }
+    }
+  ]
+}
