@@ -70,17 +70,24 @@ async def tick(*, pool: Executor, bot: discord.Client) -> TickSummary:
 
     # ----------------------------------------------------------------
     # Idle 30 min — auto-release + repost cashier alert.
+    #
+    # The SELECT pulls claimed_by because dw.release_ticket enforces
+    # ``p_cashier_id == claimed_by`` (the SDF's wrong_cashier guard).
+    # If we passed actor_id=0 the SDF would reject every release. We
+    # impersonate the actual claimer because the audit row's
+    # actor_id is the cashier the system is releasing FROM, which
+    # makes the chain readable.
     # ----------------------------------------------------------------
     idle_rows = await pool.fetch(
         """
         SELECT 'deposit'::TEXT AS ticket_type, ticket_uid, thread_id,
-               region, faction, amount
+               region, faction, amount, claimed_by
           FROM dw.deposit_tickets
          WHERE status = 'claimed'
            AND last_activity_at < NOW() - INTERVAL '30 minutes'
         UNION ALL
         SELECT 'withdraw'::TEXT AS ticket_type, ticket_uid, thread_id,
-               region, faction, amount
+               region, faction, amount, claimed_by
           FROM dw.withdraw_tickets
          WHERE status = 'claimed'
            AND last_activity_at < NOW() - INTERVAL '30 minutes'
@@ -131,12 +138,18 @@ async def _release_one(
         "deposit" if row["ticket_type"] == "deposit" else "withdraw"
     )
     ticket_uid = str(row["ticket_uid"])
+    # Use the actual claimer as actor_id so the SDF's wrong_cashier
+    # guard is satisfied. If claimed_by is somehow NULL (race with a
+    # manual release) skip the row — the next tick will re-evaluate.
+    claimed_by_obj = row["claimed_by"] if "claimed_by" in row else None
+    if claimed_by_obj is None or not isinstance(claimed_by_obj, int):
+        return False
     try:
         await release_ticket(
             pool,
             ticket_type=ticket_type,
             ticket_uid=ticket_uid,
-            actor_id=_SYSTEM_ACTOR_ID,
+            actor_id=claimed_by_obj,
         )
     except exc.TicketNotClaimed:
         # Already released by cashier or admin — desired state.

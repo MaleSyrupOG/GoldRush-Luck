@@ -101,6 +101,7 @@ async def test_tick_releases_idle_claimed_deposit() -> None:
                 "region": "EU",
                 "faction": "Horde",
                 "amount": 50_000,
+                "claimed_by": 9001,
             }
         ]
     )
@@ -112,7 +113,9 @@ async def test_tick_releases_idle_claimed_deposit() -> None:
     assert summary.cancelled == 0
     name, args = pool.calls[0]
     assert name == "release_ticket"
-    assert args == ("deposit", "deposit-12", 0)
+    # actor_id is the row's claimed_by (the original claimer), not the
+    # system actor — required by the SDF's wrong_cashier guard.
+    assert args == ("deposit", "deposit-12", 9001)
 
 
 @pytest.mark.asyncio
@@ -126,6 +129,7 @@ async def test_tick_releases_idle_claimed_withdraw() -> None:
                 "region": "NA",
                 "faction": "Alliance",
                 "amount": 75_000,
+                "claimed_by": 9002,
             }
         ]
     )
@@ -136,7 +140,7 @@ async def test_tick_releases_idle_claimed_withdraw() -> None:
     assert summary.released == 1
     name, args = pool.calls[0]
     assert name == "release_ticket"
-    assert args == ("withdraw", "withdraw-3", 0)
+    assert args == ("withdraw", "withdraw-3", 9002)
 
 
 @pytest.mark.asyncio
@@ -153,6 +157,7 @@ async def test_tick_swallows_release_already_open() -> None:
                 "region": "EU",
                 "faction": "Horde",
                 "amount": 50_000,
+                "claimed_by": 9001,
             }
         ],
         release_raises=asyncpg.RaiseError("ticket_not_claimed (status=open)"),
@@ -259,6 +264,7 @@ async def test_tick_handles_both_deadlines_in_one_pass() -> None:
                 "region": "EU",
                 "faction": "Horde",
                 "amount": 1_000,
+                "claimed_by": 9001,
             }
         ],
         long_claimed=[
