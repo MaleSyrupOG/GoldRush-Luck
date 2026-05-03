@@ -1,7 +1,9 @@
 # Operator runbook — GoldRush → DeathRoll rename
 
 **Date drafted**: 2026-05-03
-**Status**: ⚠️ NOT YET EXECUTED on the live VPS at draft time.
+**Date executed**: 2026-05-03 ~16:30–16:46 UTC (≈16 min downtime)
+**Status**: ✅ COMPLETED. See §11 (executor's notes) below for what
+actually happened on the live VPS.
 **Repo state**: commits 1–6 of the rename refactor have landed on
 `main`. The repo IS DeathRoll. The VPS still runs the old
 `goldrush-*` containers + `goldrush_*` roles + `/opt/goldrush/`
@@ -303,10 +305,118 @@ If cron jobs scrape the bot's metrics or run `pg_dump` against
 
 ## Sign-off
 
-When the rename is complete and 24 h healthy:
-
 > **Operator**: Aleix
-> **Cutover started**: _______________
-> **Cutover completed**: _______________
-> **Smoke check passed**: _______________
-> **Notes / observations**: _______________
+> **Cutover started**: 2026-05-03 ~16:30 UTC
+> **Cutover completed**: 2026-05-03 16:46 UTC
+> **Smoke check passed**: 2026-05-03 16:46 UTC
+> **24-h watch**: ends 2026-05-04 ~17 UTC
+
+---
+
+## 11. Executor's notes (what actually happened on 2026-05-03)
+
+The runbook executed cleanly with three small surprises worth
+recording for next time:
+
+### 11.1. `postgres` superuser path was not enabled
+
+`docker exec -i goldrush-postgres psql -U postgres` failed
+because the official `postgres:16-alpine` image only creates the
+admin role given by `POSTGRES_USER` (which is `goldrush_admin`).
+Took the §3 fallback: created a temporary
+`_rename_tmp WITH SUPERUSER` from inside a `goldrush_admin`
+session, ran the role / database renames as `_rename_tmp`,
+dropped `_rename_tmp`. All renames including `goldrush_admin →
+deathroll_admin` completed without disturbing OID-linked GRANTs.
+
+### 11.2. The system user already existed; only the home dir
+was missing
+
+`usermod -l goldrush deathroll` had been run during the
+`/opt` move, which renamed the user (uid=108) but left the home
+dir entry pointing at `/home/deathroll` — a path that didn't
+exist. Docker buildx then failed to create `~/.docker` while
+building the image. Fix: `mkdir -p /home/deathroll && chown
+deathroll:deathroll /home/deathroll`. Build then succeeded.
+
+### 11.3. Old volume could not be dropped while old container
+was still defined
+
+`docker volume rm goldrush_pgdata` returned
+`volume is in use - [<container-id>]`, even though
+`goldrush-postgres` was stopped. Docker holds the mount ref
+until the container itself is removed (`docker rm -f`). The
+runbook ordering (stop → copy volume → drop old container → drop
+old volume) is the right ordering; the issue was that I tried to
+drop the volume between the copy and the `rm -f`. Solved by
+running `rm -f` first.
+
+### 11.4. Smoke check signals (all green)
+
+Container state:
+
+```
+deathroll-dw         Up 8 seconds (healthy)    9101/tcp
+deathroll-postgres   Up 13 seconds (healthy)   5432/tcp
+```
+
+Bot startup log highlights:
+
+- `db_pool_ready` against `postgres:5432/deathroll` (renamed DB)
+- All 6 cogs loaded (account, admin, cashier, deposit, ticket,
+  withdraw)
+- `command_count: 38` registered with Discord — full v1.0.0
+  command surface
+- All 3 welcome embeds (`how_to_deposit`, `how_to_withdraw`,
+  `cashier_onboarding`) reconciled in-place — proves the bot can
+  read+write its own DB rows under the renamed role
+- All 7 background workers started: `online_cashiers_updater`,
+  `ticket_timeout`, `claim_idle`, `cashier_idle`,
+  `stats_aggregator`, `audit_chain_verifier`, `metrics_refresher`
+- `metrics_http_server_started` on port 9101
+- **`audit_chain_verified` with `last_verified_id: 17`** — the
+  HMAC chain successfully validated end-to-end across all
+  pre-rename audit rows. This is the strongest possible proof
+  that the chain key (`AUDIT_HASH_CHAIN_KEY`) was preserved, the
+  audit_log table was preserved (volume copy), and the
+  SECURITY DEFINER GRANTs survived (Postgres OID indirection).
+- 27 total log lines, 0 at warn/error/critical level
+
+DB state from inside the renamed container:
+
+```
+   rolname           tables in core    tables in dw    audit rows
+deathroll_admin              4               9            17
+deathroll_dw       (alembic_version: 0018_core_list_audit_events)
+deathroll_luck
+deathroll_readonly
+```
+
+Metrics endpoint: 10 metric families with the new `deathroll_`
+prefix, all per spec §7.3.
+
+### 11.5. What did NOT need doing
+
+- No re-run of any alembic migration — Postgres skipped
+  `00-init-roles.sh` + `01-schemas-grants.sql` because the data
+  dir was already initialised, and all tables/rows/triggers came
+  along on the renamed volume.
+- No re-grant of EXECUTE privileges on SECURITY DEFINER
+  functions. Confirmed empirically: the bot's first action
+  after boot is `audit_chain_verifier`, which calls
+  `core.verify_audit_chain()` as `deathroll_dw`. That call
+  succeeded, which is only possible if the rename preserved the
+  EXECUTE grant — which it did, by OID.
+- No data backfill. Treasury, balances, audit_log, and ticket
+  state all carried over verbatim.
+
+### 11.6. Open follow-ups
+
+- The `/root/goldrush-pre-rename-2026-05-03.dump` safety backup
+  (121K) stays on disk until 2026-05-04 ~17 UTC, then `rm`.
+- The GitHub repo URL is still `MaleSyrupOG/GoldRush-Luck`.
+  Renaming the repo on GitHub UI is optional — the local clone's
+  remote can be re-pointed any time with `git remote set-url`.
+  Aleix to action when ready; not required for the cutover.
+- The cron / monitoring sweep (§10) still to do; nothing
+  scheduled on the host today, so deferred.
