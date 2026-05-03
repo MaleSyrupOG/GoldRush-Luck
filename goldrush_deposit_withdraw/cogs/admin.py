@@ -67,7 +67,11 @@ from goldrush_deposit_withdraw.setup.global_config_writer import (
     persist_config_int,
     persist_role_ids,
 )
-from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
+from goldrush_deposit_withdraw.views.modals import EditDynamicEmbedModal
+from goldrush_deposit_withdraw.welcome import (
+    reconcile_welcome_embeds,
+    update_dynamic_embed_content,
+)
 from goldrush_deposit_withdraw.workers.audit_chain_verifier import (
     tick as verify_audit_chain_tick,
 )
@@ -889,6 +893,97 @@ class AdminCog(commands.Cog):
             f"Last verified id: `{result.last_verified_id}`.",
             ephemeral=True,
         )
+
+    # -----------------------------------------------------------------------
+    # Story 10.3: /admin-set-deposit-guide, /admin-set-withdraw-guide
+    # Open EditDynamicEmbedModal pre-filled with current dw.dynamic_embeds
+    # row content; on submit, persist + edit the live #how-to-* message.
+    # -----------------------------------------------------------------------
+
+    @app_commands.command(
+        name="admin-set-deposit-guide",
+        description="Edit the #how-to-deposit welcome embed (title + description).",
+    )
+    async def set_deposit_guide_cmd(self, interaction: discord.Interaction) -> None:
+        await self._open_dynamic_embed_modal(
+            interaction=interaction, embed_key="how_to_deposit"
+        )
+
+    @app_commands.command(
+        name="admin-set-withdraw-guide",
+        description="Edit the #how-to-withdraw welcome embed (title + description).",
+    )
+    async def set_withdraw_guide_cmd(self, interaction: discord.Interaction) -> None:
+        await self._open_dynamic_embed_modal(
+            interaction=interaction, embed_key="how_to_withdraw"
+        )
+
+    async def _open_dynamic_embed_modal(
+        self,
+        *,
+        interaction: discord.Interaction,
+        embed_key: str,
+    ) -> None:
+        bot: DwBot = self.bot  # type: ignore[assignment]
+        if bot.pool is None:
+            await interaction.response.send_message(
+                "Bot is still starting up — try again in a few seconds.",
+                ephemeral=True,
+            )
+            return
+        row = await bot.pool.fetchrow(
+            "SELECT title, description FROM dw.dynamic_embeds WHERE embed_key = $1",
+            embed_key,
+        )
+        if row is None:
+            await interaction.response.send_message(
+                f"❌ No `{embed_key}` row yet. Run `/admin-setup` first.",
+                ephemeral=True,
+            )
+            return
+
+        async def _on_validated(
+            inner: discord.Interaction,
+            payload: object,
+        ) -> None:
+            # ``payload`` is an EditDynamicEmbedInput; cast for clarity.
+            from goldrush_core.models.dw_pydantic import EditDynamicEmbedInput
+
+            data: EditDynamicEmbedInput = payload  # type: ignore[assignment]
+            assert bot.pool is not None
+            outcome = await update_dynamic_embed_content(
+                pool=bot.pool,
+                bot=bot,
+                embed_key=embed_key,
+                title=data.title,
+                description=data.description,
+                actor_id=inner.user.id,
+            )
+            await inner.response.send_message(
+                f"✅ `{embed_key}` updated — {outcome.action}.",
+                ephemeral=True,
+            )
+            await audit_config_changed(
+                pool=bot.pool,
+                bot=bot,
+                admin_mention=inner.user.mention,
+                key=f"dynamic_embeds.{embed_key}",
+                new_value=f"title={data.title!r} ({len(data.description)} chars desc)",
+            )
+            _log.info(
+                "admin_set_guide_submitted",
+                actor_id=inner.user.id,
+                embed_key=embed_key,
+                outcome=outcome.action,
+            )
+
+        modal = EditDynamicEmbedModal(
+            embed_key=embed_key,
+            current_title=str(row["title"]),
+            current_description=str(row["description"]),
+            on_validated=_on_validated,
+        )
+        await interaction.response.send_modal(modal)
 
     # -----------------------------------------------------------------------
     # Story 10.2: /admin-set-deposit-limits, /admin-set-withdraw-limits,

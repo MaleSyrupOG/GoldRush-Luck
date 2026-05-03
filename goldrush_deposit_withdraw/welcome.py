@@ -312,6 +312,98 @@ async def _persist_message_id(pool: Executor, embed_key: str, message_id: int) -
     )
 
 
+async def update_dynamic_embed_content(
+    *,
+    pool: Executor,
+    bot: discord.Client,
+    embed_key: str,
+    title: str,
+    description: str,
+    actor_id: int,
+) -> ReconcileOutcome:
+    """Apply a Story 10.3 admin edit to a dynamic embed row + live message.
+
+    Single source of truth for the ``/admin-set-deposit-guide`` and
+    ``/admin-set-withdraw-guide`` flow:
+
+    1. UPDATE ``dw.dynamic_embeds`` with the new title + description
+       (other columns — color_hex, fields, image, footer — are left
+       intact; v1.x can extend the modal to surface them).
+    2. Re-render the embed via the same builder the welcome reconciler
+       uses, so the visual contract stays consistent.
+    3. Edit the live Discord message in place. On ``discord.NotFound``
+       (admin manually deleted), repost and persist the new id.
+
+    Returns the same ``ReconcileOutcome`` shape the welcome reconciler
+    uses so the cog renders a uniform "edited" / "reposted" / "skipped"
+    summary.
+    """
+    await pool.execute(
+        """
+        UPDATE dw.dynamic_embeds
+            SET title       = $1,
+                description = $2,
+                updated_at  = NOW(),
+                updated_by  = $3
+            WHERE embed_key = $4
+        """,
+        title,
+        description,
+        actor_id,
+        embed_key,
+    )
+
+    row = await pool.fetchrow(
+        "SELECT * FROM dw.dynamic_embeds WHERE embed_key = $1",
+        embed_key,
+    )
+    if row is None:
+        # The row didn't exist — first edit before /admin-setup ran.
+        # Defer to the reconciler which knows how to seed.
+        _log.warning("dynamic_embed_edit_no_row", embed_key=embed_key)
+        return ReconcileOutcome(
+            embed_key=embed_key,
+            action="skipped",
+            reason="no_row_yet",
+        )
+
+    channel_id = row["channel_id"]
+    if channel_id is None:
+        return ReconcileOutcome(
+            embed_key=embed_key,
+            action="skipped",
+            reason="channel_id_unknown",
+        )
+    channel = bot.get_channel(int(channel_id))
+    if channel is None:
+        return ReconcileOutcome(
+            embed_key=embed_key,
+            action="skipped",
+            reason="channel_not_found",
+        )
+
+    embed = _build_embed_from_row(row)
+    message_id = row["message_id"]
+    if message_id is None:
+        sent = await channel.send(embed=embed)  # type: ignore[union-attr]
+        await _persist_message_id(pool, embed_key, sent.id)
+        return ReconcileOutcome(
+            embed_key=embed_key, action="posted", message_id=sent.id
+        )
+    try:
+        existing = await channel.fetch_message(int(message_id))  # type: ignore[union-attr]
+        await existing.edit(embed=embed)
+        return ReconcileOutcome(
+            embed_key=embed_key, action="edited", message_id=int(message_id)
+        )
+    except discord.NotFound:
+        sent = await channel.send(embed=embed)  # type: ignore[union-attr]
+        await _persist_message_id(pool, embed_key, sent.id)
+        return ReconcileOutcome(
+            embed_key=embed_key, action="reposted", message_id=sent.id
+        )
+
+
 def _build_embed_from_row(row: Any) -> discord.Embed:
     """Render an embed from a ``dw.dynamic_embeds`` row.
 
@@ -339,4 +431,5 @@ __all__ = [
     "WelcomeDefault",
     "reconcile_welcome_embed",
     "reconcile_welcome_embeds",
+    "update_dynamic_embed_content",
 ]

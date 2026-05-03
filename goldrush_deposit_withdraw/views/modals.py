@@ -20,6 +20,7 @@ from collections.abc import Awaitable, Callable
 import discord
 from goldrush_core.models.dw_pydantic import (
     DepositModalInput,
+    EditDynamicEmbedInput,
     WithdrawModalInput,
 )
 from pydantic import ValidationError
@@ -230,9 +231,89 @@ def _format_validation_error(e: ValidationError) -> str:
     return "Could not open ticket — please fix:\n" + "\n".join(lines)
 
 
+_DynamicEmbedSubmitCallback = Callable[
+    [discord.Interaction, EditDynamicEmbedInput], Awaitable[None]
+]
+
+
+class EditDynamicEmbedModal(discord.ui.Modal, title="Edit guide"):
+    """Modal for ``/admin-set-{deposit,withdraw}-guide`` (Story 10.3).
+
+    Two text inputs (title + description) come up pre-filled with the
+    current ``dw.dynamic_embeds`` row content so admins do small edits
+    in place rather than re-typing everything. Discord limits modals to
+    5 inputs total; we keep title + description in the modal and let
+    admins edit colour / image / footer / fields via SQL until v1.x adds
+    them as additional surfaces.
+
+    On submit, the validator (``EditDynamicEmbedInput``) trims
+    whitespace and enforces title ≤ 256 chars / description ≤ 4000
+    chars (Discord's hard limits). Callers handle the persistence +
+    Discord-side message edit.
+    """
+
+    title_input: discord.ui.TextInput[discord.ui.Modal]
+    description_input: discord.ui.TextInput[discord.ui.Modal]
+
+    def __init__(
+        self,
+        *,
+        embed_key: str,
+        current_title: str,
+        current_description: str,
+        on_validated: _DynamicEmbedSubmitCallback,
+    ) -> None:
+        # Use a human-readable modal title that reflects which key is
+        # being edited — admins juggling deposit + withdraw guides
+        # appreciate the visual distinction.
+        modal_title = (
+            f"Edit {embed_key.replace('_', ' ')}"
+            if len(embed_key) <= 30
+            else "Edit guide"
+        )
+        super().__init__(title=modal_title[:45])
+        self.embed_key = embed_key
+        self._on_validated = on_validated
+
+        self.title_input = discord.ui.TextInput(
+            label="Embed title",
+            placeholder="Short heading shown above the description",
+            required=True,
+            min_length=1,
+            max_length=256,
+            default=current_title,
+        )
+        self.description_input = discord.ui.TextInput(
+            label="Embed description",
+            placeholder="Body copy — supports Markdown",
+            required=True,
+            min_length=1,
+            max_length=4000,
+            style=discord.TextStyle.paragraph,
+            default=current_description,
+        )
+        self.add_item(self.title_input)
+        self.add_item(self.description_input)
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            payload = EditDynamicEmbedInput(
+                title=self.title_input.value,
+                description=self.description_input.value,
+            )
+        except ValidationError as e:
+            await interaction.response.send_message(
+                _format_validation_error(e),
+                ephemeral=True,
+            )
+            return
+        await self._on_validated(interaction, payload)
+
+
 __all__ = [
     "ConfirmTicketModal",
     "DepositModal",
+    "EditDynamicEmbedModal",
     "WithdrawModal",
     "is_magic_word_match",
 ]

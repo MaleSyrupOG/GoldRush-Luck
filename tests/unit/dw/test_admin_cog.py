@@ -333,3 +333,42 @@ def test_admin_set_fee_withdraw_takes_bps_only() -> None:
         return {p.name for p in cmd.parameters}
 
     assert asyncio.run(_exercise()) == {"bps"}
+
+
+# ---------------------------------------------------------------------------
+# Story 10.3 — set-deposit-guide / set-withdraw-guide modals
+# ---------------------------------------------------------------------------
+
+
+def test_admin_cog_registers_set_guide_commands() -> None:
+    bot = _build_bot()
+
+    async def _exercise() -> set[str]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        return {cmd.name for cmd in cog.get_app_commands()}
+
+    names = asyncio.run(_exercise())
+    assert {"admin-set-deposit-guide", "admin-set-withdraw-guide"}.issubset(names)
+
+
+def test_admin_set_guide_commands_take_no_parameters() -> None:
+    """The modal carries the input — slash command surfaces zero args."""
+    bot = _build_bot()
+
+    async def _exercise() -> tuple[int, int]:
+        await bot.add_cog(AdminCog(bot))
+        cog = bot.get_cog("AdminCog")
+        assert cog is not None
+        deposit = next(
+            c for c in cog.get_app_commands() if c.name == "admin-set-deposit-guide"
+        )
+        withdraw = next(
+            c for c in cog.get_app_commands() if c.name == "admin-set-withdraw-guide"
+        )
+        return len(deposit.parameters), len(withdraw.parameters)
+
+    deposit_args, withdraw_args = asyncio.run(_exercise())
+    assert deposit_args == 0
+    assert withdraw_args == 0
