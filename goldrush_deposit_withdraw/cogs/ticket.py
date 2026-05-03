@@ -31,6 +31,8 @@ UX in the meantime.
 
 from __future__ import annotations
 
+import time
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Literal, cast
 
 import discord
@@ -50,6 +52,10 @@ from goldrush_deposit_withdraw.audit_log import (
     audit_ticket_cancelled,
     audit_ticket_claimed,
     audit_ticket_confirmed,
+)
+from goldrush_deposit_withdraw.metrics import (
+    record_claim_duration,
+    record_confirm_duration,
 )
 from goldrush_deposit_withdraw.tickets.orchestration import (
     ConfirmOutcome,
@@ -264,11 +270,18 @@ class TicketCog(commands.Cog):
 
         async def _on_confirmed(modal_interaction: discord.Interaction) -> None:
             assert bot.pool is not None
+            # Story 11.1: time the SECURITY DEFINER call so the
+            # confirm_duration_s histogram reflects real cog latency.
+            confirm_started = time.perf_counter()
             outcome = await confirm_ticket_dispatch(
                 pool=bot.pool,
                 ticket_type=ticket_type,
                 ticket_uid=ticket_uid,
                 cashier_id=modal_interaction.user.id,
+            )
+            record_confirm_duration(
+                ticket_type=ticket_type,
+                seconds=time.perf_counter() - confirm_started,
             )
             if isinstance(outcome, ConfirmOutcome.Success):
                 embed = _build_confirmed_embed(
@@ -299,6 +312,19 @@ class TicketCog(commands.Cog):
                     amount=cast(int, ticket_row["amount"]),
                     new_balance=outcome.new_balance,
                 )
+                # Story 11.1: observe the claim->confirm gap. The
+                # ticket row's claimed_at is the source of truth;
+                # if it's missing (race / unexpected null), skip the
+                # observation rather than crash.
+                claimed_at = ticket_row["claimed_at"]
+                if claimed_at is not None:
+                    delta_s = (
+                        datetime.now(UTC) - cast(datetime, claimed_at)
+                    ).total_seconds()
+                    if delta_s >= 0:
+                        record_claim_duration(
+                            ticket_type=ticket_type, seconds=delta_s
+                        )
                 _log.info(
                     "ticket_confirmed",
                     ticket_uid=ticket_uid,

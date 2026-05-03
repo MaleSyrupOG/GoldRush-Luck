@@ -18,6 +18,14 @@ networks:
     ipam:
       config:
         - subnet: 172.30.0.0/24
+  # Created and managed by the sdr-agentic stack — we attach the bot to
+  # it so Prometheus (running in that network) can scrape /metrics. The
+  # ``external: true`` switch tells compose to use the existing network
+  # instead of creating a new one. Network name confirmed via
+  # ``docker network ls`` on the VPS: ``sdr-agentic_net``.
+  sdr_agentic_observability:
+    external: true
+    name: sdr-agentic_net
 
 volumes:
   goldrush_pgdata:
@@ -69,7 +77,15 @@ services:
     image: goldrush-dw:latest
     container_name: goldrush-dw
     restart: unless-stopped
-    networks: [goldrush_net]
+    networks:
+      goldrush_net: {}
+      # Story 11.1: join the sdr-agentic observability network so
+      # Prometheus can scrape goldrush-dw:9101/metrics. The network is
+      # created by the sdr-agentic stack; ``external: true`` below tells
+      # compose to attach to it rather than create a new one.
+      sdr_agentic_observability: {}
+    expose:
+      - "9101"
     env_file:
       # ENV_DIR defaults to /opt/goldrush/secrets on the VPS. For local dev,
       # export ENV_DIR=/path/to/local/secrets before running docker compose.

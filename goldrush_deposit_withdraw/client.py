@@ -28,12 +28,16 @@ from goldrush_core.db import create_pool
 from goldrush_core.ratelimit import FixedWindowLimiter
 
 from goldrush_deposit_withdraw.cashiers.live_updater import OnlineCashiersUpdater
+from goldrush_deposit_withdraw.metrics import start_metrics_server
 from goldrush_deposit_withdraw.welcome import reconcile_welcome_embeds
 from goldrush_deposit_withdraw.workers.audit_chain_verifier import (
     AuditChainVerifierWorker,
 )
 from goldrush_deposit_withdraw.workers.cashier_idle import CashierIdleWorker
 from goldrush_deposit_withdraw.workers.claim_idle import ClaimIdleWorker
+from goldrush_deposit_withdraw.workers.metrics_refresher import (
+    MetricsRefresherWorker,
+)
 from goldrush_deposit_withdraw.workers.stats_aggregator import StatsAggregatorWorker
 from goldrush_deposit_withdraw.workers.ticket_timeout import TicketTimeoutWorker
 
@@ -77,6 +81,8 @@ class DwBot(commands.Bot):
     _cashier_idle_worker: CashierIdleWorker | None
     _stats_aggregator_worker: StatsAggregatorWorker | None
     _audit_chain_verifier_worker: AuditChainVerifierWorker | None
+    _metrics_refresher_worker: MetricsRefresherWorker | None
+    _metrics_http_server: object | None
 
     def __init__(
         self,
@@ -100,6 +106,8 @@ class DwBot(commands.Bot):
         self._cashier_idle_worker = None
         self._stats_aggregator_worker = None
         self._audit_chain_verifier_worker = None
+        self._metrics_refresher_worker = None
+        self._metrics_http_server = None
         # Rate limiters keyed by command family. Spec: 1 ticket
         # creation per user per 60 s for both /deposit and /withdraw.
         # Other limiters (cashier set-status, /help) can be added by
@@ -259,6 +267,26 @@ class DwBot(commands.Bot):
                     "audit_chain_verifier_worker_failed", error=str(e)
                 )
 
+            # Story 11.1: Prometheus exposition + DB refresher. The
+            # HTTP server is started once per process; the refresher
+            # worker keeps the Gauges fresh on a 30-second cadence.
+            try:
+                if self._metrics_http_server is None:
+                    self._metrics_http_server = start_metrics_server(port=9101)
+            except Exception as e:
+                self._log.exception("metrics_http_server_failed", error=str(e))
+            try:
+                if self._metrics_refresher_worker is None:
+                    self._metrics_refresher_worker = MetricsRefresherWorker(
+                        pool=self.pool,
+                    )
+                    self._metrics_refresher_worker.start()
+                    self._log.info("metrics_refresher_worker_started")
+            except Exception as e:
+                self._log.exception(
+                    "metrics_refresher_worker_failed", error=str(e)
+                )
+
     async def close_pool(self) -> None:
         """Close the DB pool and stop background tasks — used on shutdown.
 
@@ -284,6 +312,15 @@ class DwBot(commands.Bot):
         if self._audit_chain_verifier_worker is not None:
             await self._audit_chain_verifier_worker.stop()
             self._audit_chain_verifier_worker = None
+        if self._metrics_refresher_worker is not None:
+            await self._metrics_refresher_worker.stop()
+            self._metrics_refresher_worker = None
+        if self._metrics_http_server is not None:
+            try:
+                self._metrics_http_server.shutdown()  # type: ignore[attr-defined]
+            except Exception as e:
+                self._log.debug("metrics_http_server_shutdown_swallow", error=str(e))
+            self._metrics_http_server = None
         if self.pool is not None:
             await self.pool.close()
             self.pool = None
