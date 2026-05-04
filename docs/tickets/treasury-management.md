@@ -197,7 +197,81 @@ These rules fire from the Prometheus exposition on port 9101; the routing is on 
 
 ---
 
-## 10. References
+## 10. Luck-side gold flows that touch the treasury (added 2026-05-04)
+
+Once the Luck bot is live, the treasury (`core.balances` row at `discord_id = 0`) is touched by **every bet on every game**. This section documents the Luck-side flows; the D/W-side flows above remain unchanged.
+
+The Luck SDFs that move gold are introduced by migrations 0022-0025 (Story 2.8 of the Luck plan):
+
+### 10.1. `luck.apply_bet` — opening a bet
+
+When a user runs a `/<game>` command, the cog calls `luck.apply_bet(p_discord_id, p_game_name, p_bet_amount, ...)`. Inside one transaction:
+
+```
+user.balance         -= bet_amount
+user.locked_balance  += effective_stake
+user.total_wagered   += bet_amount
+treasury.balance     += commission       (only for blackjack 4.5% / roulette 2.36%; 0 for parametric games)
+active_period.pool   += rake             (1% per Story 2.9 seeds)
+                      OR
+treasury.balance     += rake             (if no active raffle period)
+```
+
+`effective_stake = bet_amount - commission - rake`. The bet's row in `luck.bets` persists `(effective_stake, commission, rake, rake_period_id)` so the resolution flows can act symmetrically without re-reading config.
+
+### 10.2. `luck.resolve_bet` — closing a bet
+
+Three terminal states, three gold movements:
+
+| Status | balance change | locked_balance change | treasury change | Notes |
+|---|---|---|---|---|
+| `resolved_win` | `+= payout` | `-= effective_stake` | `-= (payout - effective_stake)` | Treasury covers payouts above the staked portion |
+| `resolved_loss` | `+= 0` | `-= effective_stake` | `+= effective_stake` | Lost stake routes to the house |
+| `resolved_tie` | `+= effective_stake` | `-= effective_stake` | `+= 0` | House keeps commission + rake (v1 design decision) |
+
+**Conservation invariant**: `delta(SUM(core.balances) + SUM(luck.raffle_periods.pool_amount)) == 0` across every resolve. Pinned in `tests/integration/luck/test_resolve_bet.py`.
+
+### 10.3. `luck.refund_bet` — full unwind for void/error
+
+Exactly inverts `apply_bet`. User gets the full bet back, treasury gives back commission, the bet's `rake_period_id` pool gives back rake (or treasury if rake fell to treasury). `total_wagered` is decremented as if the bet never happened.
+
+### 10.4. What this means for the operator
+
+The treasury balance now has THREE growth sources and TWO drain sources:
+
+**Growth**:
+1. D/W withdraw fees (existing).
+2. Luck bet commissions on rule-based games (blackjack 4.5%, roulette 2.36%).
+3. Luck losing stakes (every `resolved_loss` routes `effective_stake` to treasury).
+
+**Drain**:
+1. Admin sweeps (existing).
+2. Luck winning payouts (every `resolved_win` debits the difference between payout and the staked portion).
+
+So the treasury becomes a working capital pool, not just a profit accumulator. The operator should leave reserves to cover swings — recommend keeping `treasury balance >= 5x typical max payout` before sweeping. The exact policy is operator discretion.
+
+### 10.5. The full reconciliation invariant
+
+In-game guild bank balance ≈ what the operator should hold to honour every promise:
+
+```
+guild_bank_ingame ≈
+    SUM(core.balances WHERE discord_id != 0)        -- user balances + locked
+  + (treasury.balance)                              -- accumulated profit + working capital
+  + SUM(luck.raffle_periods.pool_amount)            -- raffle prize obligations
+  - (gold currently in transit with cashiers)       -- in-flight trades
+```
+
+Any drift between the in-game guild bank and that sum indicates either:
+- An unconfirmed deposit/withdraw still in cashier hands (transient — resolves at confirm)
+- An admin sweep that hasn't been physically pulled from the guild bank yet (an out-of-band step)
+- A reconciliation bug (rare; should fire `DeathRollTreasuryDrop` Alertmanager rule)
+
+The D/W bot's `test_treasury_invariant_holds_under_concurrency` property test verifies the D/W-only invariant. Once Luck ships, an analogous `test_luck_economic_invariant` will cover the Luck-side equivalent (planned for Story 8.x of the Luck plan).
+
+---
+
+## 11. References
 
 - `disputes.md` — the workflow for which treasury withdraw-to-user is the resolution
 - `compliance.md` — retention and forensic requirements
@@ -205,4 +279,5 @@ These rules fire from the Prometheus exposition on port 9101; the routing is on 
 - ADR 0015 (treasury as system account)
 - ADR 0016 (2FA modals for money operations)
 - D/W design spec §6.2 (treasury operations are super-restricted)
-- Migration `0011_dw_treasury.py` (the SDFs)
+- Migration `0011_dw_treasury.py` (the D/W SDFs)
+- Migrations `0022_luck_apply_bet.py` + `0023_luck_resolve_refund_cashout.py` (the Luck-side SDFs that touch the treasury)

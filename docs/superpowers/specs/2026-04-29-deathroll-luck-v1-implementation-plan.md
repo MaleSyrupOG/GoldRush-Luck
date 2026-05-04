@@ -19,19 +19,19 @@
 
 | Field | Value |
 |---|---|
-| **Active phase** | Phase 1 — Foundation. Epic 2 (DB foundation) in progress. |
-| **Active epic** | Epic 2 — Database foundation. Stories 2.1-2.5 inherited from D/W work; Stories 2.6, 2.7, 2.9 closed today; Story 2.8 (SECURITY DEFINER fns) is the next net-new work. |
-| **Active story** | Story 2.8 next — split into 2.8a/b/c/d per spec. |
-| **Last commit** | `8db573b` (Story 2.9 — default game_config + global_config seed values). |
-| **Next milestone** | Story 2.8d closes Epic 2; first playable game (Coinflip — Epic 6.1) on staging is the next user-visible deliverable. |
-| **Overall progress** | 5 / 5 Epic 1 stories done · 8 / 9 Epic 2 stories done (2.8 split into 4 sub-stories pending) |
+| **Active phase** | Phase 2 — Bot skeleton (Epic 4). Phase 1 (Foundation) closed. |
+| **Active epic** | Epic 2 closed. **Epic 3 next** (Core services & models — Pydantic models for the SDF inputs/outputs, asyncpg-side wrappers, exception translation). |
+| **Active story** | Epic 3 starts cold. |
+| **Last commit** | `dab994d` (Story 2.8d — fairness.rotate_user_seed; closes Epic 2). |
+| **Next milestone** | Epic 3 + Epic 4 (bot skeleton); first playable game (Coinflip — Epic 6.1) on staging. |
+| **Overall progress** | 5 / 5 Epic 1 done · 9 / 9 Epic 2 done · 0 / 13 Epic 3-15 pending |
 
 ### Epic-level status
 
 | Epic | Title | Status | Stories Done |
 |---|---|---|---|
 | 1 | Foundation and repo setup | ✅ Done | 5 / 5 |
-| 2 | Database foundation | In Progress (Story 2.8 next) | 8 / 9 |
+| 2 | Database foundation | ✅ Done | 9 / 9 |
 | 3 | Core services & models | Pending | 0 / TBD |
 | 4 | Bot skeleton | Pending | 0 / TBD |
 | 5 | (Phase 2) Bot skeleton consolidation | Pending | 0 / TBD |
@@ -70,7 +70,10 @@ Epic 1's five foundation stories were either built directly during D/W (Stories 
 | **2.6 — Fairness schemas** | ✅ Done 2026-05-04 (`710f404`) | **0019** | 14 integration tests | `fairness.user_seeds` + `fairness.history` (append-only); per-table grants for luck/dw/readonly |
 | **2.7 — Luck schemas (11 tables)** | ✅ Done 2026-05-04 (`e7ee273`) | **0020** | 38 integration tests | game_config / channel_binding / bets / bet_rounds / game_sessions / rate_limit_entries / raffle_periods / raffle_tickets / raffle_draws / leaderboard_snapshot / global_config; raffle_draws append-only |
 | **2.9 — Default game_config + global_config seeds** | ✅ Done 2026-05-04 (`8db573b`) | **0021** | 26 integration tests | 9 games seeded (Flower Poker excluded); 4 global_config keys; idempotent ON CONFLICT DO NOTHING |
-| **2.8 — SECURITY DEFINER fns** (XL — split a/b/c/d) | Pending | 0022-0025 (next) | TDD: concurrency + idempotency + permission boundary | apply_bet / resolve_bet / refund_bet / cashout_mines / consume_rate_token / rotate_user_seed / next_nonce / grant_raffle_tickets |
+| **2.8a — luck.apply_bet** | ✅ Done 2026-05-04 (`dbf439a`) | **0022** | 15 integration tests | Idempotent on (discord_id, idempotency_key); FOR UPDATE on balance row; gold flow with conservation invariant; 6 named exceptions; permission boundary |
+| **2.8b — resolve_bet + refund_bet + cashout_mines** | ✅ Done 2026-05-04 (`95127aa`) | **0023** | 22 integration tests | Adds 4 columns to luck.bets (effective_stake/commission/rake/rake_period_id); 3 SDFs; conservation invariant verified across win/loss/tie/refund/cashout; permission boundary |
+| **2.8c — consume_rate_token + next_nonce + grant_raffle_tickets** | ✅ Done 2026-05-04 (`c48cf35`) | **0024** | 17 integration tests | 3 atomic helpers; concurrency tests for rate-limit (12 parallel → 5 allowed) and nonce (20 parallel → unique values) |
+| **2.8d — fairness.rotate_user_seed** | ✅ Done 2026-05-04 (`dab994d`) | **0025** | 13 integration tests | Commit-reveal lifecycle; first-time bootstrap + subsequent archive-to-history; pgcrypto for CSPRNG seed + sha256 hash; permission boundary |
 
 ### Decision log additions during implementation
 
@@ -84,6 +87,7 @@ Epic 1's five foundation stories were either built directly during D/W (Stories 
 |---|---|
 | 2026-05-04 | Plan resumed after D/W shipped. Epic 1 inheritance from D/W means we start at Epic 2 (DB foundation) for net-new Luck work. |
 | 2026-05-04 | Stories 2.6, 2.7, 2.9 closed in three atomic commits (`710f404`, `e7ee273`, `8db573b`). 78 integration tests for Luck schemas pass (14 + 38 + 26). The Luck conftest at `tests/integration/luck/conftest.py` is independent from the D/W conftest for v1 (two postgres containers per pytest run); a future commit will refactor the shared bootstrap into `tests/integration/conftest.py`. The conftest's `_reset_db` introspects `information_schema` to TRUNCATE only existing tables, making it forward-compat with in-progress migrations; after each TRUNCATE it re-seeds the canonical `luck.game_config` (9 games) + `luck.global_config` (4 keys) so every test starts from production-equivalent state. Real bug found by the integration suite during Story 2.9: SQLAlchemy interpreted the `:` in JSON literal extra_config values as named-bind-parameter placeholders; fix was `sa.text(...).bindparams(...)` with `CAST(:extra AS jsonb)`. Pinned in test `test_blackjack_extra_config` etc. |
+| 2026-05-04 | Story 2.8 closed across 4 atomic commits (`dbf439a` 2.8a, `95127aa` 2.8b, `c48cf35` 2.8c, `dab994d` 2.8d). +67 integration tests (15+22+17+13); total Luck integration suite is now 145 tests (~38s wall clock with two-container fixture). Migration 0023 added 4 columns to `luck.bets` so `resolve_bet`/`refund_bet` are self-contained: `effective_stake`, `commission`, `rake`, `rake_period_id`. The conservation invariant `delta(SUM(balances) + SUM(raffle_pools)) == 0` is verified empirically across every flow (win/loss/tie/refund/cashout). Concurrency tests for `consume_rate_token` (12 parallel → exactly 5 allowed) and `fairness.next_nonce` (20 parallel → 20 unique values) confirm atomicity under load. `fairness.rotate_user_seed` uses pgcrypto's `gen_random_bytes(32)` + `digest('sha256')` (already enabled by migration 0002 for the audit chain). Epic 2 closed; next active is Epic 3 (Core services & models — Pydantic input/output layer). |
 
 ---
 
